@@ -1,0 +1,11 @@
+.venv/
+.env.local
+__pycache__/
+*.egg-info/
+.pytest_cache/
+*.pyc
+data/
+artifacts/smoke/
+logs/
+papers/*.txt
+papers/*.pdf
