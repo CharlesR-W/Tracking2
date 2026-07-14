@@ -12,7 +12,8 @@ def main() -> int:
     html_path = Path(sys.argv[1])
     tab = sys.argv[2] if len(sys.argv) > 2 else "overview"
     width = int(sys.argv[3]) if len(sys.argv) > 3 else 1200
-    drive = f"document.querySelector('[data-tab=\"{tab}\"]').click();"
+    scroll_y = int(sys.argv[4]) if len(sys.argv) > 4 else 0
+    drive = f"document.querySelector('[data-tab=\"{tab}\"]').click();window.scrollTo(0,{scroll_y});"
     inject = f"""<script>
 window.__errs=[];
 window.onerror=(m,s,l,c,e)=>window.__errs.push(String(m));
@@ -22,7 +23,7 @@ document.title='ERRJSON:'+encodeURIComponent(JSON.stringify(window.__errs));}},2
 </script>"""
     probe = Path("/tmp/tracking2-report-probe.html")
     probe.write_text(html_path.read_text().replace("</body>", inject + "</body>"))
-    screenshot = Path(f"/tmp/tracking2-{tab}-{width}.png")
+    screenshot = Path(f"/tmp/tracking2-{tab}-{width}-{scroll_y}.png")
     chrome = [
         "/home/crw/.local/bin/chromium", "--headless", "--no-sandbox", "--disable-gpu",
         f"--window-size={width},1400", "--virtual-time-budget=9000",
@@ -31,7 +32,7 @@ document.title='ERRJSON:'+encodeURIComponent(JSON.stringify(window.__errs));}},2
     dom = subprocess.run(chrome + ["--dump-dom", str(probe)], check=True, capture_output=True, text=True).stdout
     match = re.search(r"<title>ERRJSON:([^<]*)</title>", dom)
     errors = json.loads(urllib.parse.unquote(match.group(1))) if match else ["page did not complete"]
-    print(json.dumps({"tab": tab, "width": width, "errors": errors, "screenshot": str(screenshot)}))
+    print(json.dumps({"tab": tab, "width": width, "scroll_y": scroll_y, "errors": errors, "screenshot": str(screenshot)}))
     return bool(errors)
 
 

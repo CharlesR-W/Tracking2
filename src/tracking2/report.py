@@ -14,8 +14,9 @@ from plotly.offline import get_plotlyjs
 from plotly.subplots import make_subplots
 
 
-COLORS = {"plain": "#0072B2", "residual": "#D55E00", "mean": "#999999", "covariance": "#009E73", "true": "#CC79A7"}
+COLORS = {"plain": "#9ECAE1", "residual": "#08519C", "mean": "#9ECAE1", "covariance": "#4292C6", "true": "#084594"}
 DASHES = {"mean": "dot", "covariance": "dash", "true": "solid"}
+PROFILE_EPOCHS = (1, 5, 20, 30)
 
 
 def estimate(rows: list[dict], metric: str) -> tuple[float, float | None, int]:
@@ -45,7 +46,7 @@ def plot_html(figure: go.Figure, div_id: str) -> str:
 
 def experiment_a_figure(rows: list[dict]) -> go.Figure:
     architectures = sorted({row["architecture"] for row in rows})
-    facet_titles = ["Residual stream" if architecture == "residual" else "Optional plain control" for architecture in architectures]
+    facet_titles = ["CIFAR-10 model" if architecture == "residual" else "Optional plain control" for architecture in architectures]
     figure = make_subplots(rows=1, cols=len(architectures), shared_yaxes=True, subplot_titles=facet_titles)
     for column, architecture in enumerate(architectures, 1):
         for train_distribution in ("mean", "covariance", "true"):
@@ -116,11 +117,54 @@ def experiment_a_reverse_figure(rows: list[dict]) -> go.Figure:
     return figure
 
 
+def cifar_context_figure(rows: list[dict]) -> go.Figure:
+    selected = [
+        row for row in rows
+        if row["architecture"] == "residual" and row["train_distribution"] == "true"
+        and row["test_distribution"] == "true"
+    ]
+    by_epoch = {
+        epoch: [row for row in selected if row["epoch"] == epoch]
+        for epoch in sorted({row["epoch"] for row in selected})
+    }
+    estimates = [estimate(group, "loss") for group in by_epoch.values()]
+    epochs = list(by_epoch)
+    means = [value[0] for value in estimates]
+    figure = go.Figure()
+    figure.add_trace(go.Scatter(
+        x=epochs, y=means, mode="lines+markers", name="all B checkpoints",
+        line={"color": "#4292C6", "width": 2.5}, marker={"size": 7},
+        error_y={"type": "data", "array": [value[1] or 0 for value in estimates], "visible": True, "thickness": 1.2},
+        hovertemplate="epoch %{x}<br>true-CIFAR test CE = %{y:.4f}<extra></extra>",
+    ))
+    profile_epochs = [epoch for epoch in epochs if epoch in PROFILE_EPOCHS]
+    figure.add_trace(go.Scatter(
+        x=profile_epochs, y=[means[epochs.index(epoch)] for epoch in profile_epochs],
+        mode="markers", name="shown in depth profiles",
+        marker={"size": 11, "color": "#084594", "symbol": "circle-open", "line": {"width": 2}},
+        hovertemplate="depth-profile epoch %{x}<br>true-CIFAR test CE = %{y:.4f}<extra></extra>",
+    ))
+    figure.update_layout(
+        title={"text": "What is the model’s actual true-CIFAR loss at the B checkpoints?", "x": 0.0},
+        height=450, margin={"l": 75, "r": 25, "t": 100, "b": 70}, template="plotly_white",
+        legend={"orientation": "h", "x": 0.5, "xanchor": "center", "y": -0.2},
+    )
+    figure.update_xaxes(title_text="$t_i$ · training epoch", tickmode="array", tickvals=epochs)
+    figure.update_yaxes(title_text="$L_{\\mathrm{true}\\mid\\mathrm{true}}(t_i)$ · test cross-entropy")
+    figure.add_annotation(
+        xref="paper", yref="paper", x=0, y=1.14, xanchor="left", showarrow=False,
+        text=wrap_annotation("The same true-trained network used in B, evaluated on the true CIFAR-10 test set. Lower is better."),
+        font={"size": 12, "color": "#6d6963"},
+    )
+    return figure
+
+
 def tracking_figure(rows: list[dict], metric: str, title: str, y_title: str) -> go.Figure:
     architectures = sorted({row["architecture"] for row in rows})
-    facet_titles = ["Residual stream" if architecture == "residual" else "Optional plain control" for architecture in architectures]
+    facet_titles = ["CIFAR-10 model" if architecture == "residual" else "Optional plain control" for architecture in architectures]
     figure = make_subplots(rows=1, cols=len(architectures), shared_yaxes=True, subplot_titles=facet_titles)
-    epochs = sorted({row["epoch"] for row in rows})
+    available_epochs = {row["epoch"] for row in rows}
+    epochs = [epoch for epoch in PROFILE_EPOCHS if epoch in available_epochs]
     subtitles = {
         "head_regret": "Held-out loss recovered by refitting only the suffix while holding the current representation fixed. Positive means the refit helped.",
         "tracking_demand": "Penalty for applying the previous checkpoint’s refitted suffix to the current representation. Zero means no tracking burden.",
@@ -137,7 +181,7 @@ def tracking_figure(rows: list[dict], metric: str, title: str, y_title: str) -> 
         "tracking_alignment": "$\\cos(\\Delta b_i,q_{\\mathrm{track}})$",
         "resolving_alignment": "$\\cos(\\Delta b_i,q_{\\mathrm{resolve}})$",
     }
-    palette = ["#56B4E9", "#009E73", "#E69F00", "#D55E00", "#CC79A7", "#000000"]
+    palette = ["#C6DBEF", "#6BAED6", "#2171B5", "#08306B"]
     for column, architecture in enumerate(architectures, 1):
         for index, epoch in enumerate(epochs):
             selected = [row for row in rows if row["architecture"] == architecture and row["epoch"] == epoch and row.get(metric) is not None]
@@ -174,6 +218,55 @@ def tracking_figure(rows: list[dict], metric: str, title: str, y_title: str) -> 
     return figure
 
 
+def time_comparison_figure(
+    rows: list[dict],
+    cuts: tuple[int, ...],
+    metrics: tuple[tuple[str, str, str, str], ...],
+    title: str,
+    y_title: str,
+    div_kind: str,
+) -> go.Figure:
+    """Compare the same quantities over training at fixed early/late cuts."""
+    cut_labels = {cuts[0]: f"Early cut $\\ell={cuts[0]}$", cuts[-1]: f"Late cut $\\ell={cuts[-1]}$"}
+    figure = make_subplots(
+        rows=1, cols=len(cuts), shared_yaxes=True,
+        subplot_titles=[cut_labels.get(cut, f"Cut $\\ell={cut}$") for cut in cuts],
+    )
+    for column, cut in enumerate(cuts, 1):
+        for metric, label, color, dash in metrics:
+            selected = [row for row in rows if row["cut"] == cut and row.get(metric) is not None]
+            by_epoch = {
+                epoch: [row for row in selected if row["epoch"] == epoch]
+                for epoch in sorted({row["epoch"] for row in selected})
+            }
+            estimates = [estimate(group, metric) for group in by_epoch.values()]
+            figure.add_trace(go.Scatter(
+                x=list(by_epoch), y=[value[0] for value in estimates], mode="lines+markers",
+                error_y={"type": "data", "array": [value[1] or 0 for value in estimates], "visible": any(value[1] is not None for value in estimates), "thickness": 1.2},
+                name=label, legendgroup=metric, showlegend=column == 1,
+                line={"color": color, "dash": dash, "width": 2.3},
+                marker={"size": 7},
+                hovertemplate=f"cut {cut} · epoch %{{x}}<br>{label} = %{{y:.4g}}<extra></extra>",
+            ), row=1, col=column)
+    figure.update_layout(
+        title={"text": title, "x": 0.0}, height=500,
+        margin={"l": 75, "r": 25, "t": 105, "b": 75}, template="plotly_white",
+        legend={"orientation": "h", "x": 0.5, "xanchor": "center", "y": -0.18},
+    )
+    figure.update_xaxes(title_text="$t_i$ · training epoch", tickmode="array", tickvals=sorted({row["epoch"] for row in rows}))
+    figure.update_yaxes(title_text=y_title, row=1, col=1)
+    figure.add_hline(y=0, line={"color": "#6d6963", "dash": "dot", "width": 1})
+    figure.add_annotation(
+        xref="paper", yref="paper", x=0, y=1.14, xanchor="left", showarrow=False,
+        text=wrap_annotation(
+            f"The same {div_kind} is followed through training at the first and last residual-stream cuts. "
+            "Points are seed means; bars are two-sided 95% t intervals."
+        ),
+        font={"size": 12, "color": "#6d6963"},
+    )
+    return figure
+
+
 def fisher_figure(rows: list[dict]) -> go.Figure:
     figure = tracking_figure(
         rows,
@@ -181,7 +274,22 @@ def fisher_figure(rows: list[dict]) -> go.Figure:
         "How much prefix sensitivity can the suffix compensate?",
         "$C_\\ell(t_i)$ · compensable fraction",
     )
-    figure.update_yaxes(range=[0, 1], tickformat=".0%")
+    profile_rows = [row for row in rows if row["epoch"] in PROFILE_EPOCHS and row.get("compensable_fraction") is not None]
+    intervals = []
+    for epoch in PROFILE_EPOCHS:
+        for cut in sorted({row["cut"] for row in profile_rows}):
+            group = [row for row in profile_rows if row["epoch"] == epoch and row["cut"] == cut]
+            if group:
+                mean, half_width, _ = estimate(group, "compensable_fraction")
+                intervals.extend([mean - (half_width or 0), mean + (half_width or 0)])
+    lower = max(0.0, min(intervals) - 0.02)
+    upper = min(1.0, max(intervals) + 0.02)
+    figure.update_yaxes(range=[lower, upper], tickformat=".0%")
+    figure.add_annotation(
+        xref="paper", yref="paper", x=1, y=0, xanchor="right", yanchor="bottom",
+        text=f"Zoomed y-axis: {lower:.0%}–{upper:.0%}", showarrow=False,
+        font={"size": 11, "color": "#a43d2f"}, bgcolor="rgba(255,255,255,.8)",
+    )
     return figure
 
 
@@ -203,14 +311,34 @@ def build_report(results_path: Path, output_path: Path, spec_path: Path) -> None
     # do not turn the report into an architecture-comparison dashboard.
     a_rows = [row for row in payload["experiment_a"] if row["architecture"] == "residual"]
     b_rows = [row for row in payload["experiment_b"] if row["architecture"] == "residual"]
+    fixed_cuts = (min(row["cut"] for row in b_rows), max(row["cut"] for row in b_rows))
     figures = {
         "a": plot_html(experiment_a_figure(a_rows), "plot-a"),
         "a_reverse": plot_html(experiment_a_reverse_figure(a_rows), "plot-a-reverse"),
+        "cifar_context": plot_html(cifar_context_figure(a_rows), "plot-cifar-context"),
         "regret": plot_html(tracking_figure(b_rows, "head_regret", "How much held-out loss does suffix refitting recover?", "$\\Delta L_{\\mathrm{resolve},\\ell}(t_i)$ · test CE"), "plot-regret"),
         "tracking": plot_html(tracking_figure(b_rows, "tracking_demand", "How costly is it to reuse the previous optimal suffix?", "$\\Delta L_{\\mathrm{track},\\ell}(t_i)$ · test CE"), "plot-tracking"),
-        "drift": plot_html(tracking_figure(b_rows, "relative_representation_drift", "How far does the residual-stream interface move?", "$\\Delta_{\\mathrm{rep},\\ell}(t_i)$ · relative $L^2$ drift"), "plot-drift"),
+        "drift": plot_html(tracking_figure(b_rows, "relative_representation_drift", "How far does the cut-layer representation move?", "$\\Delta_{\\mathrm{rep},\\ell}(t_i)$ · relative $L^2$ drift"), "plot-drift"),
+        "demand_time": plot_html(time_comparison_figure(
+            b_rows, fixed_cuts,
+            (
+                ("head_regret", "$\\Delta L_{\\mathrm{resolve}}$", "#9ECAE1", "solid"),
+                ("tracking_demand", "$\\Delta L_{\\mathrm{track}}$", "#08519C", "dash"),
+            ),
+            "How do resolving and tracking demands evolve at fixed cuts?",
+            "$\\Delta L(t_i)$ · test cross-entropy", "loss decomposition",
+        ), "plot-demand-time"),
         "track_align": plot_html(tracking_figure(b_rows, "tracking_alignment", "Does the suffix update follow the moving optimum?", "$A_{\\mathrm{track},\\ell}(t_i)$ · cosine alignment"), "plot-track-align"),
         "resolve_align": plot_html(tracking_figure(b_rows, "resolving_alignment", "Does the suffix update close its existing optimum gap?", "$A_{\\mathrm{resolve},\\ell}(t_i)$ · cosine alignment"), "plot-resolve-align"),
+        "alignment_time": plot_html(time_comparison_figure(
+            b_rows, fixed_cuts,
+            (
+                ("tracking_alignment", "$A_{\\mathrm{track}}$", "#08519C", "solid"),
+                ("resolving_alignment", "$A_{\\mathrm{resolve}}$", "#9ECAE1", "dash"),
+            ),
+            "Which direction does each fixed-cut suffix update follow over time?",
+            "$A_{k,\\ell}(t_i)$ · cosine alignment", "update-direction alignment",
+        ), "plot-alignment-time"),
         "fisher": plot_html(fisher_figure(b_rows), "plot-fisher"),
     }
     config_rows = "".join(f"<tr><th>{html.escape(str(k))}</th><td>{html.escape(str(v))}</td></tr>" for k, v in payload["config"].items())
@@ -273,12 +401,17 @@ def build_report(results_path: Path, output_path: Path, spec_path: Path) -> None
 <div class="section"><h2>Decisive contrasts</h2><p><b>Distributional progression:</b> later improvement on true data after covariance-only training suggests structure beyond class means/covariances becomes useful. <b>Tracking with depth:</b> tracking demand larger than suffix refit gain suggests downstream computation is spending more of its local adaptation budget following a moving interface than resolving the current one. <b>Compensability:</b> a larger Fisher Schur fraction means more prefix sensitivity can be locally absorbed downstream.</p></div></section>
 <section id="a" class="panel"><div class="section"><h2>A · Which retained statistics support true-distribution performance?</h2><div class="equation">$$L_{{s\mid r}}(t)=\mathbb E_{{(x,y)\sim P_s}}\!\left[-\log p_{{\theta_r(t)}}(y\mid x)\right]$$</div><p><b>Plotted object.</b> The residual-network parameters $\theta_r(t)$ are trained on distribution $P_r$ and evaluated on $P_s$. The first slice fixes $s=\mathrm{{true}}$ and varies the training distribution; the second fixes $r=\mathrm{{true}}$ and varies the evaluation distribution. Lower is better.</p><div class="guide"><b>Interpretation guide.</b> Early improvement after covariance-surrogate training supports early use of second-order structure. A later separation favoring true-data training supports subsequent use of unmatched structure. Earlier reduction of $L_{{r\mid\mathrm{{true}}}}$ for simpler surrogates would be the complementary “progressive resolution” signature.</div>{figures['a']}{figures['a_reverse']}<p><b>Caveat:</b> “mean” is a class-mean plus isotropic-nuisance proxy; “covariance” is Gaussian matching in the fitted PCA space. Neither deletes literal pixel cumulants.</p></div></section>
 <section id="b" class="panel"><div class="section"><h2>B · Resolving versus tracking at each cut</h2><p>At cut $\ell$, write $f_t=\psi_t^\ell\circ\phi_t^\ell$. The finite refit protocol defines $\widehat\psi_t^{{*,\ell}}$ by freezing $\phi_t^\ell$, warm-starting from $\psi_t^\ell$, and optimizing only the suffix.</p><div class="equation">$$\begin{{aligned}}\Delta L_{{\mathrm{{resolve}},\ell}}(t_i)&=L(\phi_{{t_i}}^\ell,\psi_{{t_i}}^\ell)-L(\phi_{{t_i}}^\ell,\widehat\psi_{{t_i}}^{{*,\ell}}),\\[2pt]\Delta L_{{\mathrm{{track}},\ell}}(t_i)&=L(\phi_{{t_i}}^\ell,\widehat\psi_{{t_{{i-1}}}}^{{*,\ell}})-L(\phi_{{t_i}}^\ell,\widehat\psi_{{t_i}}^{{*,\ell}}),\\[2pt]\Delta_{{\mathrm{{rep}},\ell}}(t_i)&=\frac{{\|\phi_{{t_i}}^\ell(X)-\phi_{{t_{{i-1}}}}^\ell(X)\|_2}}{{\|\phi_{{t_{{i-1}}}}^\ell(X)\|_2}}.
-\end{{aligned}}$$</div><p><b>Plotted objects.</b> $\Delta L_{{\mathrm{{resolve}},\ell}}$ is signed held-out loss recovered by suffix refitting; $\Delta L_{{\mathrm{{track}},\ell}}$ is the penalty from using the previous checkpoint’s refitted suffix on the current representation; $\Delta_{{\mathrm{{rep}},\ell}}$ is relative representation movement. The ideal resolving gap is nonnegative, but its finite held-out estimate can be negative.</p><div class="guide"><b>Interpretation guide.</b> A larger positive resolving loss means more performance remains available at fixed representation. A larger tracking loss means more downstream adaptation is required solely because the representation moved.</div>{figures['regret']}{figures['tracking']}{figures['drift']}</div><div class="section"><h2>Update-direction decomposition</h2><div class="equation">$$\begin{{aligned}}\Delta b_i&=b_i-b_{{i-1}},\\q_{{\mathrm{{track}},i}}&=\widehat b_i^*-\widehat b_{{i-1}}^*,\\q_{{\mathrm{{resolve}},i}}&=\widehat b_{{i-1}}^*-b_{{i-1}},\\A_{{k,\ell}}(t_i)&=\frac{{\langle\Delta b_i,q_{{k,i}}\rangle}}{{\|\Delta b_i\|\,\|q_{{k,i}}\|}},\qquad k\in\{{\mathrm{{track}},\mathrm{{resolve}}\}}.
-\end{{aligned}}$$</div><p><b>What the dot products mean.</b> Tracking alignment asks whether the actual suffix update follows movement of the refitted optimum. Resolving alignment asks whether it points toward the optimum that existed at the start of the interval. These directions are generally non-orthogonal, so the artifact also records their joint two-vector regression coefficients and explained fraction. The current plots use the Euclidean parameter metric; a Fisher-metric dot product is a useful robustness check.</p>{figures['track_align']}{figures['resolve_align']}</div><div class="section"><h2>Empirical-Fisher compensation</h2><div class="equation">$$\begin{{aligned}}F&=\begin{{pmatrix}}F_{{aa}}&F_{{ab}}\\F_{{ba}}&F_{{bb}}\end{{pmatrix}},\\[2pt]F_{{\mathrm{{eff}},a}}&=F_{{aa}}-F_{{ab}}(F_{{bb}}+\gamma I)^{{-1}}F_{{ba}},\\[2pt]C_\ell&=1-\frac{{\operatorname{{tr}}F_{{\mathrm{{eff}},a}}}}{{\operatorname{{tr}}F_{{aa}}}}.
-\end{{aligned}}$$</div><p><b>Plotted object.</b> $a$ denotes parameters before cut $\ell$, $b$ the suffix parameters, and $C_\ell$ the fraction of sampled prefix Fisher sensitivity locally absorbable by the suffix. Here $F$ is the per-example empirical Fisher and $\gamma=0.1\,\operatorname{{tr}}(K_b)/m$, where $K_b=G_bG_b^\top$ is the suffix sample-gradient Gram matrix for $m$ examples.</p><div class="guide"><b>Interpretation guide.</b> A larger compensable fraction means more prefix output sensitivity lies in directions that downstream parameters can locally absorb. It is a ridge-dependent, low-rank Schur diagnostic, not a complete definition of plasticity.</div>{figures['fisher']}</div></section>
+\end{{aligned}}$$</div><p><b>Plotted objects.</b> $\Delta L_{{\mathrm{{resolve}},\ell}}$ is signed held-out loss recovered by suffix refitting; $\Delta L_{{\mathrm{{track}},\ell}}$ is the penalty from using the previous checkpoint’s refitted suffix on the current representation; $\Delta_{{\mathrm{{rep}},\ell}}$ is relative representation movement. The ideal resolving gap is nonnegative, but its finite held-out estimate can be negative.</p><div class="guide"><b>Interpretation guide.</b> A larger positive resolving loss means more performance remains available at fixed representation. A larger tracking loss means more downstream adaptation is required solely because the representation moved.</div><h2>Training-loss context</h2><p>This is the ordinary true-CIFAR test loss of the same model at every checkpoint where B was measured.</p>{figures['cifar_context']}<p><b>Depth profiles.</b> These show only $t_i\in\{{1,5,20,30\}}$ to make the cross-layer comparison legible; color runs from light blue (early) to dark blue (late).</p>{figures['regret']}{figures['tracking']}{figures['drift']}<h2>Fixed-cut trajectories</h2><p>This complementary view fixes the first and last residual-stream cuts and compares resolving with tracking over all measured checkpoints.</p>{figures['demand_time']}</div><div class="section"><h2>Update-direction decomposition</h2><div class="equation">$$\begin{{aligned}}\Delta b_i&=b_i-b_{{i-1}},\\q_{{\mathrm{{track}},i}}&=\widehat b_i^*-\widehat b_{{i-1}}^*,\\q_{{\mathrm{{resolve}},i}}&=\widehat b_{{i-1}}^*-b_{{i-1}},\\A_{{k,\ell}}(t_i)&=\frac{{\langle\Delta b_i,q_{{k,i}}\rangle}}{{\|\Delta b_i\|\,\|q_{{k,i}}\|}},\qquad k\in\{{\mathrm{{track}},\mathrm{{resolve}}\}}.
+\end{{aligned}}$$</div><p><b>Notation in plain language.</b> $b_i$ is the vector of all suffix weights actually present at checkpoint $t_i$; $\widehat b_i^*$ is the suffix obtained by freezing the representation at that checkpoint and refitting the suffix. Thus $\Delta b_i$ is the update the network really made. $A_{{\mathrm{{track}},\ell}}$ is simply the cosine of the angle between that real update and the direction in which the refitted optimum moved. It is $+1$ for perfect tracking, $0$ for no directional relation, and $-1$ for movement in the opposite direction.</p><p><b>What the dot products mean.</b> Tracking alignment asks whether the actual suffix update follows movement of the refitted optimum. Resolving alignment asks whether it points toward the optimum that existed at the start of the interval. These directions are generally non-orthogonal, so the artifact also records their joint two-vector regression coefficients and explained fraction. The current plots use the Euclidean parameter metric; a Fisher-metric dot product is a useful robustness check.</p>{figures['track_align']}{figures['resolve_align']}<h2>Fixed-cut alignment trajectories</h2>{figures['alignment_time']}</div><div class="section"><h2>Empirical-Fisher compensation</h2><div class="equation">$$\begin{{aligned}}F&=\begin{{pmatrix}}F_{{aa}}&F_{{ab}}\\F_{{ba}}&F_{{bb}}\end{{pmatrix}},\\[2pt]F_{{\mathrm{{eff}},a}}&=F_{{aa}}-F_{{ab}}(F_{{bb}}+\gamma I)^{{-1}}F_{{ba}},\\[2pt]C_\ell&=1-\frac{{\operatorname{{tr}}F_{{\mathrm{{eff}},a}}}}{{\operatorname{{tr}}F_{{aa}}}}.
+\end{{aligned}}$$</div><p><b>Block notation.</b> Here $a$ means every parameter before cut $\ell$, while $b$ means every parameter after the cut—the same suffix-weight vector denoted $b_i$ at checkpoint $t_i$. $F_{{aa}}$ measures prefix sensitivity with the suffix held fixed; the Schur term subtracts sensitivity that a local suffix adjustment can absorb. $C_\ell$ is the resulting absorbable fraction.</p><p><b>Why the ridge is present.</b> With only $m=32$ per-example gradients, $F_{{bb}}$ is low-rank and cannot generally be inverted. The ridge $\gamma I$, with $\gamma=0.1\,\operatorname{{tr}}(K_b)/m$ and $K_b=G_bG_b^\top$, makes the finite-sample inverse stable. It is not mathematically essential: one could use $F_{{bb}}^\dagger$ instead, but that zero-ridge pseudoinverse is much more sensitive to poorly estimated small singular directions. Consequently $C_\ell$ should be read as a ridge-dependent diagnostic, and a $\gamma$ sensitivity sweep is the appropriate robustness check.</p><div class="guide"><b>Interpretation guide.</b> A larger compensable fraction means more prefix output sensitivity lies in directions that downstream parameters can locally absorb. The y-axis is zoomed to the observed range and does not begin at zero.</div>{figures['fisher']}</div></section>
 <section id="spec" class="panel"><div class="section"><h2>Embedded design specification</h2>{render_spec(spec_path.read_text())}</div></section>
 <section id="provenance" class="panel"><div class="section"><h2>Run provenance</h2><p>Artifact: {html.escape(str(results_path))}<br>Device: {html.escape(str(payload['device']))}<br>Independent seeds: {len(seeds)} ({html.escape(str(seeds))})<br>Aggregate GPU runtime: {payload['runtime_seconds']:.1f} seconds</p><table>{config_rows}</table><p>Points are seed means; error bars are two-sided 95% Student-t intervals across independent seeds. Plotly, MathJax, the measured data, and the specification are embedded for offline use.</p></div></section>
 </main><script>document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{{document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('.panel').forEach(x=>x.classList.toggle('active',x.id===b.dataset.tab));window.dispatchEvent(new Event('resize'));if(window.MathJax?.typesetPromise) MathJax.typesetPromise();}});</script></body></html>"""
+    document = document.replace(
+        "This is the ordinary true-CIFAR test loss of the same model at every checkpoint where B was measured.",
+        "This is the ordinary true-CIFAR test loss of the same model at every checkpoint where B was measured. "
+        "It requires no new run; a dense per-epoch curve between these checkpoints would require additional logged evaluations.",
+    )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(document)
 
