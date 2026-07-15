@@ -89,7 +89,7 @@ def parquet_arrays(path: Path, limit: int) -> tuple[np.ndarray, np.ndarray]:
     return images, labels
 
 
-def prepare_datasets(config: Config) -> dict[str, dict[str, Dataset]]:
+def prepare_true_datasets(config: Config) -> dict[str, Dataset]:
     if config.fake_data:
         train_base = FakeData(max(config.train_size, 200), image_size=(3, 32, 32), num_classes=10, transform=ToTensor(), random_offset=0)
         test_base = FakeData(max(config.test_size, 100), image_size=(3, 32, 32), num_classes=10, transform=ToTensor(), random_offset=10000)
@@ -103,13 +103,22 @@ def prepare_datasets(config: Config) -> dict[str, dict[str, Dataset]]:
         test_base = CIFAR10(config.data_root, train=False, download=True, transform=ToTensor())
         train_images, train_labels = dataset_arrays(train_base, config.train_size)
         test_images, test_labels = dataset_arrays(test_base, config.test_size)
+    return {"train": ArrayDataset(train_images, train_labels), "test": ArrayDataset(test_images, test_labels)}
+
+
+def prepare_datasets(config: Config) -> dict[str, dict[str, Dataset]]:
+    true_datasets = prepare_true_datasets(config)
+    train_images = true_datasets["train"].images.numpy()
+    train_labels = true_datasets["train"].labels.numpy()
+    test_images = true_datasets["test"].images.numpy()
+    test_labels = true_datasets["test"].labels.numpy()
     fit_count = min(config.pca_fit_size, len(train_images))
     surrogate = fit_pca_surrogate(
         train_images[:fit_count], train_labels[:fit_count],
         min(config.pca_components, fit_count - 1, train_images.shape[1] * 32 * 32), config.seed,
     )
     result: dict[str, dict[str, Dataset]] = {
-        "true": {"train": ArrayDataset(train_images, train_labels), "test": ArrayDataset(test_images, test_labels)}
+        "true": true_datasets
     }
     for offset, kind in enumerate(("mean", "covariance"), start=1):
         result[kind] = {

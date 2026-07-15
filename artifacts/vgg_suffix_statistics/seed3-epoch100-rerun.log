@@ -1,0 +1,9 @@
+[slice] cut=7:stage3.conv4 condition=native
+[slice] cut=7:stage3.conv4 condition=reset0
+[slice] cut=8:stage4.conv1 condition=native
+[slice] cut=8:stage4.conv1 condition=reset0
+[slice] cut=9:stage4.conv2 condition=native
+[slice] cut=9:stage4.conv2 condition=reset0
+[slice] cut=13:stage5.conv2 condition=native
+[slice] cut=13:stage5.conv2 condition=reset0
+[done] artifacts/vgg_suffix_statistics/seed3-epoch100/vgg_suffix_statistics.json

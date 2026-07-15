@@ -1,8 +1,12 @@
 # Tracking statistical structure through a deep network
 
-Status: Experiments A and B implemented on CIFAR-10 with a residual CNN. A
-five-seed confirmatory battery (full 50,000/10,000 split, 30 epochs) is the
-current measured artifact; the sinusoidal branch remains deferred.
+Status: Experiment A is implemented on CIFAR-10. Experiment B is being
+redesigned around a frozen-prefix activation-statistics battery; the existing
+five-seed moving-optimum artifact is supporting evidence, not the main result. A measured seed-0
+VGG-19+BatchNorm critical-module gate reached 90.73% test accuracy at epoch 40
+and found a sharp checkpoint-0 reset boundary between `stage4.conv1` and
+`stage4.conv2`; a five-seed, 100-epoch criticality/recovery battery is running.
+The sinusoidal branch remains deferred.
 
 ## 1. Core question
 
@@ -126,7 +130,177 @@ Validate every surrogate with held-out estimates of the constrained moments,
 unconstrained moments, support/range, class balance, and a discriminator trained to
 separate surrogate from real data.
 
-## 5. Experiment B: moving-optimum decomposition at a layer cut
+## 5. Experiment B: which statistics of a frozen representation can the suffix use?
+
+The primary Part B question now mirrors Experiment A at an internal interface.
+At checkpoint (t) and cut (ell), freeze
+
+$$
+z=\phi_{t,\ell}(x), \qquad f_t(x)=\psi_{t,\ell}(z).
+$$
+
+Fit three class-conditional distributions to training representations (z):
+
+- **true:** the empirical frozen-prefix activations;
+- **mean:** class means plus class-independent isotropic nuisance in a declared
+  PCA subspace;
+- **Gaussian:** class-conditional means and covariances in that same PCA
+  subspace, sampled from a Gaussian maximum-entropy model.
+
+Warm-start three identical suffix copies from the checkpoint suffix
+(\psi_{t,\ell}). Relax each copy while holding the prefix fixed, using one of
+the three activation distributions. Cross-evaluate every relaxed suffix on
+every held-out activation distribution:
+
+$$
+M^{(t,\ell)}_{s,r}(u)=
+\mathbb E_{(z,y)\sim Q^{(t,\ell)}_s}
+\ell\!\left(\psi^{(u)}_{t,\ell;r}(z),y\right),
+\qquad r,s\in\{\text{mean},\text{Gaussian},\text{true}\}.
+$$
+
+Here (r) is the activation distribution used to relax the suffix, (s) is
+the evaluation distribution, and (u) is suffix-relaxation time. The full
+matrix is required: a Gaussian-trained suffix doing well on Gaussian samples
+alone could merely show that the surrogate task is easier.
+
+The decisive statistic is true-activation excess loss,
+
+$$
+\Delta_{\mathrm{true}\mid r}^{(t,\ell)}(u)
+=M^{(t,\ell)}_{\mathrm{true},r}(u)
+-M^{(t,\ell)}_{\mathrm{true},\mathrm{true}}(u).
+$$
+
+Small Gaussian excess loss together with materially larger mean-only excess
+loss supports the bounded claim that, at that checkpoint and cut, second-order
+class-conditional activation statistics are approximately sufficient for the
+suffix under this relaxation protocol. It does **not** show that the suffix
+uses no higher-order statistic, nor that the PCA-truncated Gaussian preserves
+all second-order structure in the full activation space.
+
+### Pilot slice and controls
+
+The first measured slices are **epochs 0, 1, and 5 at cut 3**, residual CNN,
+seed 0. Report each relaxation trajectory and final 3x3 loss matrix as aligned
+triptychs with shared axes and color scale. Before interpreting them:
+
+1. verify held-out class-mean and class-covariance errors for both surrogates;
+2. report PCA dimension and explained variance;
+3. use identical labels, sample counts, minibatch order, optimizer, learning
+   rate, update count, and warm start across the three suffixes;
+4. repeat surrogate sampling at least three times before claiming sufficiency;
+5. compare warm-started relaxation with a suffix reinitialization control if
+   the pilot is positive, to distinguish retained suffix knowledge from what
+   can be relearned from the surrogate.
+
+Epoch 10 is the next time slice only after these pilots are legible. Time slices
+must remain separate facets with shared axes, not overlaid into one crowded plot.
+
+This design adapts the maximum-entropy evaluation logic of Belrose et al. to an
+internal representation, but adds suffix relaxation and a train/evaluation
+cross-matrix. Belrose et al. evaluate checkpoints on low-order maximum-entropy
+inputs; they do not perform this frozen-prefix suffix-refit experiment.
+
+### Supporting moving-optimum diagnostics
+
+Keep the existing suffix update-direction dot products as a secondary view:
+they ask whether the actual suffix update follows movement of the refitted
+optimum or closes a pre-existing gap. The earlier finite refit/tracking losses
+may remain in audit/provenance, but they no longer define Part B's headline.
+
+The empirical-Fisher/Schur-complement branch is **on hold** and should not appear
+in the active dashboard evidence chain. Its artifacts can remain archived.
+
+## Experiment C: VGG critical modules and activation statistics
+
+Part C is deliberately separate from the changing Part B dashboard. It uses
+VGG-19+BatchNorm as a positive-control system in which a sharp critical-module
+boundary is already observed, then applies Part B's representation-surrogate
+logic at that boundary. A convolution and its BatchNorm affine parameters and
+running state are one atomic module throughout.
+
+### C1. Criticality and recovery atlas — implemented / running
+
+For avoidance of ambiguity, this follows the paper's post-training probe. Each
+cell begins from the final model and performs
+
+$$
+\theta_m^T \leftarrow \theta_m^\tau,
+$$
+
+with every other module held at its final value. It is not the different
+experiment that starts from checkpoint-$\tau$ and resets a layer at that time.
+Consequently the heatmap measures compatibility with the final co-adapted
+network and need not be monotone in $\tau$. The paper itself notes cases where
+checkpoint 1 is more destructive than checkpoint 0 in normalization/weight-
+decay variants. Our VGG+BatchNorm result should be described as a positive
+control variant, not as an exact replication of the paper's normalization-free
+headline VGG experiment.
+
+**Rerun TODO — match the paper more closely.** If C1 is rerun, the primary
+replication should use the paper's normalization-free VGG architecture and
+paper-matched training protocol: SGD with momentum 0.9, 100 epochs, batch size
+128, and a piecewise-constant learning rate multiplied by 0.2 at epochs 30, 60,
+and 90. Preserve the paper's post-training intervention exactly: replace one
+parametric layer of the final model with its checkpoint-$\tau$ value or a fresh
+draw, leave every other layer final, and perform no fine-tuning for the primary
+heatmap. Match the paper's layer boundaries rather than folding BatchNorm into
+the convolution. Report the current VGG+BatchNorm Conv+BN-atomic battery only as
+a separate robustness variant, not as the headline replication.
+
+Before interpreting moving-optimum quantities, establish a positive-control
+layerwise effect comparable to Zhang, Bengio, and Singer, *Are All Layers Created
+Equal?* (JMLR 2022). Train a CIFAR-sized VGG-19+BatchNorm and retain
+checkpoints at initialization and throughout training. For each of its 19
+parametric modules, replace only that module in the final model with either a
+fresh random draw or its value from an earlier checkpoint, with no immediate
+fine-tuning. The primary Panel B view is a module-by-source heatmap of held-out
+test-error increase relative to the intact final model.
+
+Then freeze the transplanted module and everything below it and refit only the
+downstream suffix. Report the recovery curve, fraction of damage recovered, and
+steps to fixed recovery fractions. This distinguishes modules that are
+immediately critical but downstream-trackable from modules whose learned map
+cannot be compensated by the suffix. The confirmatory battery uses five
+independent 100-epoch seeds and saves initialization, intermediate, and final
+checkpoints so C2/C3 can reuse the same trained models. Fisher measurements are
+not part of this VGG branch.
+
+### C2. Native-interface suffix-statistics atlas — implemented
+
+At VGG convolutional cuts 7, 8, 9, and 13 (`stage3.conv4`, `stage4.conv1`,
+`stage4.conv2`, and `stage5.conv2`), freeze the prefix and encode train/test
+activations. Fit the same class-conditional mean-only and PCA-Gaussian
+surrogates used in Part B. Starting every suffix from the trained checkpoint,
+relax separate copies on true, Gaussian, or mean-only activations and evaluate
+the full 3-by-3 train/evaluation matrix. The primary curve is excess true-data
+cross-entropy relative to true-activation relaxation, plotted across cuts. Run
+checkpoint epochs 5, 20, and 100 as separate facets/artifacts rather than
+pooling training time with depth.
+
+### C3. Transplanted-interface bridge — implemented
+
+Repeat C2 after replacing the Conv+BN module at the selected cut with its exact
+checkpoint-0 state. Report the immediate no-refit damage, recovery under true
+activation relaxation, and the residual excess loss under Gaussian and
+mean-only relaxation. This separates three claims: the module is immediately
+critical; the suffix can compensate for its altered interface; and first/second
+class-conditional activation moments are sufficient for that compensation.
+Criticality by itself is not evidence of higher-order-statistic dependence.
+
+### Deferred controls — TODO
+
+- **C4 TODO — selective fresh re-randomization:** repeat C3 with a newly sampled
+  module, matched to the original initializer, to separate dependence on the
+  exact initialization from dependence on having an untrained interface.
+- **C5 TODO — matched perturbation diagnostics:** for native, checkpoint-0, and
+  fresh-random interfaces, report class-conditional activation mean/covariance
+  error, activation norm, representation distance, and prediction KL before
+  interpreting differences in recovery.
+
+Primary source: `papers/20-069-are-all-layers-created-equal.pdf` (open-access
+JMLR version, accessed in full).
 
 At cut \(\ell\), write
 
@@ -164,7 +338,7 @@ Normalize both by the total loss improvement over the interval. Report signed
 terms as well as magnitudes: representation changes can help an old head, so an
 absolute-only "effort fraction" can be misleading.
 
-### Local differential version
+### Prior local differential formulation (supporting only)
 
 Near a stable optimum with block Hessian \(H\), implicit differentiation gives
 
@@ -183,7 +357,7 @@ Estimate their norms and cosine, preferably in prediction-space or Fisher metric
 at each layer and time. Verify the local prediction against the finite checkpoint
 grid above; do not trust Hessian algebra alone.
 
-Primary hypothesis:
+Prior moving-optimum hypothesis (not the current Part B headline):
 
 > The ratio of tracking forcing to head relaxation increases through hidden
 > blocks, possibly falling again at the final classifier, and rises when the data
@@ -194,7 +368,7 @@ is that middle blocks have small envelope curvature and therefore change little;
 another is that they move substantially but mostly induce compensatory downstream
 updates. The measurements distinguish these.
 
-## 6. Experiment C: Fisher, plasticity, and effective curvature
+## 6. On hold: Fisher, plasticity, and effective curvature
 
 Partition the empirical Fisher or generalized Gauss--Newton matrix at the same cut:
 
@@ -313,8 +487,8 @@ or deterministic baseline before SGD.
 2. onset time of useful order-\(r\) information versus \(r\);
 3. head regret and prediction gap by layer/time;
 4. finite tracking demand versus resolving demand by layer/time;
-5. local tracking-forcing/relaxation ratio with finite-difference validation;
-6. raw and Schur-complement Fisher spectra/trace ratios;
+5. suffix update-direction dot products as a secondary diagnostic;
+6. activation-surrogate held-out moment validation and PCA coverage;
 7. Bode gain, phase, and coherence by layer and driven cumulant order;
 8. the above under controlled noise interventions.
 

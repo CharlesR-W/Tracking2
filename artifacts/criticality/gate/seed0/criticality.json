@@ -1,0 +1,1642 @@
+{
+  "schema_version": 1,
+  "experiment": "critical_module_tracking",
+  "config": {
+    "output": "artifacts/criticality/gate/seed0",
+    "data_root": "data",
+    "fake_data": false,
+    "train_size": 50000,
+    "test_size": 10000,
+    "epochs": 40,
+    "batch_size": 128,
+    "learning_rate": 0.05,
+    "weight_decay": 0.0005,
+    "checkpoint_epochs": [
+      0,
+      1,
+      2,
+      5,
+      10,
+      20,
+      40
+    ],
+    "lr_milestones": [
+      30
+    ],
+    "classifier_width": 512,
+    "width_multiplier": 1.0,
+    "batch_norm": true,
+    "recovery_modules": [
+      999
+    ],
+    "recovery_sources": [
+      "none"
+    ],
+    "recovery_steps": 0,
+    "recovery_eval_steps": [
+      0,
+      10,
+      50,
+      200
+    ],
+    "recovery_lr": 0.01,
+    "amp": true,
+    "seed": 0,
+    "device": "cuda"
+  },
+  "device": "cuda",
+  "module_names": [
+    "stage1.conv1",
+    "stage1.conv2",
+    "stage2.conv1",
+    "stage2.conv2",
+    "stage3.conv1",
+    "stage3.conv2",
+    "stage3.conv3",
+    "stage3.conv4",
+    "stage4.conv1",
+    "stage4.conv2",
+    "stage4.conv3",
+    "stage4.conv4",
+    "stage5.conv1",
+    "stage5.conv2",
+    "stage5.conv3",
+    "stage5.conv4",
+    "fc1",
+    "fc2",
+    "final_linear"
+  ],
+  "baseline": {
+    "loss": 0.3112013150215149,
+    "accuracy": 0.9073,
+    "error": 0.0927
+  },
+  "training": [
+    {
+      "epoch": 0,
+      "loss": 2.302582958602905,
+      "accuracy": 0.1,
+      "error": 0.9
+    },
+    {
+      "epoch": 1,
+      "loss": 1.5527555425643922,
+      "accuracy": 0.3926,
+      "error": 0.6073999999999999
+    },
+    {
+      "epoch": 2,
+      "loss": 1.359189958381653,
+      "accuracy": 0.5299,
+      "error": 0.47009999999999996
+    },
+    {
+      "epoch": 5,
+      "loss": 0.8382959628105163,
+      "accuracy": 0.7157,
+      "error": 0.2843
+    },
+    {
+      "epoch": 10,
+      "loss": 0.6163517015457153,
+      "accuracy": 0.8081,
+      "error": 0.19189999999999996
+    },
+    {
+      "epoch": 20,
+      "loss": 0.5148206800460815,
+      "accuracy": 0.8447,
+      "error": 0.1553
+    },
+    {
+      "epoch": 40,
+      "loss": 0.3112013150215149,
+      "accuracy": 0.9073,
+      "error": 0.0927
+    }
+  ],
+  "interventions": [
+    {
+      "module_index": 0,
+      "module": "stage1.conv1",
+      "source": "0",
+      "loss": 5.3285440155029296,
+      "accuracy": 0.1416,
+      "error": 0.8584,
+      "delta_loss": 5.017342700481414,
+      "delta_error": 0.7657
+    },
+    {
+      "module_index": 0,
+      "module": "stage1.conv1",
+      "source": "1",
+      "loss": 1.5851177033424377,
+      "accuracy": 0.6013,
+      "error": 0.39870000000000005,
+      "delta_loss": 1.2739163883209228,
+      "delta_error": 0.30600000000000005
+    },
+    {
+      "module_index": 0,
+      "module": "stage1.conv1",
+      "source": "2",
+      "loss": 1.0358764598846435,
+      "accuracy": 0.7297,
+      "error": 0.2703,
+      "delta_loss": 0.7246751448631286,
+      "delta_error": 0.17759999999999998
+    },
+    {
+      "module_index": 0,
+      "module": "stage1.conv1",
+      "source": "5",
+      "loss": 0.6442452039718628,
+      "accuracy": 0.8281,
+      "error": 0.17190000000000005,
+      "delta_loss": 0.3330438889503479,
+      "delta_error": 0.07920000000000005
+    },
+    {
+      "module_index": 0,
+      "module": "stage1.conv1",
+      "source": "10",
+      "loss": 0.45523528871536256,
+      "accuracy": 0.8729,
+      "error": 0.1271,
+      "delta_loss": 0.14403397369384768,
+      "delta_error": 0.034399999999999986
+    },
+    {
+      "module_index": 0,
+      "module": "stage1.conv1",
+      "source": "20",
+      "loss": 0.3582189196586609,
+      "accuracy": 0.8954,
+      "error": 0.10460000000000003,
+      "delta_loss": 0.04701760463714599,
+      "delta_error": 0.011900000000000022
+    },
+    {
+      "module_index": 0,
+      "module": "stage1.conv1",
+      "source": "40",
+      "loss": 0.3112013150215149,
+      "accuracy": 0.9073,
+      "error": 0.0927,
+      "delta_loss": 0.0,
+      "delta_error": 0.0
+    },
+    {
+      "module_index": 0,
+      "module": "stage1.conv1",
+      "source": "random",
+      "loss": 4.507849090576172,
+      "accuracy": 0.1122,
+      "error": 0.8878,
+      "delta_loss": 4.1966477755546565,
+      "delta_error": 0.7951
+    },
+    {
+      "module_index": 1,
+      "module": "stage1.conv2",
+      "source": "0",
+      "loss": 5.735901951599121,
+      "accuracy": 0.1,
+      "error": 0.9,
+      "delta_loss": 5.424700636577606,
+      "delta_error": 0.8073
+    },
+    {
+      "module_index": 1,
+      "module": "stage1.conv2",
+      "source": "1",
+      "loss": 3.9556405990600587,
+      "accuracy": 0.2056,
+      "error": 0.7944,
+      "delta_loss": 3.644439284038544,
+      "delta_error": 0.7017
+    },
+    {
+      "module_index": 1,
+      "module": "stage1.conv2",
+      "source": "2",
+      "loss": 3.79785082321167,
+      "accuracy": 0.2666,
+      "error": 0.7334,
+      "delta_loss": 3.486649508190155,
+      "delta_error": 0.6407
+    },
+    {
+      "module_index": 1,
+      "module": "stage1.conv2",
+      "source": "5",
+      "loss": 1.0547160074234008,
+      "accuracy": 0.7403,
+      "error": 0.25970000000000004,
+      "delta_loss": 0.7435146924018858,
+      "delta_error": 0.16700000000000004
+    },
+    {
+      "module_index": 1,
+      "module": "stage1.conv2",
+      "source": "10",
+      "loss": 0.4919445622444153,
+      "accuracy": 0.8609,
+      "error": 0.1391,
+      "delta_loss": 0.18074324722290042,
+      "delta_error": 0.0464
+    },
+    {
+      "module_index": 1,
+      "module": "stage1.conv2",
+      "source": "20",
+      "loss": 0.3704523850440979,
+      "accuracy": 0.8893,
+      "error": 0.11070000000000002,
+      "delta_loss": 0.05925107002258301,
+      "delta_error": 0.018000000000000016
+    },
+    {
+      "module_index": 1,
+      "module": "stage1.conv2",
+      "source": "40",
+      "loss": 0.3112013150215149,
+      "accuracy": 0.9073,
+      "error": 0.0927,
+      "delta_loss": 0.0,
+      "delta_error": 0.0
+    },
+    {
+      "module_index": 1,
+      "module": "stage1.conv2",
+      "source": "random",
+      "loss": 4.756039660644531,
+      "accuracy": 0.0942,
+      "error": 0.9057999999999999,
+      "delta_loss": 4.444838345623016,
+      "delta_error": 0.8130999999999999
+    },
+    {
+      "module_index": 2,
+      "module": "stage2.conv1",
+      "source": "0",
+      "loss": 5.224371070098877,
+      "accuracy": 0.1002,
+      "error": 0.8998,
+      "delta_loss": 4.913169755077361,
+      "delta_error": 0.8071
+    },
+    {
+      "module_index": 2,
+      "module": "stage2.conv1",
+      "source": "1",
+      "loss": 3.948109589004517,
+      "accuracy": 0.1043,
+      "error": 0.8956999999999999,
+      "delta_loss": 3.636908273983002,
+      "delta_error": 0.8029999999999999
+    },
+    {
+      "module_index": 2,
+      "module": "stage2.conv1",
+      "source": "2",
+      "loss": 5.143108169555664,
+      "accuracy": 0.0947,
+      "error": 0.9053,
+      "delta_loss": 4.831906854534149,
+      "delta_error": 0.8126
+    },
+    {
+      "module_index": 2,
+      "module": "stage2.conv1",
+      "source": "5",
+      "loss": 2.444449076080322,
+      "accuracy": 0.4917,
+      "error": 0.5083,
+      "delta_loss": 2.1332477610588074,
+      "delta_error": 0.41559999999999997
+    },
+    {
+      "module_index": 2,
+      "module": "stage2.conv1",
+      "source": "10",
+      "loss": 0.5135152376174926,
+      "accuracy": 0.8562,
+      "error": 0.14380000000000004,
+      "delta_loss": 0.20231392259597775,
+      "delta_error": 0.051100000000000034
+    },
+    {
+      "module_index": 2,
+      "module": "stage2.conv1",
+      "source": "20",
+      "loss": 0.6756581964492798,
+      "accuracy": 0.8188,
+      "error": 0.18120000000000003,
+      "delta_loss": 0.36445688142776494,
+      "delta_error": 0.08850000000000002
+    },
+    {
+      "module_index": 2,
+      "module": "stage2.conv1",
+      "source": "40",
+      "loss": 0.3112013150215149,
+      "accuracy": 0.9073,
+      "error": 0.0927,
+      "delta_loss": 0.0,
+      "delta_error": 0.0
+    },
+    {
+      "module_index": 2,
+      "module": "stage2.conv1",
+      "source": "random",
+      "loss": 4.649543920898438,
+      "accuracy": 0.1,
+      "error": 0.9,
+      "delta_loss": 4.338342605876923,
+      "delta_error": 0.8073
+    },
+    {
+      "module_index": 3,
+      "module": "stage2.conv2",
+      "source": "0",
+      "loss": 4.36760609741211,
+      "accuracy": 0.1161,
+      "error": 0.8839,
+      "delta_loss": 4.056404782390595,
+      "delta_error": 0.7912
+    },
+    {
+      "module_index": 3,
+      "module": "stage2.conv2",
+      "source": "1",
+      "loss": 5.764251324462891,
+      "accuracy": 0.1001,
+      "error": 0.8999,
+      "delta_loss": 5.453050009441376,
+      "delta_error": 0.8072
+    },
+    {
+      "module_index": 3,
+      "module": "stage2.conv2",
+      "source": "2",
+      "loss": 6.8681158973693845,
+      "accuracy": 0.1002,
+      "error": 0.8998,
+      "delta_loss": 6.556914582347869,
+      "delta_error": 0.8071
+    },
+    {
+      "module_index": 3,
+      "module": "stage2.conv2",
+      "source": "5",
+      "loss": 5.194455158996582,
+      "accuracy": 0.2332,
+      "error": 0.7668,
+      "delta_loss": 4.883253843975067,
+      "delta_error": 0.6741
+    },
+    {
+      "module_index": 3,
+      "module": "stage2.conv2",
+      "source": "10",
+      "loss": 0.5180136609077454,
+      "accuracy": 0.8557,
+      "error": 0.14429999999999998,
+      "delta_loss": 0.2068123458862305,
+      "delta_error": 0.05159999999999998
+    },
+    {
+      "module_index": 3,
+      "module": "stage2.conv2",
+      "source": "20",
+      "loss": 0.6047747434616089,
+      "accuracy": 0.845,
+      "error": 0.15500000000000003,
+      "delta_loss": 0.293573428440094,
+      "delta_error": 0.06230000000000002
+    },
+    {
+      "module_index": 3,
+      "module": "stage2.conv2",
+      "source": "40",
+      "loss": 0.3112013150215149,
+      "accuracy": 0.9073,
+      "error": 0.0927,
+      "delta_loss": 0.0,
+      "delta_error": 0.0
+    },
+    {
+      "module_index": 3,
+      "module": "stage2.conv2",
+      "source": "random",
+      "loss": 4.750861518096924,
+      "accuracy": 0.1012,
+      "error": 0.8988,
+      "delta_loss": 4.439660203075409,
+      "delta_error": 0.8061
+    },
+    {
+      "module_index": 4,
+      "module": "stage3.conv1",
+      "source": "0",
+      "loss": 4.345404515075684,
+      "accuracy": 0.1495,
+      "error": 0.8505,
+      "delta_loss": 4.0342032000541685,
+      "delta_error": 0.7578
+    },
+    {
+      "module_index": 4,
+      "module": "stage3.conv1",
+      "source": "1",
+      "loss": 4.633208577728271,
+      "accuracy": 0.1,
+      "error": 0.9,
+      "delta_loss": 4.322007262706756,
+      "delta_error": 0.8073
+    },
+    {
+      "module_index": 4,
+      "module": "stage3.conv1",
+      "source": "2",
+      "loss": 4.596470560455322,
+      "accuracy": 0.1,
+      "error": 0.9,
+      "delta_loss": 4.285269245433807,
+      "delta_error": 0.8073
+    },
+    {
+      "module_index": 4,
+      "module": "stage3.conv1",
+      "source": "5",
+      "loss": 3.906142237472534,
+      "accuracy": 0.1372,
+      "error": 0.8628,
+      "delta_loss": 3.5949409224510194,
+      "delta_error": 0.7701
+    },
+    {
+      "module_index": 4,
+      "module": "stage3.conv1",
+      "source": "10",
+      "loss": 0.8785542214393616,
+      "accuracy": 0.7621,
+      "error": 0.2379,
+      "delta_loss": 0.5673529064178466,
+      "delta_error": 0.1452
+    },
+    {
+      "module_index": 4,
+      "module": "stage3.conv1",
+      "source": "20",
+      "loss": 0.3518861609458923,
+      "accuracy": 0.8963,
+      "error": 0.10370000000000001,
+      "delta_loss": 0.04068484592437743,
+      "delta_error": 0.01100000000000001
+    },
+    {
+      "module_index": 4,
+      "module": "stage3.conv1",
+      "source": "40",
+      "loss": 0.3112013150215149,
+      "accuracy": 0.9073,
+      "error": 0.0927,
+      "delta_loss": 0.0,
+      "delta_error": 0.0
+    },
+    {
+      "module_index": 4,
+      "module": "stage3.conv1",
+      "source": "random",
+      "loss": 4.808001905822754,
+      "accuracy": 0.1178,
+      "error": 0.8822,
+      "delta_loss": 4.4968005908012385,
+      "delta_error": 0.7895
+    },
+    {
+      "module_index": 5,
+      "module": "stage3.conv2",
+      "source": "0",
+      "loss": 4.074691098022461,
+      "accuracy": 0.1007,
+      "error": 0.8993,
+      "delta_loss": 3.763489783000946,
+      "delta_error": 0.8066
+    },
+    {
+      "module_index": 5,
+      "module": "stage3.conv2",
+      "source": "1",
+      "loss": 5.22084331741333,
+      "accuracy": 0.1089,
+      "error": 0.8911,
+      "delta_loss": 4.909642002391815,
+      "delta_error": 0.7984
+    },
+    {
+      "module_index": 5,
+      "module": "stage3.conv2",
+      "source": "2",
+      "loss": 4.87889677734375,
+      "accuracy": 0.1137,
+      "error": 0.8863,
+      "delta_loss": 4.567695462322235,
+      "delta_error": 0.7936
+    },
+    {
+      "module_index": 5,
+      "module": "stage3.conv2",
+      "source": "5",
+      "loss": 5.1244413352966305,
+      "accuracy": 0.1633,
+      "error": 0.8367,
+      "delta_loss": 4.813240020275115,
+      "delta_error": 0.744
+    },
+    {
+      "module_index": 5,
+      "module": "stage3.conv2",
+      "source": "10",
+      "loss": 0.8213390478134155,
+      "accuracy": 0.7907,
+      "error": 0.20930000000000004,
+      "delta_loss": 0.5101377327919006,
+      "delta_error": 0.11660000000000004
+    },
+    {
+      "module_index": 5,
+      "module": "stage3.conv2",
+      "source": "20",
+      "loss": 0.37326413955688476,
+      "accuracy": 0.8991,
+      "error": 0.10089999999999999,
+      "delta_loss": 0.062062824535369876,
+      "delta_error": 0.008199999999999985
+    },
+    {
+      "module_index": 5,
+      "module": "stage3.conv2",
+      "source": "40",
+      "loss": 0.3112013150215149,
+      "accuracy": 0.9073,
+      "error": 0.0927,
+      "delta_loss": 0.0,
+      "delta_error": 0.0
+    },
+    {
+      "module_index": 5,
+      "module": "stage3.conv2",
+      "source": "random",
+      "loss": 4.73105997467041,
+      "accuracy": 0.1,
+      "error": 0.9,
+      "delta_loss": 4.419858659648895,
+      "delta_error": 0.8073
+    },
+    {
+      "module_index": 6,
+      "module": "stage3.conv3",
+      "source": "0",
+      "loss": 3.1370774757385256,
+      "accuracy": 0.2576,
+      "error": 0.7424,
+      "delta_loss": 2.825876160717011,
+      "delta_error": 0.6496999999999999
+    },
+    {
+      "module_index": 6,
+      "module": "stage3.conv3",
+      "source": "1",
+      "loss": 4.55880658378601,
+      "accuracy": 0.1886,
+      "error": 0.8114,
+      "delta_loss": 4.247605268764495,
+      "delta_error": 0.7187
+    },
+    {
+      "module_index": 6,
+      "module": "stage3.conv3",
+      "source": "2",
+      "loss": 6.211567891693115,
+      "accuracy": 0.1016,
+      "error": 0.8984,
+      "delta_loss": 5.9003665766716,
+      "delta_error": 0.8057
+    },
+    {
+      "module_index": 6,
+      "module": "stage3.conv3",
+      "source": "5",
+      "loss": 4.391526379776001,
+      "accuracy": 0.2437,
+      "error": 0.7563,
+      "delta_loss": 4.0803250647544855,
+      "delta_error": 0.6636
+    },
+    {
+      "module_index": 6,
+      "module": "stage3.conv3",
+      "source": "10",
+      "loss": 1.413165846824646,
+      "accuracy": 0.6914,
+      "error": 0.3086,
+      "delta_loss": 1.101964531803131,
+      "delta_error": 0.21589999999999998
+    },
+    {
+      "module_index": 6,
+      "module": "stage3.conv3",
+      "source": "20",
+      "loss": 0.35329331922531126,
+      "accuracy": 0.9005,
+      "error": 0.09950000000000003,
+      "delta_loss": 0.042092004203796385,
+      "delta_error": 0.006800000000000028
+    },
+    {
+      "module_index": 6,
+      "module": "stage3.conv3",
+      "source": "40",
+      "loss": 0.3112013150215149,
+      "accuracy": 0.9073,
+      "error": 0.0927,
+      "delta_loss": 0.0,
+      "delta_error": 0.0
+    },
+    {
+      "module_index": 6,
+      "module": "stage3.conv3",
+      "source": "random",
+      "loss": 5.024112085723877,
+      "accuracy": 0.1,
+      "error": 0.9,
+      "delta_loss": 4.712910770702361,
+      "delta_error": 0.8073
+    },
+    {
+      "module_index": 7,
+      "module": "stage3.conv4",
+      "source": "0",
+      "loss": 1.3024260845184326,
+      "accuracy": 0.527,
+      "error": 0.473,
+      "delta_loss": 0.9912247694969176,
+      "delta_error": 0.38029999999999997
+    },
+    {
+      "module_index": 7,
+      "module": "stage3.conv4",
+      "source": "1",
+      "loss": 2.593970955276489,
+      "accuracy": 0.1444,
+      "error": 0.8556,
+      "delta_loss": 2.2827696402549744,
+      "delta_error": 0.7629
+    },
+    {
+      "module_index": 7,
+      "module": "stage3.conv4",
+      "source": "2",
+      "loss": 2.6525996616363527,
+      "accuracy": 0.233,
+      "error": 0.767,
+      "delta_loss": 2.341398346614838,
+      "delta_error": 0.6743
+    },
+    {
+      "module_index": 7,
+      "module": "stage3.conv4",
+      "source": "5",
+      "loss": 2.150941552734375,
+      "accuracy": 0.325,
+      "error": 0.675,
+      "delta_loss": 1.8397402377128602,
+      "delta_error": 0.5823
+    },
+    {
+      "module_index": 7,
+      "module": "stage3.conv4",
+      "source": "10",
+      "loss": 0.45730490217208863,
+      "accuracy": 0.8548,
+      "error": 0.1452,
+      "delta_loss": 0.14610358715057375,
+      "delta_error": 0.05249999999999999
+    },
+    {
+      "module_index": 7,
+      "module": "stage3.conv4",
+      "source": "20",
+      "loss": 0.3096844420433044,
+      "accuracy": 0.9047,
+      "error": 0.09530000000000005,
+      "delta_loss": -0.0015168729782104595,
+      "delta_error": 0.0026000000000000467
+    },
+    {
+      "module_index": 7,
+      "module": "stage3.conv4",
+      "source": "40",
+      "loss": 0.3112013150215149,
+      "accuracy": 0.9073,
+      "error": 0.0927,
+      "delta_loss": 0.0,
+      "delta_error": 0.0
+    },
+    {
+      "module_index": 7,
+      "module": "stage3.conv4",
+      "source": "random",
+      "loss": 4.226982490921021,
+      "accuracy": 0.0985,
+      "error": 0.9015,
+      "delta_loss": 3.915781175899506,
+      "delta_error": 0.8088
+    },
+    {
+      "module_index": 8,
+      "module": "stage4.conv1",
+      "source": "0",
+      "loss": 1.2764298917770385,
+      "accuracy": 0.5742,
+      "error": 0.42579999999999996,
+      "delta_loss": 0.9652285767555235,
+      "delta_error": 0.33309999999999995
+    },
+    {
+      "module_index": 8,
+      "module": "stage4.conv1",
+      "source": "1",
+      "loss": 2.409334122467041,
+      "accuracy": 0.2781,
+      "error": 0.7219,
+      "delta_loss": 2.098132807445526,
+      "delta_error": 0.6292
+    },
+    {
+      "module_index": 8,
+      "module": "stage4.conv1",
+      "source": "2",
+      "loss": 4.0263202903747555,
+      "accuracy": 0.1654,
+      "error": 0.8346,
+      "delta_loss": 3.7151189753532408,
+      "delta_error": 0.7419
+    },
+    {
+      "module_index": 8,
+      "module": "stage4.conv1",
+      "source": "5",
+      "loss": 3.420134104156494,
+      "accuracy": 0.3387,
+      "error": 0.6613,
+      "delta_loss": 3.1089327891349794,
+      "delta_error": 0.5686
+    },
+    {
+      "module_index": 8,
+      "module": "stage4.conv1",
+      "source": "10",
+      "loss": 0.9259149091720581,
+      "accuracy": 0.7545,
+      "error": 0.24550000000000005,
+      "delta_loss": 0.6147135941505433,
+      "delta_error": 0.15280000000000005
+    },
+    {
+      "module_index": 8,
+      "module": "stage4.conv1",
+      "source": "20",
+      "loss": 0.3444890335083008,
+      "accuracy": 0.9064,
+      "error": 0.09360000000000002,
+      "delta_loss": 0.03328771848678591,
+      "delta_error": 0.0009000000000000119
+    },
+    {
+      "module_index": 8,
+      "module": "stage4.conv1",
+      "source": "40",
+      "loss": 0.3112013150215149,
+      "accuracy": 0.9073,
+      "error": 0.0927,
+      "delta_loss": 0.0,
+      "delta_error": 0.0
+    },
+    {
+      "module_index": 8,
+      "module": "stage4.conv1",
+      "source": "random",
+      "loss": 2.5642425464630128,
+      "accuracy": 0.1263,
+      "error": 0.8737,
+      "delta_loss": 2.253041231441498,
+      "delta_error": 0.781
+    },
+    {
+      "module_index": 9,
+      "module": "stage4.conv2",
+      "source": "0",
+      "loss": 0.32289789395332336,
+      "accuracy": 0.8989,
+      "error": 0.10109999999999997,
+      "delta_loss": 0.011696578931808477,
+      "delta_error": 0.008399999999999963
+    },
+    {
+      "module_index": 9,
+      "module": "stage4.conv2",
+      "source": "1",
+      "loss": 2.7913025203704835,
+      "accuracy": 0.3433,
+      "error": 0.6567000000000001,
+      "delta_loss": 2.480101205348969,
+      "delta_error": 0.5640000000000001
+    },
+    {
+      "module_index": 9,
+      "module": "stage4.conv2",
+      "source": "2",
+      "loss": 1.322083839416504,
+      "accuracy": 0.623,
+      "error": 0.377,
+      "delta_loss": 1.010882524394989,
+      "delta_error": 0.2843
+    },
+    {
+      "module_index": 9,
+      "module": "stage4.conv2",
+      "source": "5",
+      "loss": 1.0148893589019776,
+      "accuracy": 0.7522,
+      "error": 0.24780000000000002,
+      "delta_loss": 0.7036880438804627,
+      "delta_error": 0.15510000000000002
+    },
+    {
+      "module_index": 9,
+      "module": "stage4.conv2",
+      "source": "10",
+      "loss": 0.5680865531921386,
+      "accuracy": 0.8488,
+      "error": 0.1512,
+      "delta_loss": 0.25688523817062375,
+      "delta_error": 0.058499999999999996
+    },
+    {
+      "module_index": 9,
+      "module": "stage4.conv2",
+      "source": "20",
+      "loss": 0.3448877381324768,
+      "accuracy": 0.9048,
+      "error": 0.09519999999999995,
+      "delta_loss": 0.03368642311096193,
+      "delta_error": 0.0024999999999999467
+    },
+    {
+      "module_index": 9,
+      "module": "stage4.conv2",
+      "source": "40",
+      "loss": 0.3112013150215149,
+      "accuracy": 0.9073,
+      "error": 0.0927,
+      "delta_loss": 0.0,
+      "delta_error": 0.0
+    },
+    {
+      "module_index": 9,
+      "module": "stage4.conv2",
+      "source": "random",
+      "loss": 2.4188854053497315,
+      "accuracy": 0.089,
+      "error": 0.911,
+      "delta_loss": 2.107684090328217,
+      "delta_error": 0.8183
+    },
+    {
+      "module_index": 10,
+      "module": "stage4.conv3",
+      "source": "0",
+      "loss": 0.31196629762649536,
+      "accuracy": 0.9039,
+      "error": 0.09609999999999996,
+      "delta_loss": 0.0007649826049804798,
+      "delta_error": 0.0033999999999999586
+    },
+    {
+      "module_index": 10,
+      "module": "stage4.conv3",
+      "source": "1",
+      "loss": 2.400548123550415,
+      "accuracy": 0.5077,
+      "error": 0.49229999999999996,
+      "delta_loss": 2.0893468085289,
+      "delta_error": 0.39959999999999996
+    },
+    {
+      "module_index": 10,
+      "module": "stage4.conv3",
+      "source": "2",
+      "loss": 1.8079041999816894,
+      "accuracy": 0.6601,
+      "error": 0.3399,
+      "delta_loss": 1.4967028849601745,
+      "delta_error": 0.24719999999999998
+    },
+    {
+      "module_index": 10,
+      "module": "stage4.conv3",
+      "source": "5",
+      "loss": 0.8162055934906006,
+      "accuracy": 0.8001,
+      "error": 0.19989999999999997,
+      "delta_loss": 0.5050042784690858,
+      "delta_error": 0.10719999999999996
+    },
+    {
+      "module_index": 10,
+      "module": "stage4.conv3",
+      "source": "10",
+      "loss": 0.3728568272590637,
+      "accuracy": 0.8944,
+      "error": 0.10560000000000003,
+      "delta_loss": 0.06165551223754884,
+      "delta_error": 0.012900000000000023
+    },
+    {
+      "module_index": 10,
+      "module": "stage4.conv3",
+      "source": "20",
+      "loss": 0.3237332738876343,
+      "accuracy": 0.9063,
+      "error": 0.0937,
+      "delta_loss": 0.012531958866119408,
+      "delta_error": 0.0010000000000000009
+    },
+    {
+      "module_index": 10,
+      "module": "stage4.conv3",
+      "source": "40",
+      "loss": 0.3112013150215149,
+      "accuracy": 0.9073,
+      "error": 0.0927,
+      "delta_loss": 0.0,
+      "delta_error": 0.0
+    },
+    {
+      "module_index": 10,
+      "module": "stage4.conv3",
+      "source": "random",
+      "loss": 2.6363552558898924,
+      "accuracy": 0.102,
+      "error": 0.898,
+      "delta_loss": 2.3251539408683777,
+      "delta_error": 0.8053
+    },
+    {
+      "module_index": 11,
+      "module": "stage4.conv4",
+      "source": "0",
+      "loss": 0.31441621112823487,
+      "accuracy": 0.898,
+      "error": 0.10199999999999998,
+      "delta_loss": 0.003214896106719989,
+      "delta_error": 0.009299999999999975
+    },
+    {
+      "module_index": 11,
+      "module": "stage4.conv4",
+      "source": "1",
+      "loss": 0.6817107908248902,
+      "accuracy": 0.7917,
+      "error": 0.20830000000000004,
+      "delta_loss": 0.3705094758033753,
+      "delta_error": 0.11560000000000004
+    },
+    {
+      "module_index": 11,
+      "module": "stage4.conv4",
+      "source": "2",
+      "loss": 0.40501456918716433,
+      "accuracy": 0.8779,
+      "error": 0.12209999999999999,
+      "delta_loss": 0.09381325416564945,
+      "delta_error": 0.02939999999999998
+    },
+    {
+      "module_index": 11,
+      "module": "stage4.conv4",
+      "source": "5",
+      "loss": 0.3453164640426636,
+      "accuracy": 0.8934,
+      "error": 0.10660000000000003,
+      "delta_loss": 0.034115149021148705,
+      "delta_error": 0.013900000000000023
+    },
+    {
+      "module_index": 11,
+      "module": "stage4.conv4",
+      "source": "10",
+      "loss": 0.3079631171226501,
+      "accuracy": 0.9017,
+      "error": 0.09830000000000005,
+      "delta_loss": -0.0032381978988647586,
+      "delta_error": 0.005600000000000049
+    },
+    {
+      "module_index": 11,
+      "module": "stage4.conv4",
+      "source": "20",
+      "loss": 0.3133631443977356,
+      "accuracy": 0.9061,
+      "error": 0.09389999999999998,
+      "delta_loss": 0.0021618293762207252,
+      "delta_error": 0.0011999999999999789
+    },
+    {
+      "module_index": 11,
+      "module": "stage4.conv4",
+      "source": "40",
+      "loss": 0.3112013150215149,
+      "accuracy": 0.9073,
+      "error": 0.0927,
+      "delta_loss": 0.0,
+      "delta_error": 0.0
+    },
+    {
+      "module_index": 11,
+      "module": "stage4.conv4",
+      "source": "random",
+      "loss": 2.7732751861572265,
+      "accuracy": 0.0998,
+      "error": 0.9002,
+      "delta_loss": 2.4620738711357117,
+      "delta_error": 0.8075
+    },
+    {
+      "module_index": 12,
+      "module": "stage5.conv1",
+      "source": "0",
+      "loss": 0.30448622612953186,
+      "accuracy": 0.9053,
+      "error": 0.0947,
+      "delta_loss": -0.006715088891983023,
+      "delta_error": 0.0020000000000000018
+    },
+    {
+      "module_index": 12,
+      "module": "stage5.conv1",
+      "source": "1",
+      "loss": 7.859364749145508,
+      "accuracy": 0.4,
+      "error": 0.6,
+      "delta_loss": 7.5481634341239925,
+      "delta_error": 0.5073
+    },
+    {
+      "module_index": 12,
+      "module": "stage5.conv1",
+      "source": "2",
+      "loss": 5.915264749908447,
+      "accuracy": 0.3644,
+      "error": 0.6355999999999999,
+      "delta_loss": 5.604063434886932,
+      "delta_error": 0.5428999999999999
+    },
+    {
+      "module_index": 12,
+      "module": "stage5.conv1",
+      "source": "5",
+      "loss": 1.3349674184799194,
+      "accuracy": 0.6902,
+      "error": 0.30979999999999996,
+      "delta_loss": 1.0237661034584045,
+      "delta_error": 0.21709999999999996
+    },
+    {
+      "module_index": 12,
+      "module": "stage5.conv1",
+      "source": "10",
+      "loss": 0.46742641038894656,
+      "accuracy": 0.8844,
+      "error": 0.11560000000000004,
+      "delta_loss": 0.15622509536743168,
+      "delta_error": 0.02290000000000003
+    },
+    {
+      "module_index": 12,
+      "module": "stage5.conv1",
+      "source": "20",
+      "loss": 0.33651196489334106,
+      "accuracy": 0.9069,
+      "error": 0.09309999999999996,
+      "delta_loss": 0.025310649871826185,
+      "delta_error": 0.00039999999999995595
+    },
+    {
+      "module_index": 12,
+      "module": "stage5.conv1",
+      "source": "40",
+      "loss": 0.3112013150215149,
+      "accuracy": 0.9073,
+      "error": 0.0927,
+      "delta_loss": 0.0,
+      "delta_error": 0.0
+    },
+    {
+      "module_index": 12,
+      "module": "stage5.conv1",
+      "source": "random",
+      "loss": 2.8738117511749266,
+      "accuracy": 0.167,
+      "error": 0.833,
+      "delta_loss": 2.562610436153412,
+      "delta_error": 0.7403
+    },
+    {
+      "module_index": 13,
+      "module": "stage5.conv2",
+      "source": "0",
+      "loss": 0.34695833415985106,
+      "accuracy": 0.9047,
+      "error": 0.09530000000000005,
+      "delta_loss": 0.03575701913833618,
+      "delta_error": 0.0026000000000000467
+    },
+    {
+      "module_index": 13,
+      "module": "stage5.conv2",
+      "source": "1",
+      "loss": 4.061017435073852,
+      "accuracy": 0.4577,
+      "error": 0.5423,
+      "delta_loss": 3.7498161200523374,
+      "delta_error": 0.4496
+    },
+    {
+      "module_index": 13,
+      "module": "stage5.conv2",
+      "source": "2",
+      "loss": 2.9252631198883057,
+      "accuracy": 0.5268,
+      "error": 0.47319999999999995,
+      "delta_loss": 2.614061804866791,
+      "delta_error": 0.38049999999999995
+    },
+    {
+      "module_index": 13,
+      "module": "stage5.conv2",
+      "source": "5",
+      "loss": 0.412576359462738,
+      "accuracy": 0.8772,
+      "error": 0.12280000000000002,
+      "delta_loss": 0.10137504444122314,
+      "delta_error": 0.030100000000000016
+    },
+    {
+      "module_index": 13,
+      "module": "stage5.conv2",
+      "source": "10",
+      "loss": 0.30806753978729245,
+      "accuracy": 0.9039,
+      "error": 0.09609999999999996,
+      "delta_loss": -0.0031337752342224245,
+      "delta_error": 0.0033999999999999586
+    },
+    {
+      "module_index": 13,
+      "module": "stage5.conv2",
+      "source": "20",
+      "loss": 0.3065089515686035,
+      "accuracy": 0.9065,
+      "error": 0.09350000000000003,
+      "delta_loss": -0.004692363452911352,
+      "delta_error": 0.0008000000000000229
+    },
+    {
+      "module_index": 13,
+      "module": "stage5.conv2",
+      "source": "40",
+      "loss": 0.3112013150215149,
+      "accuracy": 0.9073,
+      "error": 0.0927,
+      "delta_loss": 0.0,
+      "delta_error": 0.0
+    },
+    {
+      "module_index": 13,
+      "module": "stage5.conv2",
+      "source": "random",
+      "loss": 2.7346739971160887,
+      "accuracy": 0.1,
+      "error": 0.9,
+      "delta_loss": 2.423472682094574,
+      "delta_error": 0.8073
+    },
+    {
+      "module_index": 14,
+      "module": "stage5.conv3",
+      "source": "0",
+      "loss": 0.3401787574291229,
+      "accuracy": 0.9058,
+      "error": 0.09419999999999995,
+      "delta_loss": 0.028977442407608023,
+      "delta_error": 0.0014999999999999458
+    },
+    {
+      "module_index": 14,
+      "module": "stage5.conv3",
+      "source": "1",
+      "loss": 9.331025049591064,
+      "accuracy": 0.1106,
+      "error": 0.8894,
+      "delta_loss": 9.019823734569549,
+      "delta_error": 0.7967
+    },
+    {
+      "module_index": 14,
+      "module": "stage5.conv3",
+      "source": "2",
+      "loss": 3.836120811843872,
+      "accuracy": 0.407,
+      "error": 0.593,
+      "delta_loss": 3.524919496822357,
+      "delta_error": 0.5003
+    },
+    {
+      "module_index": 14,
+      "module": "stage5.conv3",
+      "source": "5",
+      "loss": 0.7707071892738342,
+      "accuracy": 0.737,
+      "error": 0.263,
+      "delta_loss": 0.4595058742523193,
+      "delta_error": 0.1703
+    },
+    {
+      "module_index": 14,
+      "module": "stage5.conv3",
+      "source": "10",
+      "loss": 0.3866657996177673,
+      "accuracy": 0.8817,
+      "error": 0.11829999999999996,
+      "delta_loss": 0.07546448459625243,
+      "delta_error": 0.025599999999999956
+    },
+    {
+      "module_index": 14,
+      "module": "stage5.conv3",
+      "source": "20",
+      "loss": 0.28280370149612427,
+      "accuracy": 0.9086,
+      "error": 0.09140000000000004,
+      "delta_loss": -0.028397613525390608,
+      "delta_error": -0.0012999999999999678
+    },
+    {
+      "module_index": 14,
+      "module": "stage5.conv3",
+      "source": "40",
+      "loss": 0.3112013150215149,
+      "accuracy": 0.9073,
+      "error": 0.0927,
+      "delta_loss": 0.0,
+      "delta_error": 0.0
+    },
+    {
+      "module_index": 14,
+      "module": "stage5.conv3",
+      "source": "random",
+      "loss": 2.608394997024536,
+      "accuracy": 0.1014,
+      "error": 0.8986,
+      "delta_loss": 2.297193682003021,
+      "delta_error": 0.8059
+    },
+    {
+      "module_index": 15,
+      "module": "stage5.conv4",
+      "source": "0",
+      "loss": 1.0785526649475097,
+      "accuracy": 0.8929,
+      "error": 0.10709999999999997,
+      "delta_loss": 0.7673513499259947,
+      "delta_error": 0.014399999999999968
+    },
+    {
+      "module_index": 15,
+      "module": "stage5.conv4",
+      "source": "1",
+      "loss": 4.4773764904022215,
+      "accuracy": 0.1925,
+      "error": 0.8075,
+      "delta_loss": 4.166175175380706,
+      "delta_error": 0.7148
+    },
+    {
+      "module_index": 15,
+      "module": "stage5.conv4",
+      "source": "2",
+      "loss": 2.1984030311584473,
+      "accuracy": 0.4051,
+      "error": 0.5949,
+      "delta_loss": 1.8872017161369323,
+      "delta_error": 0.5022
+    },
+    {
+      "module_index": 15,
+      "module": "stage5.conv4",
+      "source": "5",
+      "loss": 1.5959614797592163,
+      "accuracy": 0.4477,
+      "error": 0.5523,
+      "delta_loss": 1.2847601647377014,
+      "delta_error": 0.4596
+    },
+    {
+      "module_index": 15,
+      "module": "stage5.conv4",
+      "source": "10",
+      "loss": 1.2323501684188842,
+      "accuracy": 0.6752,
+      "error": 0.3248,
+      "delta_loss": 0.9211488533973693,
+      "delta_error": 0.23209999999999997
+    },
+    {
+      "module_index": 15,
+      "module": "stage5.conv4",
+      "source": "20",
+      "loss": 0.3929170352935791,
+      "accuracy": 0.9031,
+      "error": 0.09689999999999999,
+      "delta_loss": 0.0817157202720642,
+      "delta_error": 0.0041999999999999815
+    },
+    {
+      "module_index": 15,
+      "module": "stage5.conv4",
+      "source": "40",
+      "loss": 0.3112013150215149,
+      "accuracy": 0.9073,
+      "error": 0.0927,
+      "delta_loss": 0.0,
+      "delta_error": 0.0
+    },
+    {
+      "module_index": 15,
+      "module": "stage5.conv4",
+      "source": "random",
+      "loss": 2.3831453968048097,
+      "accuracy": 0.0855,
+      "error": 0.9145,
+      "delta_loss": 2.071944081783295,
+      "delta_error": 0.8218
+    },
+    {
+      "module_index": 16,
+      "module": "fc1",
+      "source": "0",
+      "loss": 1.6077122169494629,
+      "accuracy": 0.6605,
+      "error": 0.3395,
+      "delta_loss": 1.296510901927948,
+      "delta_error": 0.24680000000000002
+    },
+    {
+      "module_index": 16,
+      "module": "fc1",
+      "source": "1",
+      "loss": 0.8558251037597656,
+      "accuracy": 0.8767,
+      "error": 0.12329999999999997,
+      "delta_loss": 0.5446237887382508,
+      "delta_error": 0.03059999999999996
+    },
+    {
+      "module_index": 16,
+      "module": "fc1",
+      "source": "2",
+      "loss": 0.5298005659103393,
+      "accuracy": 0.8979,
+      "error": 0.10209999999999997,
+      "delta_loss": 0.21859925088882443,
+      "delta_error": 0.009399999999999964
+    },
+    {
+      "module_index": 16,
+      "module": "fc1",
+      "source": "5",
+      "loss": 0.3278212682723999,
+      "accuracy": 0.9036,
+      "error": 0.09640000000000004,
+      "delta_loss": 0.016619953250885,
+      "delta_error": 0.0037000000000000366
+    },
+    {
+      "module_index": 16,
+      "module": "fc1",
+      "source": "10",
+      "loss": 0.29048606386184694,
+      "accuracy": 0.9055,
+      "error": 0.09450000000000003,
+      "delta_loss": -0.020715251159667936,
+      "delta_error": 0.0018000000000000238
+    },
+    {
+      "module_index": 16,
+      "module": "fc1",
+      "source": "20",
+      "loss": 0.2976796721458435,
+      "accuracy": 0.9078,
+      "error": 0.09219999999999995,
+      "delta_loss": -0.01352164287567137,
+      "delta_error": -0.000500000000000056
+    },
+    {
+      "module_index": 16,
+      "module": "fc1",
+      "source": "40",
+      "loss": 0.3112013150215149,
+      "accuracy": 0.9073,
+      "error": 0.0927,
+      "delta_loss": 0.0,
+      "delta_error": 0.0
+    },
+    {
+      "module_index": 16,
+      "module": "fc1",
+      "source": "random",
+      "loss": 2.3890077461242676,
+      "accuracy": 0.1,
+      "error": 0.9,
+      "delta_loss": 2.077806431102753,
+      "delta_error": 0.8073
+    },
+    {
+      "module_index": 17,
+      "module": "fc2",
+      "source": "0",
+      "loss": 1.6696822538375855,
+      "accuracy": 0.7647,
+      "error": 0.23529999999999995,
+      "delta_loss": 1.3584809388160706,
+      "delta_error": 0.14259999999999995
+    },
+    {
+      "module_index": 17,
+      "module": "fc2",
+      "source": "1",
+      "loss": 0.948438072013855,
+      "accuracy": 0.8801,
+      "error": 0.1199,
+      "delta_loss": 0.6372367569923401,
+      "delta_error": 0.027200000000000002
+    },
+    {
+      "module_index": 17,
+      "module": "fc2",
+      "source": "2",
+      "loss": 0.573565967464447,
+      "accuracy": 0.8974,
+      "error": 0.10260000000000002,
+      "delta_loss": 0.2623646524429321,
+      "delta_error": 0.00990000000000002
+    },
+    {
+      "module_index": 17,
+      "module": "fc2",
+      "source": "5",
+      "loss": 0.3268082179069519,
+      "accuracy": 0.9054,
+      "error": 0.09460000000000002,
+      "delta_loss": 0.015606902885437035,
+      "delta_error": 0.0019000000000000128
+    },
+    {
+      "module_index": 17,
+      "module": "fc2",
+      "source": "10",
+      "loss": 0.28641587572097776,
+      "accuracy": 0.9065,
+      "error": 0.09350000000000003,
+      "delta_loss": -0.024785439300537115,
+      "delta_error": 0.0008000000000000229
+    },
+    {
+      "module_index": 17,
+      "module": "fc2",
+      "source": "20",
+      "loss": 0.2960487769126892,
+      "accuracy": 0.9071,
+      "error": 0.09289999999999998,
+      "delta_loss": -0.015152538108825664,
+      "delta_error": 0.00019999999999997797
+    },
+    {
+      "module_index": 17,
+      "module": "fc2",
+      "source": "40",
+      "loss": 0.3112013150215149,
+      "accuracy": 0.9073,
+      "error": 0.0927,
+      "delta_loss": 0.0,
+      "delta_error": 0.0
+    },
+    {
+      "module_index": 17,
+      "module": "fc2",
+      "source": "random",
+      "loss": 2.311714998626709,
+      "accuracy": 0.1,
+      "error": 0.9,
+      "delta_loss": 2.0005136836051944,
+      "delta_error": 0.8073
+    },
+    {
+      "module_index": 18,
+      "module": "final_linear",
+      "source": "0",
+      "loss": 2.0038799739837647,
+      "accuracy": 0.4201,
+      "error": 0.5799000000000001,
+      "delta_loss": 1.6926786589622498,
+      "delta_error": 0.4872000000000001
+    },
+    {
+      "module_index": 18,
+      "module": "final_linear",
+      "source": "1",
+      "loss": 0.73316820230484,
+      "accuracy": 0.7777,
+      "error": 0.22230000000000005,
+      "delta_loss": 0.42196688728332515,
+      "delta_error": 0.12960000000000005
+    },
+    {
+      "module_index": 18,
+      "module": "final_linear",
+      "source": "2",
+      "loss": 0.4826804484367371,
+      "accuracy": 0.8776,
+      "error": 0.12239999999999995,
+      "delta_loss": 0.1714791334152222,
+      "delta_error": 0.02969999999999995
+    },
+    {
+      "module_index": 18,
+      "module": "final_linear",
+      "source": "5",
+      "loss": 0.29024711847305296,
+      "accuracy": 0.9058,
+      "error": 0.09419999999999995,
+      "delta_loss": -0.020954196548461923,
+      "delta_error": 0.0014999999999999458
+    },
+    {
+      "module_index": 18,
+      "module": "final_linear",
+      "source": "10",
+      "loss": 0.29280510988235475,
+      "accuracy": 0.9058,
+      "error": 0.09419999999999995,
+      "delta_loss": -0.018396205139160127,
+      "delta_error": 0.0014999999999999458
+    },
+    {
+      "module_index": 18,
+      "module": "final_linear",
+      "source": "20",
+      "loss": 0.3054181374549866,
+      "accuracy": 0.9066,
+      "error": 0.09340000000000004,
+      "delta_loss": -0.005783177566528297,
+      "delta_error": 0.0007000000000000339
+    },
+    {
+      "module_index": 18,
+      "module": "final_linear",
+      "source": "40",
+      "loss": 0.3112013150215149,
+      "accuracy": 0.9073,
+      "error": 0.0927,
+      "delta_loss": 0.0,
+      "delta_error": 0.0
+    },
+    {
+      "module_index": 18,
+      "module": "final_linear",
+      "source": "random",
+      "loss": 2.314857243347168,
+      "accuracy": 0.0108,
+      "error": 0.9892,
+      "delta_loss": 2.0036559283256534,
+      "delta_error": 0.8965
+    }
+  ],
+  "recoveries": [],
+  "runtime_seconds": 1111.0294110774994
+}

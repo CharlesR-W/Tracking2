@@ -5,7 +5,7 @@ cd /workspace/Tracking2
 python -m pip install -e .
 mkdir -p artifacts/confirmatory logs
 
-for seed in 0 1 2 3 4; do
+for seed in {0..19}; do
   if [[ -f "artifacts/confirmatory/seed${seed}/results.json" ]]; then
     echo "[skip] seed ${seed} already complete"
     continue
