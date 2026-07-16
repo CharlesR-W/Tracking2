@@ -214,11 +214,11 @@ in the active dashboard evidence chain. Its artifacts can remain archived.
 
 ## Experiment C: VGG critical modules and activation statistics
 
-Part C is deliberately separate from the changing Part B dashboard. It uses
-VGG-19+BatchNorm as a positive-control system in which a sharp critical-module
-boundary is already observed, then applies Part B's representation-surrogate
-logic at that boundary. A convolution and its BatchNorm affine parameters and
-running state are one atomic module throughout.
+Part C uses VGG-19+BatchNorm as a positive-control system in which a sharp
+critical-module boundary is already observed, then replicates Part B's
+representation-surrogate analysis over the intact VGG training trajectory. A
+convolution and its BatchNorm affine parameters and running state are one atomic
+module in the C1 criticality evaluation.
 
 ### C1. Criticality and recovery atlas — implemented / running
 
@@ -264,40 +264,46 @@ steps to fixed recovery fractions. This distinguishes modules that are
 immediately critical but downstream-trackable from modules whose learned map
 cannot be compensated by the suffix. The confirmatory battery uses five
 independent 100-epoch seeds and saves initialization, intermediate, and final
-checkpoints so C2/C3 can reuse the same trained models. Fisher measurements are
+checkpoints so C2 can reuse the same trained models. Fisher measurements are
 not part of this VGG branch.
 
-### C2. Native-interface suffix-statistics atlas — implemented
+### C2. VGG replication of Part B — active
 
-At VGG convolutional cuts 7, 8, 9, and 13 (`stage3.conv4`, `stage4.conv1`,
-`stage4.conv2`, and `stage5.conv2`), freeze the prefix and encode train/test
-activations. Fit the same class-conditional mean-only and PCA-Gaussian
-surrogates used in Part B. Starting every suffix from the trained checkpoint,
-relax separate copies on true, Gaussian, or mean-only activations and evaluate
-the full 3-by-3 train/evaluation matrix. The primary curve is excess true-data
-cross-entropy relative to true-activation relaxation, plotted across cuts. Run
-checkpoint epochs 5, 20, and 100 as separate facets/artifacts rather than
-pooling training time with depth.
+Replicate Part B on the intact VGG training trajectory before introducing any
+new module intervention. At checkpoint epochs 0, 1, 5, 20, and 100 and at cuts
+7–10 (`stage3.conv4` through `stage4.conv3`), freeze the native prefix, encode
+train/test activations, and fit the same class-conditional mean-only and
+PCA-Gaussian surrogates. Warm-start matched suffix copies from that checkpoint,
+relax them on true, Gaussian, or mean-only activations, and cross-evaluate the
+full 3-by-3 matrix.
 
-### C3. Transplanted-interface bridge — implemented
+The primary result is a cut-by-training-time map of held-out true-activation
+accuracy gaps relative to true-activation relaxation,
 
-Repeat C2 after replacing the Conv+BN module at the selected cut with its exact
-checkpoint-0 state. Report the immediate no-refit damage, recovery under true
-activation relaxation, and the residual excess loss under Gaussian and
-mean-only relaxation. This separates three claims: the module is immediately
-critical; the suffix can compensate for its altered interface; and first/second
-class-conditional activation moments are sufficient for that compensation.
-Criticality by itself is not evidence of higher-order-statistic dependence.
+$$
+G_r(t,\ell)=100\left[A_{\mathrm{true}\mid r}(t,\ell)
+-A_{\mathrm{true}\mid\mathrm{true}}(t,\ell)\right],
+\qquad r\in\{\mathrm{mean},\mathrm{Gaussian}\}.
+$$
 
-### Deferred controls — TODO
+Display this map beside, but do not combine it mathematically with, the C1
+criticality boundary. The descriptive question is whether the sharp transition
+between `stage4.conv1` and `stage4.conv2` coincides with a change in which
+class-conditional activation statistics support suffix relearning. Criticality
+and statistical sufficiency remain distinct measurements; an aligned boundary
+is evidence for a relationship, not causality.
 
-- **C4 TODO — selective fresh re-randomization:** repeat C3 with a newly sampled
-  module, matched to the original initializer, to separate dependence on the
-  exact initialization from dependence on having an untrained interface.
-- **C5 TODO — matched perturbation diagnostics:** for native, checkpoint-0, and
-  fresh-random interfaces, report class-conditional activation mean/covariance
-  error, activation norm, representation distance, and prediction KL before
-  interpreting differences in recovery.
+Report PCA coverage and held-out class-mean/covariance errors at every cell.
+Gaussian-versus-true gaps are not interpretable as higher-order dependence when
+the fitted Gaussian misses its intended moments materially. The first gate uses
+one independently trained VGG seed and three surrogate draws. Expand across
+training seeds only if this layer-by-time map is coherent.
+
+### Deferred intervention — not active
+
+Checkpoint transplantation, fresh re-randomization, and downstream recovery
+experiments are archived rather than displayed. Revisit a targeted intervention
+only after C2 establishes where the statistical-tracking signature changes.
 
 Primary source: `papers/20-069-are-all-layers-created-equal.pdf` (open-access
 JMLR version, accessed in full).

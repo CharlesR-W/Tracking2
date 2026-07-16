@@ -1,7 +1,11 @@
 import torch
 
 from tracking2.models import InstrumentedVGG19
-from tracking2.report import vgg_suffix_statistics_figure
+from tracking2.report import (
+    vgg_statistics_sweep_figures,
+    vgg_suffix_statistics_detail_figures,
+    vgg_suffix_statistics_figure,
+)
 from tracking2.vgg_suffix_statistics import (
     VGGSuffixStatisticsConfig,
     evaluate_suffix,
@@ -40,12 +44,28 @@ def test_vgg_suffix_statistics_smoke(tmp_path):
         train_size=8, test_size=4, batch_size=4, classifier_width=16,
         width_multiplier=0.0625, cuts=(8,), conditions=("native", "reset0"),
         pca_fit_size=8, pca_components=3, surrogate_draws=1, relax_epochs=1,
-        seed=0, device="cpu",
+        relax_batch_zoom=True, seed=0, device="cpu",
     ))
     payload = __import__("json").loads(artifact_path.read_text())
     assert payload["status"].startswith("MOCKUP")
     assert {(item["cut"], item["condition"]) for item in payload["slices"]} == {
         (8, "native"), (8, "reset0")}
-    assert all(len(item["records"]) == 18 for item in payload["slices"])
+    assert all(len(item["records"]) == 21 for item in payload["slices"])
+    assert all(any(row["relax_epoch"] == 0.5 for row in item["records"])
+               for item in payload["slices"])
     figure = vgg_suffix_statistics_figure(payload)
     assert len(figure.data) == 6
+    accuracies, decompositions, diagnostics = vgg_suffix_statistics_detail_figures(payload)
+    assert len(accuracies.data) == 6
+    assert "end-of-protocol accuracy effects" in decompositions
+    assert "plot-vgg-suffix-accuracy-decomposition-cut8" in decompositions
+    assert "class-covariance relative error" in diagnostics
+
+    native_payload = __import__("copy").deepcopy(payload)
+    native_payload["config"]["checkpoint_epoch"] = 0
+    native_payload["slices"] = [item for item in native_payload["slices"]
+                                if item["condition"] == "native"]
+    gap_figure, coverage_figure, sweep_diagnostics = vgg_statistics_sweep_figures([native_payload])
+    assert len(gap_figure.data) == 2
+    assert len(coverage_figure.data) == 1
+    assert "stage4.conv1" in sweep_diagnostics

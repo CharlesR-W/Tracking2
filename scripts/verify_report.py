@@ -13,7 +13,15 @@ def main() -> int:
     tab = sys.argv[2] if len(sys.argv) > 2 else "overview"
     width = int(sys.argv[3]) if len(sys.argv) > 3 else 1200
     scroll_y = int(sys.argv[4]) if len(sys.argv) > 4 else 0
-    drive = f"document.querySelector('[data-tab=\"{tab}\"]').click();window.scrollTo(0,{scroll_y});"
+    selector = sys.argv[5] if len(sys.argv) > 5 else ""
+    target = json.dumps(selector)
+    drive = (
+        f"document.querySelector('[data-tab=\"{tab}\"]').click();"
+        f"if ({target}) {{const t=document.querySelector({target});"
+        "t.style.position='fixed';t.style.inset='0';t.style.width='100vw';t.style.height='100vh';"
+        "t.style.zIndex='9999';t.style.background='white';Plotly.Plots.resize(t);}}"
+        f"else window.scrollTo(0,{scroll_y});"
+    )
     inject = f"""<script>
 window.__errs=[];
 window.onerror=(m,s,l,c,e)=>window.__errs.push(String(m));

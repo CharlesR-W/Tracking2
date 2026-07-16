@@ -38,6 +38,7 @@ class SuffixStatisticsConfig:
     pca_fit_size: int = 5000
     pca_components: int = 128
     relax_epochs: int = 10
+    relax_batch_zoom: bool = False
     relax_learning_rate: float = 0.01
     seed: int = 0
     device: str = "auto"
@@ -158,17 +159,34 @@ def run(config: SuffixStatisticsConfig) -> Path:
             train_sets[train_distribution], train_labels, config.batch_size,
             config.seed + 1000, True,
         )
-        for relax_epoch in range(config.relax_epochs + 1):
-            for eval_distribution, eval_loader in eval_loaders.items():
+        batches_per_relax_epoch = len(train_loader)
+        batch_checkpoints = {
+            epoch * batches_per_relax_epoch for epoch in range(config.relax_epochs + 1)
+        }
+        if config.relax_batch_zoom:
+            batch_checkpoints.update(
+                batch for batch in (0, 1, 2, 5, 10, 20, 50, 100, batches_per_relax_epoch)
+                if batch <= batches_per_relax_epoch
+            )
+
+        def evaluate_checkpoint(relax_batch: int) -> None:
+            checkpoint_loaders = (
+                eval_loaders if relax_batch % batches_per_relax_epoch == 0
+                else {"true": eval_loaders["true"]}
+            )
+            for eval_distribution, eval_loader in checkpoint_loaders.items():
                 metrics = evaluate_suffix(candidate, config.cut, eval_loader, device)
                 records.append({
                     "train_distribution": train_distribution,
                     "eval_distribution": eval_distribution,
-                    "relax_epoch": relax_epoch,
+                    "relax_epoch": relax_batch / batches_per_relax_epoch,
+                    "relax_batch": relax_batch,
                     **metrics,
                 })
-            if relax_epoch == config.relax_epochs:
-                break
+
+        evaluate_checkpoint(0)
+        relax_batch = 0
+        for _ in range(config.relax_epochs):
             candidate.train()
             for representation, labels in train_loader:
                 representation, labels = representation.to(device), labels.to(device)
@@ -176,6 +194,10 @@ def run(config: SuffixStatisticsConfig) -> Path:
                 loss = F.cross_entropy(candidate.forward_from(representation, config.cut), labels)
                 loss.backward()
                 suffix_optimizer.step()
+                relax_batch += 1
+                if relax_batch in batch_checkpoints:
+                    evaluate_checkpoint(relax_batch)
+                    candidate.train()
 
     artifact = {
         "status": "MOCKUP / PIPELINE SMOKE TEST" if config.fake_data else "MEASURED",
@@ -214,6 +236,10 @@ def parse_args() -> SuffixStatisticsConfig:
     parser.add_argument("--pca-fit-size", type=int, default=5000)
     parser.add_argument("--pca-components", type=int, default=128)
     parser.add_argument("--relax-epochs", type=int, default=10)
+    parser.add_argument(
+        "--relax-batch-zoom", action="store_true",
+        help="Also evaluate at log-spaced optimizer batches within the first suffix-relaxation epoch.",
+    )
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--device", default="auto")
     args = parser.parse_args()
@@ -224,6 +250,7 @@ def parse_args() -> SuffixStatisticsConfig:
         cut=args.cut, widths=tuple(args.widths),
         batch_size=args.batch_size, pca_fit_size=args.pca_fit_size,
         pca_components=args.pca_components, relax_epochs=args.relax_epochs,
+        relax_batch_zoom=args.relax_batch_zoom,
         seed=args.seed, device=args.device,
     )
 

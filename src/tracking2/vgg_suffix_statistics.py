@@ -25,6 +25,7 @@ from .representation_surrogates import (
 class VGGSuffixStatisticsConfig:
     output: str = "artifacts/vgg_suffix_statistics/pilot"
     checkpoint: str = "artifacts/criticality/seed2/checkpoint_epoch100.pt"
+    checkpoint_epoch: int | None = None
     initialization_checkpoint: str | None = "artifacts/criticality/seed2/checkpoint_epoch0.pt"
     data_root: str = "data"
     fake_data: bool = False
@@ -42,6 +43,7 @@ class VGGSuffixStatisticsConfig:
     # samples to distinguish a stable contrast from one lucky draw.
     surrogate_draws: int = 3
     relax_epochs: int = 5
+    relax_batch_zoom: bool = False
     relax_learning_rate: float = 0.01
     seed: int = 0
     device: str = "auto"
@@ -160,21 +162,43 @@ def run(config: VGGSuffixStatisticsConfig) -> Path:
                         train_sets[train_distribution], train_labels, config.batch_size,
                         config.seed + draw, True,
                     )
-                    for relax_epoch in range(config.relax_epochs + 1):
-                        for eval_distribution, eval_data in eval_loaders.items():
+                    batches_per_relax_epoch = len(relax_data)
+                    batch_checkpoints = {
+                        epoch * batches_per_relax_epoch for epoch in range(config.relax_epochs + 1)
+                    }
+                    if config.relax_batch_zoom:
+                        batch_checkpoints.update(
+                            batch for batch in (0, 1, 2, 5, 10, 20, 40, 60, batches_per_relax_epoch)
+                            if batch <= batches_per_relax_epoch
+                        )
+
+                    def evaluate_checkpoint(relax_batch: int) -> None:
+                        checkpoint_loaders = (
+                            eval_loaders if relax_batch % batches_per_relax_epoch == 0
+                            else {"true": eval_loaders["true"]}
+                        )
+                        for eval_distribution, eval_data in checkpoint_loaders.items():
                             records.append({
                                 "draw": draw, "train_distribution": train_distribution,
-                                "eval_distribution": eval_distribution, "relax_epoch": relax_epoch,
+                                "eval_distribution": eval_distribution,
+                                "relax_epoch": relax_batch / batches_per_relax_epoch,
+                                "relax_batch": relax_batch,
                                 **evaluate_suffix(candidate, cut, eval_data, device),
                             })
-                        if relax_epoch == config.relax_epochs:
-                            break
+
+                    evaluate_checkpoint(0)
+                    relax_batch = 0
+                    for _ in range(config.relax_epochs):
                         candidate.train()
                         for z, y in relax_data:
                             z, y = z.to(device), y.to(device)
                             optimizer.zero_grad(set_to_none=True)
                             F.cross_entropy(candidate.forward_from_module(z, cut), y).backward()
                             optimizer.step()
+                            relax_batch += 1
+                            if relax_batch in batch_checkpoints:
+                                evaluate_checkpoint(relax_batch)
+                                candidate.train()
             slices.append({
                 "cut": cut, "module": module_names[cut], "condition": condition,
                 "representation_shape": list(train_rep.shape[1:]),
@@ -182,7 +206,7 @@ def run(config: VGGSuffixStatisticsConfig) -> Path:
                 "moment_diagnostics": diagnostics, "records": records,
             })
     artifact = {
-        "schema_version": 1, "experiment": "vgg_suffix_statistics_bridge",
+        "schema_version": 2, "experiment": "vgg_suffix_statistics_sweep",
         "status": "MOCKUP / PIPELINE SMOKE TEST" if config.fake_data else "MEASURED",
         "config": asdict(config), "device": str(device), "module_names": module_names,
         "slices": slices, "runtime_seconds": time.time() - started,
@@ -197,6 +221,7 @@ def parse_args() -> VGGSuffixStatisticsConfig:
     parser = argparse.ArgumentParser(description="VGG native/transplanted activation-statistics bridge")
     parser.add_argument("--output", default=VGGSuffixStatisticsConfig.output)
     parser.add_argument("--checkpoint", required=True)
+    parser.add_argument("--checkpoint-epoch", type=int)
     parser.add_argument("--initialization-checkpoint")
     parser.add_argument("--data-root", default="data")
     parser.add_argument("--fake-data", action="store_true")
@@ -210,14 +235,18 @@ def parse_args() -> VGGSuffixStatisticsConfig:
     parser.add_argument("--conditions", nargs="+", default=["native", "reset0"])
     parser.add_argument("--pca-fit-size", type=int, default=5000)
     parser.add_argument("--pca-components", type=int, default=128)
-    parser.add_argument("--surrogate-draws", type=int, default=1)
+    parser.add_argument("--surrogate-draws", type=int, default=VGGSuffixStatisticsConfig.surrogate_draws)
     parser.add_argument("--relax-epochs", type=int, default=5)
+    parser.add_argument(
+        "--relax-batch-zoom", action="store_true",
+        help="Also evaluate true held-out activations within the first suffix-relaxation epoch.",
+    )
     parser.add_argument("--relax-learning-rate", type=float, default=0.01)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--device", default="auto")
     args = parser.parse_args()
     return VGGSuffixStatisticsConfig(
-        output=args.output, checkpoint=args.checkpoint,
+        output=args.output, checkpoint=args.checkpoint, checkpoint_epoch=args.checkpoint_epoch,
         initialization_checkpoint=args.initialization_checkpoint, data_root=args.data_root,
         fake_data=args.fake_data, train_size=args.train_size, test_size=args.test_size,
         batch_size=args.batch_size, classifier_width=args.classifier_width,
@@ -225,6 +254,7 @@ def parse_args() -> VGGSuffixStatisticsConfig:
         cuts=tuple(args.cuts), conditions=tuple(args.conditions),
         pca_fit_size=args.pca_fit_size, pca_components=args.pca_components,
         surrogate_draws=args.surrogate_draws, relax_epochs=args.relax_epochs,
+        relax_batch_zoom=args.relax_batch_zoom,
         relax_learning_rate=args.relax_learning_rate, seed=args.seed, device=args.device,
     )
 

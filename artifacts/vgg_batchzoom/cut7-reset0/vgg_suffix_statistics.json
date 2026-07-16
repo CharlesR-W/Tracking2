@@ -1,0 +1,1162 @@
+{
+  "schema_version": 2,
+  "experiment": "vgg_suffix_statistics_sweep",
+  "status": "MEASURED",
+  "config": {
+    "output": "artifacts/vgg_batchzoom/cut7-reset0",
+    "checkpoint": "artifacts/criticality/seed3/checkpoint_epoch100.pt",
+    "checkpoint_epoch": null,
+    "initialization_checkpoint": "artifacts/criticality/seed3/checkpoint_epoch0.pt",
+    "data_root": "/workspace/Tracking2/data",
+    "fake_data": false,
+    "train_size": 10000,
+    "test_size": 2000,
+    "batch_size": 128,
+    "classifier_width": 512,
+    "width_multiplier": 1.0,
+    "batch_norm": true,
+    "cuts": [
+      7
+    ],
+    "conditions": [
+      "reset0"
+    ],
+    "pca_fit_size": 5000,
+    "pca_components": 1400,
+    "surrogate_draws": 3,
+    "relax_epochs": 1,
+    "relax_batch_zoom": true,
+    "relax_learning_rate": 0.01,
+    "seed": 3,
+    "device": "cuda"
+  },
+  "device": "cuda",
+  "module_names": [
+    "stage1.conv1",
+    "stage1.conv2",
+    "stage2.conv1",
+    "stage2.conv2",
+    "stage3.conv1",
+    "stage3.conv2",
+    "stage3.conv3",
+    "stage3.conv4",
+    "stage4.conv1",
+    "stage4.conv2",
+    "stage4.conv3",
+    "stage4.conv4",
+    "stage5.conv1",
+    "stage5.conv2",
+    "stage5.conv3",
+    "stage5.conv4",
+    "fc1",
+    "fc2",
+    "final_linear"
+  ],
+  "slices": [
+    {
+      "cut": 7,
+      "module": "stage3.conv4",
+      "condition": "reset0",
+      "representation_shape": [
+        256,
+        8,
+        8
+      ],
+      "explained_variance_fraction": 0.8032724857330322,
+      "moment_diagnostics": [
+        {
+          "draw": 0,
+          "distribution": "mean",
+          "class_mean_relative_error": 0.217589350641489,
+          "class_covariance_relative_error": 1.1326355709089941
+        },
+        {
+          "draw": 0,
+          "distribution": "gaussian",
+          "class_mean_relative_error": 0.21722677823063297,
+          "class_covariance_relative_error": 1.0261325214166954
+        },
+        {
+          "draw": 1,
+          "distribution": "mean",
+          "class_mean_relative_error": 0.2188438676007237,
+          "class_covariance_relative_error": 1.1324930108484077
+        },
+        {
+          "draw": 1,
+          "distribution": "gaussian",
+          "class_mean_relative_error": 0.2208920495816502,
+          "class_covariance_relative_error": 1.030527287528693
+        },
+        {
+          "draw": 2,
+          "distribution": "mean",
+          "class_mean_relative_error": 0.21822790893666189,
+          "class_covariance_relative_error": 1.1324698540025822
+        },
+        {
+          "draw": 2,
+          "distribution": "gaussian",
+          "class_mean_relative_error": 0.21373697766911576,
+          "class_covariance_relative_error": 1.0290849526504944
+        }
+      ],
+      "records": [
+        {
+          "draw": 0,
+          "train_distribution": "mean",
+          "eval_distribution": "true",
+          "relax_epoch": 0.0,
+          "relax_batch": 0,
+          "loss": 1.8349932250976562,
+          "accuracy": 0.503
+        },
+        {
+          "draw": 0,
+          "train_distribution": "mean",
+          "eval_distribution": "mean",
+          "relax_epoch": 0.0,
+          "relax_batch": 0,
+          "loss": 2.5115110702514647,
+          "accuracy": 0.318
+        },
+        {
+          "draw": 0,
+          "train_distribution": "mean",
+          "eval_distribution": "gaussian",
+          "relax_epoch": 0.0,
+          "relax_batch": 0,
+          "loss": 2.0109670944213867,
+          "accuracy": 0.449
+        },
+        {
+          "draw": 0,
+          "train_distribution": "mean",
+          "eval_distribution": "true",
+          "relax_epoch": 0.012658227848101266,
+          "relax_batch": 1,
+          "loss": 1.4658100051879883,
+          "accuracy": 0.5705
+        },
+        {
+          "draw": 0,
+          "train_distribution": "mean",
+          "eval_distribution": "true",
+          "relax_epoch": 0.02531645569620253,
+          "relax_batch": 2,
+          "loss": 1.153070514678955,
+          "accuracy": 0.656
+        },
+        {
+          "draw": 0,
+          "train_distribution": "mean",
+          "eval_distribution": "true",
+          "relax_epoch": 0.06329113924050633,
+          "relax_batch": 5,
+          "loss": 0.6649080467224121,
+          "accuracy": 0.8135
+        },
+        {
+          "draw": 0,
+          "train_distribution": "mean",
+          "eval_distribution": "true",
+          "relax_epoch": 0.12658227848101267,
+          "relax_batch": 10,
+          "loss": 0.8003803329467774,
+          "accuracy": 0.818
+        },
+        {
+          "draw": 0,
+          "train_distribution": "mean",
+          "eval_distribution": "true",
+          "relax_epoch": 0.25316455696202533,
+          "relax_batch": 20,
+          "loss": 0.6074704627990722,
+          "accuracy": 0.854
+        },
+        {
+          "draw": 0,
+          "train_distribution": "mean",
+          "eval_distribution": "true",
+          "relax_epoch": 0.5063291139240507,
+          "relax_batch": 40,
+          "loss": 0.6133667869567871,
+          "accuracy": 0.8605
+        },
+        {
+          "draw": 0,
+          "train_distribution": "mean",
+          "eval_distribution": "true",
+          "relax_epoch": 0.759493670886076,
+          "relax_batch": 60,
+          "loss": 0.6201849393844604,
+          "accuracy": 0.8735
+        },
+        {
+          "draw": 0,
+          "train_distribution": "mean",
+          "eval_distribution": "true",
+          "relax_epoch": 1.0,
+          "relax_batch": 79,
+          "loss": 0.5906123085021973,
+          "accuracy": 0.873
+        },
+        {
+          "draw": 0,
+          "train_distribution": "mean",
+          "eval_distribution": "mean",
+          "relax_epoch": 1.0,
+          "relax_batch": 79,
+          "loss": 0.003018319249153137,
+          "accuracy": 1.0
+        },
+        {
+          "draw": 0,
+          "train_distribution": "mean",
+          "eval_distribution": "gaussian",
+          "relax_epoch": 1.0,
+          "relax_batch": 79,
+          "loss": 0.08075024688243866,
+          "accuracy": 0.98
+        },
+        {
+          "draw": 0,
+          "train_distribution": "gaussian",
+          "eval_distribution": "true",
+          "relax_epoch": 0.0,
+          "relax_batch": 0,
+          "loss": 1.8349932250976562,
+          "accuracy": 0.503
+        },
+        {
+          "draw": 0,
+          "train_distribution": "gaussian",
+          "eval_distribution": "mean",
+          "relax_epoch": 0.0,
+          "relax_batch": 0,
+          "loss": 2.5115110702514647,
+          "accuracy": 0.318
+        },
+        {
+          "draw": 0,
+          "train_distribution": "gaussian",
+          "eval_distribution": "gaussian",
+          "relax_epoch": 0.0,
+          "relax_batch": 0,
+          "loss": 2.0109670944213867,
+          "accuracy": 0.449
+        },
+        {
+          "draw": 0,
+          "train_distribution": "gaussian",
+          "eval_distribution": "true",
+          "relax_epoch": 0.012658227848101266,
+          "relax_batch": 1,
+          "loss": 1.6449813537597657,
+          "accuracy": 0.5475
+        },
+        {
+          "draw": 0,
+          "train_distribution": "gaussian",
+          "eval_distribution": "true",
+          "relax_epoch": 0.02531645569620253,
+          "relax_batch": 2,
+          "loss": 1.2407984619140624,
+          "accuracy": 0.6315
+        },
+        {
+          "draw": 0,
+          "train_distribution": "gaussian",
+          "eval_distribution": "true",
+          "relax_epoch": 0.06329113924050633,
+          "relax_batch": 5,
+          "loss": 0.8477827224731446,
+          "accuracy": 0.7715
+        },
+        {
+          "draw": 0,
+          "train_distribution": "gaussian",
+          "eval_distribution": "true",
+          "relax_epoch": 0.12658227848101267,
+          "relax_batch": 10,
+          "loss": 0.6670158252716064,
+          "accuracy": 0.843
+        },
+        {
+          "draw": 0,
+          "train_distribution": "gaussian",
+          "eval_distribution": "true",
+          "relax_epoch": 0.25316455696202533,
+          "relax_batch": 20,
+          "loss": 0.533307596206665,
+          "accuracy": 0.86
+        },
+        {
+          "draw": 0,
+          "train_distribution": "gaussian",
+          "eval_distribution": "true",
+          "relax_epoch": 0.5063291139240507,
+          "relax_batch": 40,
+          "loss": 0.6948237133026123,
+          "accuracy": 0.8195
+        },
+        {
+          "draw": 0,
+          "train_distribution": "gaussian",
+          "eval_distribution": "true",
+          "relax_epoch": 0.759493670886076,
+          "relax_batch": 60,
+          "loss": 0.45520112991333006,
+          "accuracy": 0.8795
+        },
+        {
+          "draw": 0,
+          "train_distribution": "gaussian",
+          "eval_distribution": "true",
+          "relax_epoch": 1.0,
+          "relax_batch": 79,
+          "loss": 0.508925085067749,
+          "accuracy": 0.872
+        },
+        {
+          "draw": 0,
+          "train_distribution": "gaussian",
+          "eval_distribution": "mean",
+          "relax_epoch": 1.0,
+          "relax_batch": 79,
+          "loss": 0.16579570627212525,
+          "accuracy": 0.9435
+        },
+        {
+          "draw": 0,
+          "train_distribution": "gaussian",
+          "eval_distribution": "gaussian",
+          "relax_epoch": 1.0,
+          "relax_batch": 79,
+          "loss": 0.053932674527168274,
+          "accuracy": 0.979
+        },
+        {
+          "draw": 0,
+          "train_distribution": "true",
+          "eval_distribution": "true",
+          "relax_epoch": 0.0,
+          "relax_batch": 0,
+          "loss": 1.8349932250976562,
+          "accuracy": 0.503
+        },
+        {
+          "draw": 0,
+          "train_distribution": "true",
+          "eval_distribution": "mean",
+          "relax_epoch": 0.0,
+          "relax_batch": 0,
+          "loss": 2.5115110702514647,
+          "accuracy": 0.318
+        },
+        {
+          "draw": 0,
+          "train_distribution": "true",
+          "eval_distribution": "gaussian",
+          "relax_epoch": 0.0,
+          "relax_batch": 0,
+          "loss": 2.0109670944213867,
+          "accuracy": 0.449
+        },
+        {
+          "draw": 0,
+          "train_distribution": "true",
+          "eval_distribution": "true",
+          "relax_epoch": 0.012658227848101266,
+          "relax_batch": 1,
+          "loss": 1.6296801452636718,
+          "accuracy": 0.566
+        },
+        {
+          "draw": 0,
+          "train_distribution": "true",
+          "eval_distribution": "true",
+          "relax_epoch": 0.02531645569620253,
+          "relax_batch": 2,
+          "loss": 1.3289299621582031,
+          "accuracy": 0.626
+        },
+        {
+          "draw": 0,
+          "train_distribution": "true",
+          "eval_distribution": "true",
+          "relax_epoch": 0.06329113924050633,
+          "relax_batch": 5,
+          "loss": 0.7478481979370117,
+          "accuracy": 0.787
+        },
+        {
+          "draw": 0,
+          "train_distribution": "true",
+          "eval_distribution": "true",
+          "relax_epoch": 0.12658227848101267,
+          "relax_batch": 10,
+          "loss": 0.782911247253418,
+          "accuracy": 0.824
+        },
+        {
+          "draw": 0,
+          "train_distribution": "true",
+          "eval_distribution": "true",
+          "relax_epoch": 0.25316455696202533,
+          "relax_batch": 20,
+          "loss": 0.6474244575500488,
+          "accuracy": 0.8095
+        },
+        {
+          "draw": 0,
+          "train_distribution": "true",
+          "eval_distribution": "true",
+          "relax_epoch": 0.5063291139240507,
+          "relax_batch": 40,
+          "loss": 0.36267675018310547,
+          "accuracy": 0.901
+        },
+        {
+          "draw": 0,
+          "train_distribution": "true",
+          "eval_distribution": "true",
+          "relax_epoch": 0.759493670886076,
+          "relax_batch": 60,
+          "loss": 0.3620275239944458,
+          "accuracy": 0.8975
+        },
+        {
+          "draw": 0,
+          "train_distribution": "true",
+          "eval_distribution": "true",
+          "relax_epoch": 1.0,
+          "relax_batch": 79,
+          "loss": 0.37348232555389405,
+          "accuracy": 0.898
+        },
+        {
+          "draw": 0,
+          "train_distribution": "true",
+          "eval_distribution": "mean",
+          "relax_epoch": 1.0,
+          "relax_batch": 79,
+          "loss": 0.10959372854232788,
+          "accuracy": 0.9635
+        },
+        {
+          "draw": 0,
+          "train_distribution": "true",
+          "eval_distribution": "gaussian",
+          "relax_epoch": 1.0,
+          "relax_batch": 79,
+          "loss": 0.07459709346294403,
+          "accuracy": 0.979
+        },
+        {
+          "draw": 1,
+          "train_distribution": "mean",
+          "eval_distribution": "true",
+          "relax_epoch": 0.0,
+          "relax_batch": 0,
+          "loss": 1.8349932250976562,
+          "accuracy": 0.503
+        },
+        {
+          "draw": 1,
+          "train_distribution": "mean",
+          "eval_distribution": "mean",
+          "relax_epoch": 0.0,
+          "relax_batch": 0,
+          "loss": 2.489069496154785,
+          "accuracy": 0.3175
+        },
+        {
+          "draw": 1,
+          "train_distribution": "mean",
+          "eval_distribution": "gaussian",
+          "relax_epoch": 0.0,
+          "relax_batch": 0,
+          "loss": 1.978142967224121,
+          "accuracy": 0.4565
+        },
+        {
+          "draw": 1,
+          "train_distribution": "mean",
+          "eval_distribution": "true",
+          "relax_epoch": 0.012658227848101266,
+          "relax_batch": 1,
+          "loss": 1.5403189315795898,
+          "accuracy": 0.571
+        },
+        {
+          "draw": 1,
+          "train_distribution": "mean",
+          "eval_distribution": "true",
+          "relax_epoch": 0.02531645569620253,
+          "relax_batch": 2,
+          "loss": 1.2835518493652345,
+          "accuracy": 0.631
+        },
+        {
+          "draw": 1,
+          "train_distribution": "mean",
+          "eval_distribution": "true",
+          "relax_epoch": 0.06329113924050633,
+          "relax_batch": 5,
+          "loss": 0.6863335456848144,
+          "accuracy": 0.8065
+        },
+        {
+          "draw": 1,
+          "train_distribution": "mean",
+          "eval_distribution": "true",
+          "relax_epoch": 0.12658227848101267,
+          "relax_batch": 10,
+          "loss": 0.953694013595581,
+          "accuracy": 0.786
+        },
+        {
+          "draw": 1,
+          "train_distribution": "mean",
+          "eval_distribution": "true",
+          "relax_epoch": 0.25316455696202533,
+          "relax_batch": 20,
+          "loss": 0.5948672161102295,
+          "accuracy": 0.8505
+        },
+        {
+          "draw": 1,
+          "train_distribution": "mean",
+          "eval_distribution": "true",
+          "relax_epoch": 0.5063291139240507,
+          "relax_batch": 40,
+          "loss": 0.6402512111663818,
+          "accuracy": 0.8645
+        },
+        {
+          "draw": 1,
+          "train_distribution": "mean",
+          "eval_distribution": "true",
+          "relax_epoch": 0.759493670886076,
+          "relax_batch": 60,
+          "loss": 0.575848051071167,
+          "accuracy": 0.876
+        },
+        {
+          "draw": 1,
+          "train_distribution": "mean",
+          "eval_distribution": "true",
+          "relax_epoch": 1.0,
+          "relax_batch": 79,
+          "loss": 0.5986098670959472,
+          "accuracy": 0.878
+        },
+        {
+          "draw": 1,
+          "train_distribution": "mean",
+          "eval_distribution": "mean",
+          "relax_epoch": 1.0,
+          "relax_batch": 79,
+          "loss": 0.0015122552700340749,
+          "accuracy": 1.0
+        },
+        {
+          "draw": 1,
+          "train_distribution": "mean",
+          "eval_distribution": "gaussian",
+          "relax_epoch": 1.0,
+          "relax_batch": 79,
+          "loss": 0.067646384999156,
+          "accuracy": 0.9815
+        },
+        {
+          "draw": 1,
+          "train_distribution": "gaussian",
+          "eval_distribution": "true",
+          "relax_epoch": 0.0,
+          "relax_batch": 0,
+          "loss": 1.8349932250976562,
+          "accuracy": 0.503
+        },
+        {
+          "draw": 1,
+          "train_distribution": "gaussian",
+          "eval_distribution": "mean",
+          "relax_epoch": 0.0,
+          "relax_batch": 0,
+          "loss": 2.489069496154785,
+          "accuracy": 0.3175
+        },
+        {
+          "draw": 1,
+          "train_distribution": "gaussian",
+          "eval_distribution": "gaussian",
+          "relax_epoch": 0.0,
+          "relax_batch": 0,
+          "loss": 1.978142967224121,
+          "accuracy": 0.4565
+        },
+        {
+          "draw": 1,
+          "train_distribution": "gaussian",
+          "eval_distribution": "true",
+          "relax_epoch": 0.012658227848101266,
+          "relax_batch": 1,
+          "loss": 1.6136305084228515,
+          "accuracy": 0.5535
+        },
+        {
+          "draw": 1,
+          "train_distribution": "gaussian",
+          "eval_distribution": "true",
+          "relax_epoch": 0.02531645569620253,
+          "relax_batch": 2,
+          "loss": 1.3068646850585937,
+          "accuracy": 0.625
+        },
+        {
+          "draw": 1,
+          "train_distribution": "gaussian",
+          "eval_distribution": "true",
+          "relax_epoch": 0.06329113924050633,
+          "relax_batch": 5,
+          "loss": 0.6822112483978271,
+          "accuracy": 0.8055
+        },
+        {
+          "draw": 1,
+          "train_distribution": "gaussian",
+          "eval_distribution": "true",
+          "relax_epoch": 0.12658227848101267,
+          "relax_batch": 10,
+          "loss": 0.9424120597839355,
+          "accuracy": 0.7745
+        },
+        {
+          "draw": 1,
+          "train_distribution": "gaussian",
+          "eval_distribution": "true",
+          "relax_epoch": 0.25316455696202533,
+          "relax_batch": 20,
+          "loss": 0.9602402801513672,
+          "accuracy": 0.74
+        },
+        {
+          "draw": 1,
+          "train_distribution": "gaussian",
+          "eval_distribution": "true",
+          "relax_epoch": 0.5063291139240507,
+          "relax_batch": 40,
+          "loss": 0.47311682510375974,
+          "accuracy": 0.874
+        },
+        {
+          "draw": 1,
+          "train_distribution": "gaussian",
+          "eval_distribution": "true",
+          "relax_epoch": 0.759493670886076,
+          "relax_batch": 60,
+          "loss": 0.4965581207275391,
+          "accuracy": 0.8785
+        },
+        {
+          "draw": 1,
+          "train_distribution": "gaussian",
+          "eval_distribution": "true",
+          "relax_epoch": 1.0,
+          "relax_batch": 79,
+          "loss": 0.46867993545532227,
+          "accuracy": 0.8845
+        },
+        {
+          "draw": 1,
+          "train_distribution": "gaussian",
+          "eval_distribution": "mean",
+          "relax_epoch": 1.0,
+          "relax_batch": 79,
+          "loss": 0.06736489546298981,
+          "accuracy": 0.982
+        },
+        {
+          "draw": 1,
+          "train_distribution": "gaussian",
+          "eval_distribution": "gaussian",
+          "relax_epoch": 1.0,
+          "relax_batch": 79,
+          "loss": 0.02713993689417839,
+          "accuracy": 0.989
+        },
+        {
+          "draw": 1,
+          "train_distribution": "true",
+          "eval_distribution": "true",
+          "relax_epoch": 0.0,
+          "relax_batch": 0,
+          "loss": 1.8349932250976562,
+          "accuracy": 0.503
+        },
+        {
+          "draw": 1,
+          "train_distribution": "true",
+          "eval_distribution": "mean",
+          "relax_epoch": 0.0,
+          "relax_batch": 0,
+          "loss": 2.489069496154785,
+          "accuracy": 0.3175
+        },
+        {
+          "draw": 1,
+          "train_distribution": "true",
+          "eval_distribution": "gaussian",
+          "relax_epoch": 0.0,
+          "relax_batch": 0,
+          "loss": 1.978142967224121,
+          "accuracy": 0.4565
+        },
+        {
+          "draw": 1,
+          "train_distribution": "true",
+          "eval_distribution": "true",
+          "relax_epoch": 0.012658227848101266,
+          "relax_batch": 1,
+          "loss": 1.6453651580810547,
+          "accuracy": 0.549
+        },
+        {
+          "draw": 1,
+          "train_distribution": "true",
+          "eval_distribution": "true",
+          "relax_epoch": 0.02531645569620253,
+          "relax_batch": 2,
+          "loss": 1.3261795043945312,
+          "accuracy": 0.617
+        },
+        {
+          "draw": 1,
+          "train_distribution": "true",
+          "eval_distribution": "true",
+          "relax_epoch": 0.06329113924050633,
+          "relax_batch": 5,
+          "loss": 0.9790331954956055,
+          "accuracy": 0.7315
+        },
+        {
+          "draw": 1,
+          "train_distribution": "true",
+          "eval_distribution": "true",
+          "relax_epoch": 0.12658227848101267,
+          "relax_batch": 10,
+          "loss": 0.6344004535675049,
+          "accuracy": 0.8335
+        },
+        {
+          "draw": 1,
+          "train_distribution": "true",
+          "eval_distribution": "true",
+          "relax_epoch": 0.25316455696202533,
+          "relax_batch": 20,
+          "loss": 0.7612297973632812,
+          "accuracy": 0.8025
+        },
+        {
+          "draw": 1,
+          "train_distribution": "true",
+          "eval_distribution": "true",
+          "relax_epoch": 0.5063291139240507,
+          "relax_batch": 40,
+          "loss": 0.5252734909057617,
+          "accuracy": 0.8555
+        },
+        {
+          "draw": 1,
+          "train_distribution": "true",
+          "eval_distribution": "true",
+          "relax_epoch": 0.759493670886076,
+          "relax_batch": 60,
+          "loss": 0.3544184846878052,
+          "accuracy": 0.902
+        },
+        {
+          "draw": 1,
+          "train_distribution": "true",
+          "eval_distribution": "true",
+          "relax_epoch": 1.0,
+          "relax_batch": 79,
+          "loss": 0.3714582920074463,
+          "accuracy": 0.8925
+        },
+        {
+          "draw": 1,
+          "train_distribution": "true",
+          "eval_distribution": "mean",
+          "relax_epoch": 1.0,
+          "relax_batch": 79,
+          "loss": 0.027584805309772493,
+          "accuracy": 0.995
+        },
+        {
+          "draw": 1,
+          "train_distribution": "true",
+          "eval_distribution": "gaussian",
+          "relax_epoch": 1.0,
+          "relax_batch": 79,
+          "loss": 0.03826898294687271,
+          "accuracy": 0.99
+        },
+        {
+          "draw": 2,
+          "train_distribution": "mean",
+          "eval_distribution": "true",
+          "relax_epoch": 0.0,
+          "relax_batch": 0,
+          "loss": 1.8349932250976562,
+          "accuracy": 0.503
+        },
+        {
+          "draw": 2,
+          "train_distribution": "mean",
+          "eval_distribution": "mean",
+          "relax_epoch": 0.0,
+          "relax_batch": 0,
+          "loss": 2.4948216552734377,
+          "accuracy": 0.3185
+        },
+        {
+          "draw": 2,
+          "train_distribution": "mean",
+          "eval_distribution": "gaussian",
+          "relax_epoch": 0.0,
+          "relax_batch": 0,
+          "loss": 2.0183897399902344,
+          "accuracy": 0.447
+        },
+        {
+          "draw": 2,
+          "train_distribution": "mean",
+          "eval_distribution": "true",
+          "relax_epoch": 0.012658227848101266,
+          "relax_batch": 1,
+          "loss": 1.455152442932129,
+          "accuracy": 0.5765
+        },
+        {
+          "draw": 2,
+          "train_distribution": "mean",
+          "eval_distribution": "true",
+          "relax_epoch": 0.02531645569620253,
+          "relax_batch": 2,
+          "loss": 1.1324761962890626,
+          "accuracy": 0.6585
+        },
+        {
+          "draw": 2,
+          "train_distribution": "mean",
+          "eval_distribution": "true",
+          "relax_epoch": 0.06329113924050633,
+          "relax_batch": 5,
+          "loss": 0.5689581756591797,
+          "accuracy": 0.842
+        },
+        {
+          "draw": 2,
+          "train_distribution": "mean",
+          "eval_distribution": "true",
+          "relax_epoch": 0.12658227848101267,
+          "relax_batch": 10,
+          "loss": 0.6486912822723389,
+          "accuracy": 0.8505
+        },
+        {
+          "draw": 2,
+          "train_distribution": "mean",
+          "eval_distribution": "true",
+          "relax_epoch": 0.25316455696202533,
+          "relax_batch": 20,
+          "loss": 0.5767883796691895,
+          "accuracy": 0.863
+        },
+        {
+          "draw": 2,
+          "train_distribution": "mean",
+          "eval_distribution": "true",
+          "relax_epoch": 0.5063291139240507,
+          "relax_batch": 40,
+          "loss": 0.6557319393157959,
+          "accuracy": 0.8655
+        },
+        {
+          "draw": 2,
+          "train_distribution": "mean",
+          "eval_distribution": "true",
+          "relax_epoch": 0.759493670886076,
+          "relax_batch": 60,
+          "loss": 0.5896154537200927,
+          "accuracy": 0.8725
+        },
+        {
+          "draw": 2,
+          "train_distribution": "mean",
+          "eval_distribution": "true",
+          "relax_epoch": 1.0,
+          "relax_batch": 79,
+          "loss": 0.5525659008026123,
+          "accuracy": 0.8785
+        },
+        {
+          "draw": 2,
+          "train_distribution": "mean",
+          "eval_distribution": "mean",
+          "relax_epoch": 1.0,
+          "relax_batch": 79,
+          "loss": 0.00206119542196393,
+          "accuracy": 0.9995
+        },
+        {
+          "draw": 2,
+          "train_distribution": "mean",
+          "eval_distribution": "gaussian",
+          "relax_epoch": 1.0,
+          "relax_batch": 79,
+          "loss": 0.09014231753349304,
+          "accuracy": 0.9765
+        },
+        {
+          "draw": 2,
+          "train_distribution": "gaussian",
+          "eval_distribution": "true",
+          "relax_epoch": 0.0,
+          "relax_batch": 0,
+          "loss": 1.8349932250976562,
+          "accuracy": 0.503
+        },
+        {
+          "draw": 2,
+          "train_distribution": "gaussian",
+          "eval_distribution": "mean",
+          "relax_epoch": 0.0,
+          "relax_batch": 0,
+          "loss": 2.4948216552734377,
+          "accuracy": 0.3185
+        },
+        {
+          "draw": 2,
+          "train_distribution": "gaussian",
+          "eval_distribution": "gaussian",
+          "relax_epoch": 0.0,
+          "relax_batch": 0,
+          "loss": 2.0183897399902344,
+          "accuracy": 0.447
+        },
+        {
+          "draw": 2,
+          "train_distribution": "gaussian",
+          "eval_distribution": "true",
+          "relax_epoch": 0.012658227848101266,
+          "relax_batch": 1,
+          "loss": 1.59238037109375,
+          "accuracy": 0.554
+        },
+        {
+          "draw": 2,
+          "train_distribution": "gaussian",
+          "eval_distribution": "true",
+          "relax_epoch": 0.02531645569620253,
+          "relax_batch": 2,
+          "loss": 1.2106785697937013,
+          "accuracy": 0.638
+        },
+        {
+          "draw": 2,
+          "train_distribution": "gaussian",
+          "eval_distribution": "true",
+          "relax_epoch": 0.06329113924050633,
+          "relax_batch": 5,
+          "loss": 0.7090373306274415,
+          "accuracy": 0.785
+        },
+        {
+          "draw": 2,
+          "train_distribution": "gaussian",
+          "eval_distribution": "true",
+          "relax_epoch": 0.12658227848101267,
+          "relax_batch": 10,
+          "loss": 0.6813458652496338,
+          "accuracy": 0.8295
+        },
+        {
+          "draw": 2,
+          "train_distribution": "gaussian",
+          "eval_distribution": "true",
+          "relax_epoch": 0.25316455696202533,
+          "relax_batch": 20,
+          "loss": 1.0189140548706055,
+          "accuracy": 0.7355
+        },
+        {
+          "draw": 2,
+          "train_distribution": "gaussian",
+          "eval_distribution": "true",
+          "relax_epoch": 0.5063291139240507,
+          "relax_batch": 40,
+          "loss": 0.4791488742828369,
+          "accuracy": 0.8715
+        },
+        {
+          "draw": 2,
+          "train_distribution": "gaussian",
+          "eval_distribution": "true",
+          "relax_epoch": 0.759493670886076,
+          "relax_batch": 60,
+          "loss": 0.5039536762237549,
+          "accuracy": 0.8715
+        },
+        {
+          "draw": 2,
+          "train_distribution": "gaussian",
+          "eval_distribution": "true",
+          "relax_epoch": 1.0,
+          "relax_batch": 79,
+          "loss": 0.4319640216827393,
+          "accuracy": 0.8845
+        },
+        {
+          "draw": 2,
+          "train_distribution": "gaussian",
+          "eval_distribution": "mean",
+          "relax_epoch": 1.0,
+          "relax_batch": 79,
+          "loss": 0.06705353057384492,
+          "accuracy": 0.9795
+        },
+        {
+          "draw": 2,
+          "train_distribution": "gaussian",
+          "eval_distribution": "gaussian",
+          "relax_epoch": 1.0,
+          "relax_batch": 79,
+          "loss": 0.026134400457143783,
+          "accuracy": 0.992
+        },
+        {
+          "draw": 2,
+          "train_distribution": "true",
+          "eval_distribution": "true",
+          "relax_epoch": 0.0,
+          "relax_batch": 0,
+          "loss": 1.8349932250976562,
+          "accuracy": 0.503
+        },
+        {
+          "draw": 2,
+          "train_distribution": "true",
+          "eval_distribution": "mean",
+          "relax_epoch": 0.0,
+          "relax_batch": 0,
+          "loss": 2.4948216552734377,
+          "accuracy": 0.3185
+        },
+        {
+          "draw": 2,
+          "train_distribution": "true",
+          "eval_distribution": "gaussian",
+          "relax_epoch": 0.0,
+          "relax_batch": 0,
+          "loss": 2.0183897399902344,
+          "accuracy": 0.447
+        },
+        {
+          "draw": 2,
+          "train_distribution": "true",
+          "eval_distribution": "true",
+          "relax_epoch": 0.012658227848101266,
+          "relax_batch": 1,
+          "loss": 1.7044563980102538,
+          "accuracy": 0.535
+        },
+        {
+          "draw": 2,
+          "train_distribution": "true",
+          "eval_distribution": "true",
+          "relax_epoch": 0.02531645569620253,
+          "relax_batch": 2,
+          "loss": 1.3477388305664062,
+          "accuracy": 0.612
+        },
+        {
+          "draw": 2,
+          "train_distribution": "true",
+          "eval_distribution": "true",
+          "relax_epoch": 0.06329113924050633,
+          "relax_batch": 5,
+          "loss": 0.6823147315979003,
+          "accuracy": 0.821
+        },
+        {
+          "draw": 2,
+          "train_distribution": "true",
+          "eval_distribution": "true",
+          "relax_epoch": 0.12658227848101267,
+          "relax_batch": 10,
+          "loss": 0.6767106609344482,
+          "accuracy": 0.824
+        },
+        {
+          "draw": 2,
+          "train_distribution": "true",
+          "eval_distribution": "true",
+          "relax_epoch": 0.25316455696202533,
+          "relax_batch": 20,
+          "loss": 1.1970171966552734,
+          "accuracy": 0.736
+        },
+        {
+          "draw": 2,
+          "train_distribution": "true",
+          "eval_distribution": "true",
+          "relax_epoch": 0.5063291139240507,
+          "relax_batch": 40,
+          "loss": 0.4231714344024658,
+          "accuracy": 0.8825
+        },
+        {
+          "draw": 2,
+          "train_distribution": "true",
+          "eval_distribution": "true",
+          "relax_epoch": 0.759493670886076,
+          "relax_batch": 60,
+          "loss": 0.41233910274505614,
+          "accuracy": 0.8855
+        },
+        {
+          "draw": 2,
+          "train_distribution": "true",
+          "eval_distribution": "true",
+          "relax_epoch": 1.0,
+          "relax_batch": 79,
+          "loss": 0.38340109729766847,
+          "accuracy": 0.8975
+        },
+        {
+          "draw": 2,
+          "train_distribution": "true",
+          "eval_distribution": "mean",
+          "relax_epoch": 1.0,
+          "relax_batch": 79,
+          "loss": 0.11136933803558349,
+          "accuracy": 0.964
+        },
+        {
+          "draw": 2,
+          "train_distribution": "true",
+          "eval_distribution": "gaussian",
+          "relax_epoch": 1.0,
+          "relax_batch": 79,
+          "loss": 0.06816673922538757,
+          "accuracy": 0.979
+        }
+      ]
+    }
+  ],
+  "runtime_seconds": 128.4597156047821
+}

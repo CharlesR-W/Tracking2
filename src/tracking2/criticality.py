@@ -50,6 +50,7 @@ class CriticalityConfig:
     amp: bool = True
     seed: int = 0
     device: str = "auto"
+    training_only: bool = False
 
 
 class TensorTransformDataset(Dataset):
@@ -228,6 +229,18 @@ def run(config: CriticalityConfig) -> Path:
     final.load_state_dict(snapshots[config.epochs])
     baseline = evaluate(final, test_data, device)
     module_names = [name for name, _ in final.intervention_modules()]
+    if config.training_only:
+        artifact = {
+            "schema_version": 1, "experiment": "vgg_checkpoint_training",
+            "config": asdict(config), "device": str(device),
+            "module_names": module_names, "baseline": baseline,
+            "training": training, "interventions": [], "recoveries": [],
+            "runtime_seconds": time.time() - started,
+        }
+        path = output / "criticality.json"
+        path.write_text(json.dumps(artifact, indent=2, allow_nan=False))
+        print(f"[done] checkpoints-only artifact={path} runtime_seconds={artifact['runtime_seconds']:.1f}", flush=True)
+        return path
     source_models: dict[str, InstrumentedVGG19] = {}
     for epoch, snapshot in snapshots.items():
         source = InstrumentedVGG19(
@@ -288,6 +301,7 @@ def parse_args() -> CriticalityConfig:
     parser.add_argument("--no-amp", action="store_true")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--device", default="auto")
+    parser.add_argument("--training-only", action="store_true")
     args = parser.parse_args()
     return CriticalityConfig(
         output=args.output, data_root=args.data_root, fake_data=args.fake_data,
@@ -300,6 +314,7 @@ def parse_args() -> CriticalityConfig:
         recovery_sources=tuple(args.recovery_sources), recovery_steps=args.recovery_steps,
         recovery_eval_steps=tuple(args.recovery_eval_steps), recovery_lr=args.recovery_lr,
         amp=not args.no_amp, seed=args.seed, device=args.device,
+        training_only=args.training_only,
     )
 
 

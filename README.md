@@ -64,6 +64,9 @@ For a zoom within the first training epoch, set `--checkpoint-epoch 0` and use
 dataset and batch size 256 these are random initialization, a few batches, 10.2%,
 and 50.0% of the 196-batch epoch. Pass those artifacts alongside the coarse
 epoch artifacts; the report renders them as a separate shared-axis four-facet view.
+Add `--relax-batch-zoom` to record the first suffix-relaxation epoch at batches
+0, 1, 2, 5, 10, 20, 50, 100, and 196. The zoomed trajectories use this batch
+axis while the run still completes all requested relaxation epochs for its final matrix.
 
 Render the measured triptychs by passing the three artifacts in chronological
 order to `--suffix-statistics`; the report also sorts them by checkpoint:
@@ -141,18 +144,28 @@ Paid runs are separated from smoke tests:
 Neither paid entry point should be launched without explicit approval and a
 fresh check of the remaining RunPod budget.
 
-## VGG critical-module bridge (Part C)
+## VGG Part-B replication (Part C)
 
-`python -m tracking2.vgg_suffix_statistics` implements C2 and C3 without
-touching Part B's artifacts. It evaluates native and checkpoint-0-transplanted
-VGG interfaces at cuts 7, 8, 9, and 13, relaxes matched suffix copies on true,
-class-Gaussian, and class-mean activations, and records the full cross-matrix.
-On RunPod, use `scripts/run_vgg_suffix_statistics.sh`; set `SEED`,
-`CHECKPOINT_EPOCH`, `DRAW_COUNT`, and `PCA_COMPONENTS` in the environment as
-needed. Dashboard-bound artifacts require at least three surrogate draws and
-at least 80% PCA coverage at every displayed cut; the component count must be
-increased and the artifact rerun when the reported coverage misses that gate.
+`scripts/run_vgg_suffix_statistics.sh` trains one checkpoint-rich VGG-19+BN and
+then repeats Part B on the intact native interfaces at checkpoint epochs 0, 1,
+5, 20, and 100 and cuts 7–10. At every cell it relaxes matched suffix copies on
+true, class-Gaussian, and class-mean activations and records the full
+cross-matrix. Set `SEED`, `DRAW_COUNT`, and `PCA_COMPONENTS` in the environment
+as needed. The default gate uses one VGG seed, three surrogate draws, and 512
+PCA components.
 
-Load its result only into the C tab with `--vgg-suffix-statistics`; C4 (fresh
-re-randomization) and C5 (matched activation/prediction perturbation
-diagnostics) remain explicit TODO controls in `SPEC.md`.
+Render all five checkpoint artifacts together:
+
+```bash
+python -m tracking2.report artifacts/confirmatory/results.json \
+  --criticality artifacts/criticality/results.json \
+  --vgg-suffix-statistics artifacts/vgg_suffix_statistics/seed6-epoch*/vgg_suffix_statistics.json \
+  --output report.html
+```
+
+The C tab keeps the original C1 critical-module evaluation and places the new
+layer-by-training-time statistics map beside its critical boundary. The earlier
+checkpoint-transplant, fresh-randomization, and recovery proposals are archived
+and are not part of the active dashboard evidence chain. Gaussian/true gaps are
+not interpreted unless PCA coverage and held-out moment diagnostics are
+reported; three draws are required for a dashboard-bound artifact.
