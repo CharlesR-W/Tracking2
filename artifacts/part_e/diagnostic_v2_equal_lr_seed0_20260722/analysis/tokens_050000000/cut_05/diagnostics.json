@@ -1,0 +1,47 @@
+{
+  "channel_covariance_trace": 453.8682861328125,
+  "checkpoint_tokens": 50000000,
+  "conditional_mean_rmse": 1.1456955671310425,
+  "covariance_estimator": "one_step_flip_flop_channel_then_position_then_channel",
+  "covariance_fit_stories": 128,
+  "cut": 5,
+  "fit_rows": 32768,
+  "full_true_loss": 1.744774654507637,
+  "future_leakage_by_distribution": {
+    "mean": 0.0,
+    "seq_gaussian": 0.0,
+    "token_gaussian": 0.0
+  },
+  "future_leakage_max_abs": 0.0,
+  "gradient_matched_lr": false,
+  "initial_gradient_norms": {
+    "mean": 1.9621703624725342,
+    "projected_true": 0.8876323103904724,
+    "seq_gaussian": 2.1350059509277344,
+    "token_gaussian": 2.013719081878662,
+    "true": 0.8718416690826416
+  },
+  "learning_rate_scales": {
+    "mean": 1.0,
+    "projected_true": 1.0,
+    "seq_gaussian": 1.0,
+    "token_gaussian": 1.0,
+    "true": 1.0
+  },
+  "parity": {
+    "absolute_loss_error": 1.1920928955078125e-07,
+    "max_abs_logit_error": 9.5367431640625e-06,
+    "reference_loss": 1.9154678583145142,
+    "replay_loss": 1.9154679775238037
+  },
+  "pca_components": 349,
+  "pca_coverage": 0.950206995010376,
+  "pca_max_components": 512,
+  "pca_target_coverage": 0.95,
+  "pca_target_met": true,
+  "position_covariance_offdiag_abs_mean": 0.05364464223384857,
+  "projected_true_excess_loss": 0.013225570321083069,
+  "projected_true_loss": 1.75800022482872,
+  "tie_policy": "cloned_untied_for_suffix_relaxation",
+  "token_groups": 257
+}

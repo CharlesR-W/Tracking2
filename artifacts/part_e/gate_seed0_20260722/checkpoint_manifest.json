@@ -1,0 +1,37 @@
+{
+  "checkpoints": [
+    {
+      "loss_tokens": 0,
+      "model_sha256": "da3517f621fbff2ffea15d5a1a92d6f665459ab57eca8e170c26626e8910bf15",
+      "path": "artifacts/part_e/gate_seed0_20260722/checkpoints/tokens_000000000",
+      "state_sha256": "1b7e46265c12f16b0e5261bf81732b8ba5680530b64b56a322349311ac896242",
+      "step": 0
+    },
+    {
+      "loss_tokens": 4006560,
+      "model_sha256": "c2ab5c1b20ec350e53d37c0fbe7b51c9c1aa2c7364b9fe3e404752a60a9312f0",
+      "path": "artifacts/part_e/gate_seed0_20260722/checkpoints/tokens_004000000",
+      "state_sha256": "1ac9ca6c24aca611c3a0e8051b7152181daa78be674c543595143c828126fb81",
+      "step": 491,
+      "validation_loss": 2.885638475418091
+    },
+    {
+      "loss_tokens": 16001760,
+      "model_sha256": "3876c2893adcbd23033266443b1a3f6a16aea4ed0850c85042def3d2428811bf",
+      "path": "artifacts/part_e/gate_seed0_20260722/checkpoints/tokens_016000000",
+      "state_sha256": "e757be24d25ff690be01f790d8b89c56af785e15d8922113ac88b03ea969e6e5",
+      "step": 1961,
+      "validation_loss": 2.0797464810311794
+    },
+    {
+      "loss_tokens": 50000000,
+      "model_sha256": "fdc132944e0191a336e58a647c6ff2f9a354a59dd5f03811a6d541ef4ec610cf",
+      "path": "artifacts/part_e/gate_seed0_20260722/checkpoints/tokens_050000000",
+      "state_sha256": "315c87316ce28a6e686a72cfbc0ef9287336a55418326004b72c00390cc3e022",
+      "step": 6128,
+      "validation_loss": 1.7107686884701252
+    }
+  ],
+  "retention": "model and optimizer state retained for every declared checkpoint",
+  "schema_version": 1
+}

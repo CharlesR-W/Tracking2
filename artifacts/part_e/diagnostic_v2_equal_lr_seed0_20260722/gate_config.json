@@ -1,0 +1,52 @@
+{
+  "analysis_checkpoint_tokens": [
+    50000000
+  ],
+  "cache_batch_size": 8,
+  "checkpoint_tokens": [
+    0,
+    4000000,
+    16000000,
+    50000000
+  ],
+  "context_length": 256,
+  "covariance_fit_stories": 128,
+  "covariance_shrinkage": 0.05,
+  "cuts": [
+    0,
+    5,
+    11
+  ],
+  "dataset_id": "roneneldan/TinyStories",
+  "dataset_revision": "main",
+  "dtype": "bfloat16",
+  "eval_batch_size": 8,
+  "eval_stories": 64,
+  "grad_accumulation": 1,
+  "gradient_matched_lr": false,
+  "learning_rate": 0.0003,
+  "n_embd": 768,
+  "n_head": 12,
+  "n_layer": 12,
+  "output": "artifacts/part_e/diagnostic_v2_equal_lr_seed0_20260722",
+  "pca_components": 512,
+  "pca_fit_rows": 32768,
+  "pca_min_components": 128,
+  "pca_target_coverage": 0.95,
+  "position_bins": 16,
+  "position_shrinkage": 0.1,
+  "replay_eval_stories": 128,
+  "replay_fit_stories": 512,
+  "seed": 0,
+  "source_run": "artifacts/part_e/gate_seed0_20260722",
+  "suffix_batch_size": 8,
+  "suffix_learning_rate": 5e-05,
+  "suffix_updates": 32,
+  "token_groups": 256,
+  "tokenizer_id": "gpt2",
+  "tokenizer_revision": "main",
+  "train_batch_size": 32,
+  "train_loss_tokens": 50000000,
+  "validation_tokens": 2000000,
+  "warmup_steps": 200
+}

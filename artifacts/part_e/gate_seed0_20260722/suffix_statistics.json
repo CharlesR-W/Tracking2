@@ -1,0 +1,6126 @@
+{
+  "config": {
+    "analysis_checkpoint_tokens": [
+      4000000,
+      16000000,
+      50000000
+    ],
+    "cache_batch_size": 8,
+    "checkpoint_tokens": [
+      0,
+      4000000,
+      16000000,
+      50000000
+    ],
+    "context_length": 256,
+    "covariance_shrinkage": 0.05,
+    "cuts": [
+      0,
+      5,
+      11
+    ],
+    "dataset_id": "roneneldan/TinyStories",
+    "dataset_revision": "main",
+    "dtype": "bfloat16",
+    "eval_batch_size": 8,
+    "eval_stories": 64,
+    "grad_accumulation": 1,
+    "learning_rate": 0.0003,
+    "n_embd": 768,
+    "n_head": 12,
+    "n_layer": 12,
+    "output": "artifacts/part_e/gate_seed0_20260722",
+    "pca_components": 256,
+    "pca_fit_rows": 32768,
+    "position_bins": 16,
+    "position_shrinkage": 0.1,
+    "replay_eval_stories": 128,
+    "replay_fit_stories": 512,
+    "seed": 0,
+    "suffix_batch_size": 8,
+    "suffix_learning_rate": 5e-05,
+    "suffix_updates": 64,
+    "token_groups": 256,
+    "tokenizer_id": "gpt2",
+    "tokenizer_revision": "main",
+    "train_batch_size": 32,
+    "train_loss_tokens": 50000000,
+    "validation_tokens": 2000000,
+    "warmup_steps": 200
+  },
+  "device": "cuda",
+  "diagnostics": [
+    {
+      "channel_covariance_trace": 88.83069610595703,
+      "checkpoint_tokens": 4000000,
+      "conditional_mean_rmse": 0.5890605449676514,
+      "cut": 0,
+      "fit_rows": 32768,
+      "full_true_loss": 2.9396973848342896,
+      "future_leakage_by_distribution": {
+        "mean": 0.0,
+        "seq_gaussian": 0.0
+      },
+      "future_leakage_max_abs": 0.0,
+      "parity": {
+        "absolute_loss_error": 0.0,
+        "max_abs_logit_error": 0.0625,
+        "reference_loss": 3.296875,
+        "replay_loss": 3.296875
+      },
+      "pca_components": 256,
+      "pca_coverage": 0.9940129518508911,
+      "position_covariance_offdiag_abs_mean": 0.18575231730937958,
+      "projected_true_excess_loss": 0.0016456544399261475,
+      "projected_true_loss": 2.9413430392742157,
+      "tie_policy": "cloned_untied_for_suffix_relaxation",
+      "token_groups": 257
+    },
+    {
+      "channel_covariance_trace": 521.5657958984375,
+      "checkpoint_tokens": 4000000,
+      "conditional_mean_rmse": 1.4273581504821777,
+      "cut": 5,
+      "fit_rows": 32768,
+      "full_true_loss": 2.939811557531357,
+      "future_leakage_by_distribution": {
+        "mean": 0.0,
+        "seq_gaussian": 0.0
+      },
+      "future_leakage_max_abs": 0.0,
+      "parity": {
+        "absolute_loss_error": 0.0,
+        "max_abs_logit_error": 0.0625,
+        "reference_loss": 3.296875,
+        "replay_loss": 3.296875
+      },
+      "pca_components": 256,
+      "pca_coverage": 0.9888937473297119,
+      "position_covariance_offdiag_abs_mean": 0.08594175428152084,
+      "projected_true_excess_loss": 0.006716907024383545,
+      "projected_true_loss": 2.9465284645557404,
+      "tie_policy": "cloned_untied_for_suffix_relaxation",
+      "token_groups": 257
+    },
+    {
+      "channel_covariance_trace": 1487.802734375,
+      "checkpoint_tokens": 4000000,
+      "conditional_mean_rmse": 2.4107439517974854,
+      "cut": 11,
+      "fit_rows": 32768,
+      "full_true_loss": 2.9398891925811768,
+      "future_leakage_by_distribution": {
+        "mean": 0.0,
+        "seq_gaussian": 0.0
+      },
+      "future_leakage_max_abs": 0.0,
+      "parity": {
+        "absolute_loss_error": 0.0,
+        "max_abs_logit_error": 0.0625,
+        "reference_loss": 3.296875,
+        "replay_loss": 3.296875
+      },
+      "pca_components": 256,
+      "pca_coverage": 0.9887574911117554,
+      "position_covariance_offdiag_abs_mean": 0.1001109853386879,
+      "projected_true_excess_loss": 0.01638340950012207,
+      "projected_true_loss": 2.956272602081299,
+      "tie_policy": "cloned_untied_for_suffix_relaxation",
+      "token_groups": 257
+    },
+    {
+      "channel_covariance_trace": 327.3134460449219,
+      "checkpoint_tokens": 16000000,
+      "conditional_mean_rmse": 1.130733609199524,
+      "cut": 0,
+      "fit_rows": 32768,
+      "full_true_loss": 2.11950121819973,
+      "future_leakage_by_distribution": {
+        "mean": 0.0,
+        "seq_gaussian": 0.0
+      },
+      "future_leakage_max_abs": 0.0,
+      "parity": {
+        "absolute_loss_error": 0.0,
+        "max_abs_logit_error": 0.125,
+        "reference_loss": 2.40625,
+        "replay_loss": 2.40625
+      },
+      "pca_components": 256,
+      "pca_coverage": 0.9959428906440735,
+      "position_covariance_offdiag_abs_mean": 0.14555159211158752,
+      "projected_true_excess_loss": 0.0013953298330307007,
+      "projected_true_loss": 2.1208965480327606,
+      "tie_policy": "cloned_untied_for_suffix_relaxation",
+      "token_groups": 257
+    },
+    {
+      "channel_covariance_trace": 878.034912109375,
+      "checkpoint_tokens": 16000000,
+      "conditional_mean_rmse": 1.8519713878631592,
+      "cut": 5,
+      "fit_rows": 32768,
+      "full_true_loss": 2.1195104718208313,
+      "future_leakage_by_distribution": {
+        "mean": 0.0,
+        "seq_gaussian": 0.0
+      },
+      "future_leakage_max_abs": 0.0,
+      "parity": {
+        "absolute_loss_error": 0.0,
+        "max_abs_logit_error": 0.125,
+        "reference_loss": 2.40625,
+        "replay_loss": 2.40625
+      },
+      "pca_components": 256,
+      "pca_coverage": 0.9581619501113892,
+      "position_covariance_offdiag_abs_mean": 0.07902970165014267,
+      "projected_true_excess_loss": 0.014699071645736694,
+      "projected_true_loss": 2.134209543466568,
+      "tie_policy": "cloned_untied_for_suffix_relaxation",
+      "token_groups": 257
+    },
+    {
+      "channel_covariance_trace": 2121.9970703125,
+      "checkpoint_tokens": 16000000,
+      "conditional_mean_rmse": 2.8790605068206787,
+      "cut": 11,
+      "fit_rows": 32768,
+      "full_true_loss": 2.119446650147438,
+      "future_leakage_by_distribution": {
+        "mean": 0.0,
+        "seq_gaussian": 0.0
+      },
+      "future_leakage_max_abs": 0.0,
+      "parity": {
+        "absolute_loss_error": 0.0,
+        "max_abs_logit_error": 0.0625,
+        "reference_loss": 2.40625,
+        "replay_loss": 2.40625
+      },
+      "pca_components": 256,
+      "pca_coverage": 0.9368293881416321,
+      "position_covariance_offdiag_abs_mean": 0.11138148605823517,
+      "projected_true_excess_loss": 0.03959652781486511,
+      "projected_true_loss": 2.159043177962303,
+      "tie_policy": "cloned_untied_for_suffix_relaxation",
+      "token_groups": 257
+    },
+    {
+      "channel_covariance_trace": 181.0293426513672,
+      "checkpoint_tokens": 50000000,
+      "conditional_mean_rmse": 0.8409165740013123,
+      "cut": 0,
+      "fit_rows": 32768,
+      "full_true_loss": 1.744992956519127,
+      "future_leakage_by_distribution": {
+        "mean": 0.0,
+        "seq_gaussian": 0.0
+      },
+      "future_leakage_max_abs": 0.0,
+      "parity": {
+        "absolute_loss_error": 0.0,
+        "max_abs_logit_error": 0.125,
+        "reference_loss": 1.9140625,
+        "replay_loss": 1.9140625
+      },
+      "pca_components": 256,
+      "pca_coverage": 0.9925512671470642,
+      "position_covariance_offdiag_abs_mean": 0.12200512737035751,
+      "projected_true_excess_loss": 0.0015319585800170898,
+      "projected_true_loss": 1.746524915099144,
+      "tie_policy": "cloned_untied_for_suffix_relaxation",
+      "token_groups": 257
+    },
+    {
+      "channel_covariance_trace": 432.8898620605469,
+      "checkpoint_tokens": 50000000,
+      "conditional_mean_rmse": 1.300370454788208,
+      "cut": 5,
+      "fit_rows": 32768,
+      "full_true_loss": 1.7448620051145554,
+      "future_leakage_by_distribution": {
+        "mean": 0.0,
+        "seq_gaussian": 0.0
+      },
+      "future_leakage_max_abs": 0.0,
+      "parity": {
+        "absolute_loss_error": 0.0,
+        "max_abs_logit_error": 0.125,
+        "reference_loss": 1.9140625,
+        "replay_loss": 1.9140625
+      },
+      "pca_components": 256,
+      "pca_coverage": 0.9072162508964539,
+      "position_covariance_offdiag_abs_mean": 0.06933700293302536,
+      "projected_true_excess_loss": 0.027626901865005493,
+      "projected_true_loss": 1.7724889069795609,
+      "tie_policy": "cloned_untied_for_suffix_relaxation",
+      "token_groups": 257
+    },
+    {
+      "channel_covariance_trace": 1095.189453125,
+      "checkpoint_tokens": 50000000,
+      "conditional_mean_rmse": 2.068345308303833,
+      "cut": 11,
+      "fit_rows": 32768,
+      "full_true_loss": 1.7449075430631638,
+      "future_leakage_by_distribution": {
+        "mean": 0.0,
+        "seq_gaussian": 0.0
+      },
+      "future_leakage_max_abs": 0.0,
+      "parity": {
+        "absolute_loss_error": 0.0,
+        "max_abs_logit_error": 0.0625,
+        "reference_loss": 1.9140625,
+        "replay_loss": 1.9140625
+      },
+      "pca_components": 256,
+      "pca_coverage": 0.8735571503639221,
+      "position_covariance_offdiag_abs_mean": 0.1029428020119667,
+      "projected_true_excess_loss": 0.06554080545902252,
+      "projected_true_loss": 1.8104483485221863,
+      "tie_policy": "cloned_untied_for_suffix_relaxation",
+      "token_groups": 257
+    }
+  ],
+  "experiment": "part_e_gpt2_suffix_statistics",
+  "records": [
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.916228413581848,
+      "train_distribution": "mean",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.577718377113342,
+      "train_distribution": "mean",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.9396973848342896,
+      "train_distribution": "mean",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.7505747079849243,
+      "train_distribution": "mean",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.459481060504913,
+      "train_distribution": "mean",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.9360059797763824,
+      "train_distribution": "mean",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.6661474108695984,
+      "train_distribution": "mean",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.3944767117500305,
+      "train_distribution": "mean",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.9456618428230286,
+      "train_distribution": "mean",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.5297284722328186,
+      "train_distribution": "mean",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.28618723154068,
+      "train_distribution": "mean",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.965693235397339,
+      "train_distribution": "mean",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.318495810031891,
+      "train_distribution": "mean",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.1476165652275085,
+      "train_distribution": "mean",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.996708869934082,
+      "train_distribution": "mean",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.1173035204410553,
+      "train_distribution": "mean",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.066445976495743,
+      "train_distribution": "mean",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 3.080968677997589,
+      "train_distribution": "mean",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.832923263311386,
+      "train_distribution": "mean",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.956077218055725,
+      "train_distribution": "mean",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 3.242692619562149,
+      "train_distribution": "mean",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.5967803299427032,
+      "train_distribution": "mean",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.9903703927993774,
+      "train_distribution": "mean",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 3.4682015478610992,
+      "train_distribution": "mean",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.916228413581848,
+      "train_distribution": "seq_gaussian",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.577718377113342,
+      "train_distribution": "seq_gaussian",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.9396973848342896,
+      "train_distribution": "seq_gaussian",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.804478943347931,
+      "train_distribution": "seq_gaussian",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.462996542453766,
+      "train_distribution": "seq_gaussian",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.935566484928131,
+      "train_distribution": "seq_gaussian",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.7362387776374817,
+      "train_distribution": "seq_gaussian",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.383450269699097,
+      "train_distribution": "seq_gaussian",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.9446802735328674,
+      "train_distribution": "seq_gaussian",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.642945259809494,
+      "train_distribution": "seq_gaussian",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.2579536736011505,
+      "train_distribution": "seq_gaussian",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.968220442533493,
+      "train_distribution": "seq_gaussian",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.5408905744552612,
+      "train_distribution": "seq_gaussian",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.117420345544815,
+      "train_distribution": "seq_gaussian",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 3.0145674347877502,
+      "train_distribution": "seq_gaussian",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.365520656108856,
+      "train_distribution": "seq_gaussian",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.958021342754364,
+      "train_distribution": "seq_gaussian",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 3.0916278958320618,
+      "train_distribution": "seq_gaussian",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.1214887499809265,
+      "train_distribution": "seq_gaussian",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.68350487947464,
+      "train_distribution": "seq_gaussian",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 3.212790459394455,
+      "train_distribution": "seq_gaussian",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.9269829094409943,
+      "train_distribution": "seq_gaussian",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.4318292438983917,
+      "train_distribution": "seq_gaussian",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 3.4098038971424103,
+      "train_distribution": "seq_gaussian",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.916228413581848,
+      "train_distribution": "true",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.577718377113342,
+      "train_distribution": "true",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.9396973848342896,
+      "train_distribution": "true",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.874718517065048,
+      "train_distribution": "true",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.536568999290466,
+      "train_distribution": "true",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.9293919801712036,
+      "train_distribution": "true",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.8732812106609344,
+      "train_distribution": "true",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.534230351448059,
+      "train_distribution": "true",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.926785796880722,
+      "train_distribution": "true",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.856511026620865,
+      "train_distribution": "true",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.510074198246002,
+      "train_distribution": "true",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.916946679353714,
+      "train_distribution": "true",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.8487622141838074,
+      "train_distribution": "true",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.495792627334595,
+      "train_distribution": "true",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.90798419713974,
+      "train_distribution": "true",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.837747275829315,
+      "train_distribution": "true",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.494427859783173,
+      "train_distribution": "true",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.8987916111946106,
+      "train_distribution": "true",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.8228199779987335,
+      "train_distribution": "true",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.477999567985535,
+      "train_distribution": "true",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.892621010541916,
+      "train_distribution": "true",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.8311285078525543,
+      "train_distribution": "true",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.488366901874542,
+      "train_distribution": "true",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.8850705921649933,
+      "train_distribution": "true",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.343316078186035,
+      "train_distribution": "mean",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.8682384192943573,
+      "train_distribution": "mean",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.939811557531357,
+      "train_distribution": "mean",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.2859136164188385,
+      "train_distribution": "mean",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.8111763894557953,
+      "train_distribution": "mean",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.9354875087738037,
+      "train_distribution": "mean",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.235394150018692,
+      "train_distribution": "mean",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.7609289288520813,
+      "train_distribution": "mean",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.9341710209846497,
+      "train_distribution": "mean",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.1675537824630737,
+      "train_distribution": "mean",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.6933471262454987,
+      "train_distribution": "mean",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.937671422958374,
+      "train_distribution": "mean",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.100079119205475,
+      "train_distribution": "mean",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.6464368999004364,
+      "train_distribution": "mean",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.9547653794288635,
+      "train_distribution": "mean",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.0122289657592773,
+      "train_distribution": "mean",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.6054980158805847,
+      "train_distribution": "mean",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.998322606086731,
+      "train_distribution": "mean",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.825039029121399,
+      "train_distribution": "mean",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.466884583234787,
+      "train_distribution": "mean",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 3.0818317234516144,
+      "train_distribution": "mean",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.624121993780136,
+      "train_distribution": "mean",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.3793578445911407,
+      "train_distribution": "mean",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 3.249335080385208,
+      "train_distribution": "mean",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.343316078186035,
+      "train_distribution": "seq_gaussian",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.8682384192943573,
+      "train_distribution": "seq_gaussian",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.939811557531357,
+      "train_distribution": "seq_gaussian",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.2913224399089813,
+      "train_distribution": "seq_gaussian",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.804736942052841,
+      "train_distribution": "seq_gaussian",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.9345822632312775,
+      "train_distribution": "seq_gaussian",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.2480870485305786,
+      "train_distribution": "seq_gaussian",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.7463807463645935,
+      "train_distribution": "seq_gaussian",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.934434175491333,
+      "train_distribution": "seq_gaussian",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.2035252153873444,
+      "train_distribution": "seq_gaussian",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.6597164273262024,
+      "train_distribution": "seq_gaussian",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.945839434862137,
+      "train_distribution": "seq_gaussian",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.166712671518326,
+      "train_distribution": "seq_gaussian",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.5735470354557037,
+      "train_distribution": "seq_gaussian",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.961721569299698,
+      "train_distribution": "seq_gaussian",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.0883913934230804,
+      "train_distribution": "seq_gaussian",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.4985266029834747,
+      "train_distribution": "seq_gaussian",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.987377166748047,
+      "train_distribution": "seq_gaussian",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.9896470606327057,
+      "train_distribution": "seq_gaussian",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.369759500026703,
+      "train_distribution": "seq_gaussian",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 3.0455397367477417,
+      "train_distribution": "seq_gaussian",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.8159347474575043,
+      "train_distribution": "seq_gaussian",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.1612350940704346,
+      "train_distribution": "seq_gaussian",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 3.1846568882465363,
+      "train_distribution": "seq_gaussian",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.343316078186035,
+      "train_distribution": "true",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.8682384192943573,
+      "train_distribution": "true",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.939811557531357,
+      "train_distribution": "true",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.3226517736911774,
+      "train_distribution": "true",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.844353824853897,
+      "train_distribution": "true",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.9315873086452484,
+      "train_distribution": "true",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.314963072538376,
+      "train_distribution": "true",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.833228886127472,
+      "train_distribution": "true",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.92787829041481,
+      "train_distribution": "true",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.3050038814544678,
+      "train_distribution": "true",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.8197840750217438,
+      "train_distribution": "true",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.9216136634349823,
+      "train_distribution": "true",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.291944682598114,
+      "train_distribution": "true",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.8098833858966827,
+      "train_distribution": "true",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.907805919647217,
+      "train_distribution": "true",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.2907097041606903,
+      "train_distribution": "true",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.8131493031978607,
+      "train_distribution": "true",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.8983917236328125,
+      "train_distribution": "true",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.2626955211162567,
+      "train_distribution": "true",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.7847844660282135,
+      "train_distribution": "true",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.891998529434204,
+      "train_distribution": "true",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.2369254529476166,
+      "train_distribution": "true",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.7495360374450684,
+      "train_distribution": "true",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.884569376707077,
+      "train_distribution": "true",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.376326769590378,
+      "train_distribution": "mean",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.775355100631714,
+      "train_distribution": "mean",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.9398891925811768,
+      "train_distribution": "mean",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.372421383857727,
+      "train_distribution": "mean",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.7719415724277496,
+      "train_distribution": "mean",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.9398984014987946,
+      "train_distribution": "mean",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.367927372455597,
+      "train_distribution": "mean",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.7680752277374268,
+      "train_distribution": "mean",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.9395912885665894,
+      "train_distribution": "mean",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.3594377040863037,
+      "train_distribution": "mean",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.761132150888443,
+      "train_distribution": "mean",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.9396502673625946,
+      "train_distribution": "mean",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.343502640724182,
+      "train_distribution": "mean",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.747689366340637,
+      "train_distribution": "mean",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.940799742937088,
+      "train_distribution": "mean",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.3145842850208282,
+      "train_distribution": "mean",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.7233454287052155,
+      "train_distribution": "mean",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.9460195302963257,
+      "train_distribution": "mean",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.265286237001419,
+      "train_distribution": "mean",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.6831053495407104,
+      "train_distribution": "mean",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.961684376001358,
+      "train_distribution": "mean",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.1877093613147736,
+      "train_distribution": "mean",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.6217209100723267,
+      "train_distribution": "mean",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 3.005676567554474,
+      "train_distribution": "mean",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.376326769590378,
+      "train_distribution": "seq_gaussian",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.775355100631714,
+      "train_distribution": "seq_gaussian",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.9398891925811768,
+      "train_distribution": "seq_gaussian",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.372788190841675,
+      "train_distribution": "seq_gaussian",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.771345555782318,
+      "train_distribution": "seq_gaussian",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.93971711397171,
+      "train_distribution": "seq_gaussian",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.3688624799251556,
+      "train_distribution": "seq_gaussian",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.767501175403595,
+      "train_distribution": "seq_gaussian",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.939511239528656,
+      "train_distribution": "seq_gaussian",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.361218810081482,
+      "train_distribution": "seq_gaussian",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.759834587574005,
+      "train_distribution": "seq_gaussian",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.9396035373210907,
+      "train_distribution": "seq_gaussian",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.34647673368454,
+      "train_distribution": "seq_gaussian",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.7443487644195557,
+      "train_distribution": "seq_gaussian",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.9402939081192017,
+      "train_distribution": "seq_gaussian",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.3178991973400116,
+      "train_distribution": "seq_gaussian",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.7150650918483734,
+      "train_distribution": "seq_gaussian",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.9432906210422516,
+      "train_distribution": "seq_gaussian",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.271828591823578,
+      "train_distribution": "seq_gaussian",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.668507397174835,
+      "train_distribution": "seq_gaussian",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.9584233164787292,
+      "train_distribution": "seq_gaussian",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.2084518373012543,
+      "train_distribution": "seq_gaussian",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.6044109165668488,
+      "train_distribution": "seq_gaussian",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.995203137397766,
+      "train_distribution": "seq_gaussian",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.376326769590378,
+      "train_distribution": "true",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.775355100631714,
+      "train_distribution": "true",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.9398891925811768,
+      "train_distribution": "true",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.3748349249362946,
+      "train_distribution": "true",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.773300439119339,
+      "train_distribution": "true",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.9391058683395386,
+      "train_distribution": "true",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.3737376630306244,
+      "train_distribution": "true",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.771806478500366,
+      "train_distribution": "true",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.938311457633972,
+      "train_distribution": "true",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.371478885412216,
+      "train_distribution": "true",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.7692828476428986,
+      "train_distribution": "true",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.9368875324726105,
+      "train_distribution": "true",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.3667513728141785,
+      "train_distribution": "true",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.763899266719818,
+      "train_distribution": "true",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.9339131712913513,
+      "train_distribution": "true",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.3579494953155518,
+      "train_distribution": "true",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.754898428916931,
+      "train_distribution": "true",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.9299193620681763,
+      "train_distribution": "true",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.3463480472564697,
+      "train_distribution": "true",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.744272291660309,
+      "train_distribution": "true",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.926009774208069,
+      "train_distribution": "true",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.3337733447551727,
+      "train_distribution": "true",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.73203307390213,
+      "train_distribution": "true",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 4000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.924012631177902,
+      "train_distribution": "true",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 4.390095889568329,
+      "train_distribution": "mean",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.998350977897644,
+      "train_distribution": "mean",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.11950121819973,
+      "train_distribution": "mean",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 4.175540864467621,
+      "train_distribution": "mean",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.830230951309204,
+      "train_distribution": "mean",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.115841716527939,
+      "train_distribution": "mean",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 4.07632103562355,
+      "train_distribution": "mean",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.739797115325928,
+      "train_distribution": "mean",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.116756796836853,
+      "train_distribution": "mean",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.934284806251526,
+      "train_distribution": "mean",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.597621977329254,
+      "train_distribution": "mean",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.1289011240005493,
+      "train_distribution": "mean",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.7176453173160553,
+      "train_distribution": "mean",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.419954776763916,
+      "train_distribution": "mean",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.155195578932762,
+      "train_distribution": "mean",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.419324219226837,
+      "train_distribution": "mean",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.210794270038605,
+      "train_distribution": "mean",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.1871841102838516,
+      "train_distribution": "mean",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.100228250026703,
+      "train_distribution": "mean",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.02349266409874,
+      "train_distribution": "mean",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.294959932565689,
+      "train_distribution": "mean",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.793282002210617,
+      "train_distribution": "mean",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.9230842888355255,
+      "train_distribution": "mean",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.4584335684776306,
+      "train_distribution": "mean",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 4.390095889568329,
+      "train_distribution": "seq_gaussian",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.998350977897644,
+      "train_distribution": "seq_gaussian",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.11950121819973,
+      "train_distribution": "seq_gaussian",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 4.229771256446838,
+      "train_distribution": "seq_gaussian",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.835486054420471,
+      "train_distribution": "seq_gaussian",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.1161715239286423,
+      "train_distribution": "seq_gaussian",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 4.159973233938217,
+      "train_distribution": "seq_gaussian",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.7572503089904785,
+      "train_distribution": "seq_gaussian",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.118659108877182,
+      "train_distribution": "seq_gaussian",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 4.061423659324646,
+      "train_distribution": "seq_gaussian",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.616925656795502,
+      "train_distribution": "seq_gaussian",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.134969934821129,
+      "train_distribution": "seq_gaussian",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.895658999681473,
+      "train_distribution": "seq_gaussian",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.388676047325134,
+      "train_distribution": "seq_gaussian",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.1764734387397766,
+      "train_distribution": "seq_gaussian",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.710840255022049,
+      "train_distribution": "seq_gaussian",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.213440775871277,
+      "train_distribution": "seq_gaussian",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.226600155234337,
+      "train_distribution": "seq_gaussian",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.3742420077323914,
+      "train_distribution": "seq_gaussian",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.855648845434189,
+      "train_distribution": "seq_gaussian",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.3371099531650543,
+      "train_distribution": "seq_gaussian",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.096158027648926,
+      "train_distribution": "seq_gaussian",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.5324659049510956,
+      "train_distribution": "seq_gaussian",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.518871158361435,
+      "train_distribution": "seq_gaussian",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 4.390095889568329,
+      "train_distribution": "true",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.998350977897644,
+      "train_distribution": "true",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.11950121819973,
+      "train_distribution": "true",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 4.390726923942566,
+      "train_distribution": "true",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.999943137168884,
+      "train_distribution": "true",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.113901823759079,
+      "train_distribution": "true",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 4.3930394649505615,
+      "train_distribution": "true",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 5.0019490122795105,
+      "train_distribution": "true",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.1073680967092514,
+      "train_distribution": "true",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 4.390138506889343,
+      "train_distribution": "true",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.9980122447013855,
+      "train_distribution": "true",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.100128546357155,
+      "train_distribution": "true",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 4.346489250659943,
+      "train_distribution": "true",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.958060920238495,
+      "train_distribution": "true",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.0926476269960403,
+      "train_distribution": "true",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 4.322716772556305,
+      "train_distribution": "true",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.946206450462341,
+      "train_distribution": "true",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.0868175625801086,
+      "train_distribution": "true",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 4.32764196395874,
+      "train_distribution": "true",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.948442041873932,
+      "train_distribution": "true",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.0810753107070923,
+      "train_distribution": "true",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 4.342994570732117,
+      "train_distribution": "true",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.945171773433685,
+      "train_distribution": "true",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.080776661634445,
+      "train_distribution": "true",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.5026657581329346,
+      "train_distribution": "mean",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.8530239164829254,
+      "train_distribution": "mean",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.1195104718208313,
+      "train_distribution": "mean",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.4388837218284607,
+      "train_distribution": "mean",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.796642482280731,
+      "train_distribution": "mean",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.118802949786186,
+      "train_distribution": "mean",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.3875463008880615,
+      "train_distribution": "mean",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.7509885132312775,
+      "train_distribution": "mean",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.1191748082637787,
+      "train_distribution": "mean",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.3376073241233826,
+      "train_distribution": "mean",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.7085490226745605,
+      "train_distribution": "mean",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.1254239678382874,
+      "train_distribution": "mean",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.2654488682746887,
+      "train_distribution": "mean",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.666540026664734,
+      "train_distribution": "mean",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.142964333295822,
+      "train_distribution": "mean",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.115318775177002,
+      "train_distribution": "mean",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.537439376115799,
+      "train_distribution": "mean",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.1593705862760544,
+      "train_distribution": "mean",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.9854148030281067,
+      "train_distribution": "mean",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.4337964355945587,
+      "train_distribution": "mean",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.2031439691781998,
+      "train_distribution": "mean",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.7873885333538055,
+      "train_distribution": "mean",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.283696711063385,
+      "train_distribution": "mean",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.307514190673828,
+      "train_distribution": "mean",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.5026657581329346,
+      "train_distribution": "seq_gaussian",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.8530239164829254,
+      "train_distribution": "seq_gaussian",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.1195104718208313,
+      "train_distribution": "seq_gaussian",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.455047607421875,
+      "train_distribution": "seq_gaussian",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.7950105369091034,
+      "train_distribution": "seq_gaussian",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.1193859577178955,
+      "train_distribution": "seq_gaussian",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.4259926080703735,
+      "train_distribution": "seq_gaussian",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.757256716489792,
+      "train_distribution": "seq_gaussian",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.121416136622429,
+      "train_distribution": "seq_gaussian",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.384868621826172,
+      "train_distribution": "seq_gaussian",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.7002512216567993,
+      "train_distribution": "seq_gaussian",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.127999097108841,
+      "train_distribution": "seq_gaussian",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.3194820880889893,
+      "train_distribution": "seq_gaussian",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.621576964855194,
+      "train_distribution": "seq_gaussian",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.140524223446846,
+      "train_distribution": "seq_gaussian",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.2142474353313446,
+      "train_distribution": "seq_gaussian",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.4963200390338898,
+      "train_distribution": "seq_gaussian",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.153615325689316,
+      "train_distribution": "seq_gaussian",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.1291278898715973,
+      "train_distribution": "seq_gaussian",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.414711683988571,
+      "train_distribution": "seq_gaussian",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.201519653201103,
+      "train_distribution": "seq_gaussian",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.945061534643173,
+      "train_distribution": "seq_gaussian",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.200107753276825,
+      "train_distribution": "seq_gaussian",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.2901080548763275,
+      "train_distribution": "seq_gaussian",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.5026657581329346,
+      "train_distribution": "true",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.8530239164829254,
+      "train_distribution": "true",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.1195104718208313,
+      "train_distribution": "true",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.4974563121795654,
+      "train_distribution": "true",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.8465910851955414,
+      "train_distribution": "true",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.1167946606874466,
+      "train_distribution": "true",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.4917449951171875,
+      "train_distribution": "true",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.8399095833301544,
+      "train_distribution": "true",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.115263342857361,
+      "train_distribution": "true",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.484572559595108,
+      "train_distribution": "true",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.835976928472519,
+      "train_distribution": "true",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.110980659723282,
+      "train_distribution": "true",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.473485589027405,
+      "train_distribution": "true",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.8282576203346252,
+      "train_distribution": "true",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.104011446237564,
+      "train_distribution": "true",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.476919710636139,
+      "train_distribution": "true",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.833383858203888,
+      "train_distribution": "true",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.0946953892707825,
+      "train_distribution": "true",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.4746943414211273,
+      "train_distribution": "true",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.8245016634464264,
+      "train_distribution": "true",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.088371828198433,
+      "train_distribution": "true",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.4572031795978546,
+      "train_distribution": "true",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.8123071491718292,
+      "train_distribution": "true",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.0854478031396866,
+      "train_distribution": "true",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.089942157268524,
+      "train_distribution": "mean",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.4799055457115173,
+      "train_distribution": "mean",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.119446650147438,
+      "train_distribution": "mean",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.0873185098171234,
+      "train_distribution": "mean",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.47686630487442,
+      "train_distribution": "mean",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.1195960640907288,
+      "train_distribution": "mean",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.0848004519939423,
+      "train_distribution": "mean",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.47400763630867,
+      "train_distribution": "mean",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.1191754192113876,
+      "train_distribution": "mean",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.080119490623474,
+      "train_distribution": "mean",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.4686652421951294,
+      "train_distribution": "mean",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.1189998537302017,
+      "train_distribution": "mean",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.0708716809749603,
+      "train_distribution": "mean",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.4582460522651672,
+      "train_distribution": "mean",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.119757756590843,
+      "train_distribution": "mean",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.0532601475715637,
+      "train_distribution": "mean",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.4396972060203552,
+      "train_distribution": "mean",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.1241233497858047,
+      "train_distribution": "mean",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.022384822368622,
+      "train_distribution": "mean",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.408456563949585,
+      "train_distribution": "mean",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.1383023858070374,
+      "train_distribution": "mean",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.97592294216156,
+      "train_distribution": "mean",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.362958014011383,
+      "train_distribution": "mean",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.1690521836280823,
+      "train_distribution": "mean",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.089942157268524,
+      "train_distribution": "seq_gaussian",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.4799055457115173,
+      "train_distribution": "seq_gaussian",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.119446650147438,
+      "train_distribution": "seq_gaussian",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.0875335037708282,
+      "train_distribution": "seq_gaussian",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.476539731025696,
+      "train_distribution": "seq_gaussian",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.1195821166038513,
+      "train_distribution": "seq_gaussian",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.085027575492859,
+      "train_distribution": "seq_gaussian",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.473286122083664,
+      "train_distribution": "seq_gaussian",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.1196190267801285,
+      "train_distribution": "seq_gaussian",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.0802168250083923,
+      "train_distribution": "seq_gaussian",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.4668627977371216,
+      "train_distribution": "seq_gaussian",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.1197474151849747,
+      "train_distribution": "seq_gaussian",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.070691794157028,
+      "train_distribution": "seq_gaussian",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.4545854330062866,
+      "train_distribution": "seq_gaussian",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.120701238512993,
+      "train_distribution": "seq_gaussian",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.053752303123474,
+      "train_distribution": "seq_gaussian",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.4332750141620636,
+      "train_distribution": "seq_gaussian",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.1247493028640747,
+      "train_distribution": "seq_gaussian",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.0258427560329437,
+      "train_distribution": "seq_gaussian",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.398360550403595,
+      "train_distribution": "seq_gaussian",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.1377330273389816,
+      "train_distribution": "seq_gaussian",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.984786808490753,
+      "train_distribution": "seq_gaussian",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.347561150789261,
+      "train_distribution": "seq_gaussian",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.1693489104509354,
+      "train_distribution": "seq_gaussian",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.089942157268524,
+      "train_distribution": "true",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.4799055457115173,
+      "train_distribution": "true",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.119446650147438,
+      "train_distribution": "true",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.089072823524475,
+      "train_distribution": "true",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.4786280393600464,
+      "train_distribution": "true",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.1193998903036118,
+      "train_distribution": "true",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.088114321231842,
+      "train_distribution": "true",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.4771605134010315,
+      "train_distribution": "true",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.1189288645982742,
+      "train_distribution": "true",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.08684441447258,
+      "train_distribution": "true",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.4748294055461884,
+      "train_distribution": "true",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.118130072951317,
+      "train_distribution": "true",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.084522098302841,
+      "train_distribution": "true",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.4712968468666077,
+      "train_distribution": "true",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.116392970085144,
+      "train_distribution": "true",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.0817032158374786,
+      "train_distribution": "true",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.4666093289852142,
+      "train_distribution": "true",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.1136480271816254,
+      "train_distribution": "true",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.0767385959625244,
+      "train_distribution": "true",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.4602204859256744,
+      "train_distribution": "true",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.110980838537216,
+      "train_distribution": "true",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.073700249195099,
+      "train_distribution": "true",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.4556971192359924,
+      "train_distribution": "true",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 16000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.1102292388677597,
+      "train_distribution": "true",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 4.763661682605743,
+      "train_distribution": "mean",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 5.3000271916389465,
+      "train_distribution": "mean",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.744992956519127,
+      "train_distribution": "mean",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 4.477178633213043,
+      "train_distribution": "mean",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 5.080638766288757,
+      "train_distribution": "mean",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7453784197568893,
+      "train_distribution": "mean",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 4.280020356178284,
+      "train_distribution": "mean",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.8928980231285095,
+      "train_distribution": "mean",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7491338104009628,
+      "train_distribution": "mean",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 4.040100336074829,
+      "train_distribution": "mean",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.622004508972168,
+      "train_distribution": "mean",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7631062418222427,
+      "train_distribution": "mean",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.80902037024498,
+      "train_distribution": "mean",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.457399547100067,
+      "train_distribution": "mean",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.787400171160698,
+      "train_distribution": "mean",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.448307991027832,
+      "train_distribution": "mean",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.192860126495361,
+      "train_distribution": "mean",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.8458829075098038,
+      "train_distribution": "mean",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.130199134349823,
+      "train_distribution": "mean",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.023600369691849,
+      "train_distribution": "mean",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.9383293241262436,
+      "train_distribution": "mean",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.7938656210899353,
+      "train_distribution": "mean",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.9136316776275635,
+      "train_distribution": "mean",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.055671975016594,
+      "train_distribution": "mean",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 4.763661682605743,
+      "train_distribution": "seq_gaussian",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 5.3000271916389465,
+      "train_distribution": "seq_gaussian",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.744992956519127,
+      "train_distribution": "seq_gaussian",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 4.545709431171417,
+      "train_distribution": "seq_gaussian",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 5.069103360176086,
+      "train_distribution": "seq_gaussian",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7449877709150314,
+      "train_distribution": "seq_gaussian",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 4.439980328083038,
+      "train_distribution": "seq_gaussian",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.919336378574371,
+      "train_distribution": "seq_gaussian",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7511064112186432,
+      "train_distribution": "seq_gaussian",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 4.275538116693497,
+      "train_distribution": "seq_gaussian",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.682489514350891,
+      "train_distribution": "seq_gaussian",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7701581865549088,
+      "train_distribution": "seq_gaussian",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.9850249588489532,
+      "train_distribution": "seq_gaussian",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.385335147380829,
+      "train_distribution": "seq_gaussian",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7996326386928558,
+      "train_distribution": "seq_gaussian",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.7041853070259094,
+      "train_distribution": "seq_gaussian",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.1266783475875854,
+      "train_distribution": "seq_gaussian",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.866670936346054,
+      "train_distribution": "seq_gaussian",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.4353707134723663,
+      "train_distribution": "seq_gaussian",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.797112911939621,
+      "train_distribution": "seq_gaussian",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.0259801149368286,
+      "train_distribution": "seq_gaussian",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.154749274253845,
+      "train_distribution": "seq_gaussian",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.504292815923691,
+      "train_distribution": "seq_gaussian",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 2.2251046299934387,
+      "train_distribution": "seq_gaussian",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 4.763661682605743,
+      "train_distribution": "true",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 5.3000271916389465,
+      "train_distribution": "true",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.744992956519127,
+      "train_distribution": "true",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 4.747549593448639,
+      "train_distribution": "true",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 5.284690797328949,
+      "train_distribution": "true",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7388539463281631,
+      "train_distribution": "true",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 4.739049911499023,
+      "train_distribution": "true",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 5.275883257389069,
+      "train_distribution": "true",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.737312376499176,
+      "train_distribution": "true",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 4.740271329879761,
+      "train_distribution": "true",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 5.27483469247818,
+      "train_distribution": "true",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7389296740293503,
+      "train_distribution": "true",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 4.743806779384613,
+      "train_distribution": "true",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 5.27366828918457,
+      "train_distribution": "true",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7435525804758072,
+      "train_distribution": "true",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 4.659076273441315,
+      "train_distribution": "true",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 5.215470910072327,
+      "train_distribution": "true",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7452325820922852,
+      "train_distribution": "true",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 4.745304524898529,
+      "train_distribution": "true",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 5.2973615527153015,
+      "train_distribution": "true",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7487798035144806,
+      "train_distribution": "true",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 4.712370872497559,
+      "train_distribution": "true",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 5.2740819454193115,
+      "train_distribution": "true",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 0,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7662155032157898,
+      "train_distribution": "true",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.7729579508304596,
+      "train_distribution": "mean",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.001094192266464,
+      "train_distribution": "mean",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7448620051145554,
+      "train_distribution": "mean",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.687065541744232,
+      "train_distribution": "mean",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.930149257183075,
+      "train_distribution": "mean",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7464673072099686,
+      "train_distribution": "mean",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.624787598848343,
+      "train_distribution": "mean",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.8770546317100525,
+      "train_distribution": "mean",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.749873086810112,
+      "train_distribution": "mean",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.524879366159439,
+      "train_distribution": "mean",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.794892340898514,
+      "train_distribution": "mean",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7605516165494919,
+      "train_distribution": "mean",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.4096059799194336,
+      "train_distribution": "mean",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.7027136385440826,
+      "train_distribution": "mean",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7868040949106216,
+      "train_distribution": "mean",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.2235347628593445,
+      "train_distribution": "mean",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.53730046749115,
+      "train_distribution": "mean",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7988924384117126,
+      "train_distribution": "mean",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.083525538444519,
+      "train_distribution": "mean",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.4008241295814514,
+      "train_distribution": "mean",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.8406704366207123,
+      "train_distribution": "mean",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.8746843338012695,
+      "train_distribution": "mean",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.2228394746780396,
+      "train_distribution": "mean",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.9361619353294373,
+      "train_distribution": "mean",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.7729579508304596,
+      "train_distribution": "seq_gaussian",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.001094192266464,
+      "train_distribution": "seq_gaussian",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7448620051145554,
+      "train_distribution": "seq_gaussian",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.7000183165073395,
+      "train_distribution": "seq_gaussian",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.920592486858368,
+      "train_distribution": "seq_gaussian",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.747197464108467,
+      "train_distribution": "seq_gaussian",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.6432991325855255,
+      "train_distribution": "seq_gaussian",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.859413117170334,
+      "train_distribution": "seq_gaussian",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.750852346420288,
+      "train_distribution": "seq_gaussian",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.560110181570053,
+      "train_distribution": "seq_gaussian",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.774815112352371,
+      "train_distribution": "seq_gaussian",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7611627131700516,
+      "train_distribution": "seq_gaussian",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.444378614425659,
+      "train_distribution": "seq_gaussian",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.67645201086998,
+      "train_distribution": "seq_gaussian",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.789114624261856,
+      "train_distribution": "seq_gaussian",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.3091945946216583,
+      "train_distribution": "seq_gaussian",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.523535370826721,
+      "train_distribution": "seq_gaussian",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.8093756139278412,
+      "train_distribution": "seq_gaussian",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.144941568374634,
+      "train_distribution": "seq_gaussian",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.349065989255905,
+      "train_distribution": "seq_gaussian",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.8619236201047897,
+      "train_distribution": "seq_gaussian",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.9448417723178864,
+      "train_distribution": "seq_gaussian",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.1076157689094543,
+      "train_distribution": "seq_gaussian",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.9753598868846893,
+      "train_distribution": "seq_gaussian",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.7729579508304596,
+      "train_distribution": "true",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.001094192266464,
+      "train_distribution": "true",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7448620051145554,
+      "train_distribution": "true",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.7731435000896454,
+      "train_distribution": "true",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.001857250928879,
+      "train_distribution": "true",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7437034845352173,
+      "train_distribution": "true",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.77326962351799,
+      "train_distribution": "true",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.002534180879593,
+      "train_distribution": "true",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7435327470302582,
+      "train_distribution": "true",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.775434762239456,
+      "train_distribution": "true",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.006142050027847,
+      "train_distribution": "true",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7429044097661972,
+      "train_distribution": "true",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.7785954773426056,
+      "train_distribution": "true",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.0090155601501465,
+      "train_distribution": "true",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7426620870828629,
+      "train_distribution": "true",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.7764034271240234,
+      "train_distribution": "true",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.010496109724045,
+      "train_distribution": "true",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.740373507142067,
+      "train_distribution": "true",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.763237565755844,
+      "train_distribution": "true",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 4.004257619380951,
+      "train_distribution": "true",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7434999197721481,
+      "train_distribution": "true",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.737282246351242,
+      "train_distribution": "true",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.9816942512989044,
+      "train_distribution": "true",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 5,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7530020326375961,
+      "train_distribution": "true",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.0003744065761566,
+      "train_distribution": "mean",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.3925634622573853,
+      "train_distribution": "mean",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7449075430631638,
+      "train_distribution": "mean",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.9983144402503967,
+      "train_distribution": "mean",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.3902448415756226,
+      "train_distribution": "mean",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.744953379034996,
+      "train_distribution": "mean",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.9964329600334167,
+      "train_distribution": "mean",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.3878469467163086,
+      "train_distribution": "mean",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7449067384004593,
+      "train_distribution": "mean",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.9923228919506073,
+      "train_distribution": "mean",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.3830867409706116,
+      "train_distribution": "mean",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7454909682273865,
+      "train_distribution": "mean",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.9838482439517975,
+      "train_distribution": "mean",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.3735601902008057,
+      "train_distribution": "mean",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7466039806604385,
+      "train_distribution": "mean",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.968444734811783,
+      "train_distribution": "mean",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.356116831302643,
+      "train_distribution": "mean",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.751295045018196,
+      "train_distribution": "mean",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.9419950246810913,
+      "train_distribution": "mean",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.3273042738437653,
+      "train_distribution": "mean",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7659827917814255,
+      "train_distribution": "mean",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.903698295354843,
+      "train_distribution": "mean",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.2873275876045227,
+      "train_distribution": "mean",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.8015942722558975,
+      "train_distribution": "mean",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.0003744065761566,
+      "train_distribution": "seq_gaussian",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.3925634622573853,
+      "train_distribution": "seq_gaussian",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7449075430631638,
+      "train_distribution": "seq_gaussian",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.99912366271019,
+      "train_distribution": "seq_gaussian",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.390494257211685,
+      "train_distribution": "seq_gaussian",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7451203614473343,
+      "train_distribution": "seq_gaussian",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.997521936893463,
+      "train_distribution": "seq_gaussian",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.3880284130573273,
+      "train_distribution": "seq_gaussian",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7451904565095901,
+      "train_distribution": "seq_gaussian",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.9940575063228607,
+      "train_distribution": "seq_gaussian",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.3833726346492767,
+      "train_distribution": "seq_gaussian",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7451773583889008,
+      "train_distribution": "seq_gaussian",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.9868145883083344,
+      "train_distribution": "seq_gaussian",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.3734859228134155,
+      "train_distribution": "seq_gaussian",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7465256303548813,
+      "train_distribution": "seq_gaussian",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.972603529691696,
+      "train_distribution": "seq_gaussian",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.353988856077194,
+      "train_distribution": "seq_gaussian",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7504455596208572,
+      "train_distribution": "seq_gaussian",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.9486770927906036,
+      "train_distribution": "seq_gaussian",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.321550667285919,
+      "train_distribution": "seq_gaussian",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7637220621109009,
+      "train_distribution": "seq_gaussian",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.9136492013931274,
+      "train_distribution": "seq_gaussian",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.2742640376091003,
+      "train_distribution": "seq_gaussian",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7970226258039474,
+      "train_distribution": "seq_gaussian",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 3.0003744065761566,
+      "train_distribution": "true",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.3925634622573853,
+      "train_distribution": "true",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7449075430631638,
+      "train_distribution": "true",
+      "update": 0
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.999922275543213,
+      "train_distribution": "true",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.3918046057224274,
+      "train_distribution": "true",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7450262010097504,
+      "train_distribution": "true",
+      "update": 1
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.999739497900009,
+      "train_distribution": "true",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.391420930624008,
+      "train_distribution": "true",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7450011223554611,
+      "train_distribution": "true",
+      "update": 2
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.999374121427536,
+      "train_distribution": "true",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.3905502259731293,
+      "train_distribution": "true",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7450204193592072,
+      "train_distribution": "true",
+      "update": 4
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.998258113861084,
+      "train_distribution": "true",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.3887015879154205,
+      "train_distribution": "true",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7447138130664825,
+      "train_distribution": "true",
+      "update": 8
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.9976678490638733,
+      "train_distribution": "true",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.387312799692154,
+      "train_distribution": "true",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.744798183441162,
+      "train_distribution": "true",
+      "update": 16
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.996639221906662,
+      "train_distribution": "true",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.3852177262306213,
+      "train_distribution": "true",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7452482134103775,
+      "train_distribution": "true",
+      "update": 32
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "mean",
+      "loss_nats_per_token": 2.991064190864563,
+      "train_distribution": "true",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "seq_gaussian",
+      "loss_nats_per_token": 3.3778451085090637,
+      "train_distribution": "true",
+      "update": 64
+    },
+    {
+      "checkpoint_tokens": 50000000,
+      "cut": 11,
+      "draw": 0,
+      "eval_distribution": "true",
+      "loss_nats_per_token": 1.7474413514137268,
+      "train_distribution": "true",
+      "update": 64
+    }
+  ],
+  "runtime_seconds": 175.04252076148987,
+  "schema_version": 1,
+  "status": "MEASURED"
+}

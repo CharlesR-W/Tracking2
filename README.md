@@ -10,16 +10,37 @@ The research design is in `SPEC.md`; the current interactive result viewer is
   class-conditional Gaussian matching mean/covariance in a fitted PCA space.
 - A residual CNN with GroupNorm and explicit residual-stream cuts. A plain-block
   implementation remains available only as an optional secondary control.
-- Experiment B pilot: at epoch 5 and cut 3, freeze the prefix, build true,
-  class-mean, and class-conditional Gaussian activation distributions, relax an
-  identical warm-started suffix on each, and cross-evaluate the full 3x3 matrix.
+- Experiment B: repeat the frozen-prefix true/mean/Gaussian suffix-relaxation
+  matrix across all four residual-CNN cuts and training checkpoints.
+- Experiment C runners: apply the same matrix to all eight ResNet-18 blocks and
+  seven VGG-19 cuts spread across stages 2–5. Critical-module transplantation is
+  supporting context at the bottom of C.
 - Existing moving-optimum refits and suffix update-direction dot products remain
-  supporting diagnostics. The empirical-Fisher branch is on hold.
+  supporting diagnostics. The observed-label empirical-Fisher branch remains an
+  archived diagnostic and is not the proposed moment-sensitivity metric.
 - A report-ready VGG-19 critical-module experiment with all 19 parametric layers,
   checkpoint transplantation, fresh re-randomization, and selected-layer
   downstream recovery curves. This is intentionally a separate artifact so it
   can be integrated into Panel B without rewriting the live dashboard.
 - A single-file Plotly report embedding the full spec and run provenance.
+
+## Planned extensions
+
+- Part D freezes a tangent chart at a checkpoint and cut, compares eigenvalues of
+  the full update map with the prefix-clamped suffix map, and derives the suffix
+  frequency response to transport perturbations of the activation distribution.
+  Fisher/GGN supplies the predictive metric; its Schur complement is the ideal
+  static-compensation limit, not the stability operator.
+- Part E ports the frozen-interface statistics question to GPT-2 small on
+  TinyStories as a direct Part B replication: matched true/mean/sequence-Gaussian
+  suffix relaxation and a full 3x3 cross-evaluation matrix. Sequence replay,
+  causal masking, tied-head isolation, and PCA/leakage checks are the NTP-specific
+  additions; instruction/SFT/LoRA/RL branches are deferred extensions.
+
+The relevant design documents are
+[`docs/tangent_model_control_design.md`](docs/tangent_model_control_design.md)
+and [`docs/part_e_gpt2_design.md`](docs/part_e_gpt2_design.md). Both dashboard
+tabs are explicitly labeled as unrun theory/mockup surfaces.
 
 ## Reproduce the bounded pilot
 
@@ -144,28 +165,104 @@ Paid runs are separated from smoke tests:
 Neither paid entry point should be launched without explicit approval and a
 fresh check of the remaining RunPod budget.
 
-## VGG Part-B replication (Part C)
+## Larger-architecture replication (Part C)
 
-`scripts/run_vgg_suffix_statistics.sh` trains one checkpoint-rich VGG-19+BN and
-then repeats Part B on the intact native interfaces at checkpoint epochs 0, 1,
-5, 20, and 100 and cuts 7–10. At every cell it relaxes matched suffix copies on
-true, class-Gaussian, and class-mean activations and records the full
-cross-matrix. Set `SEED`, `DRAW_COUNT`, and `PCA_COMPONENTS` in the environment
-as needed. The default gate uses one VGG seed, three surrogate draws, and 512
-PCA components.
+`scripts/run_resnet_statistics.sh` trains the paper's CIFAR ResNet-18 V2 in its
+normalization-free, zero-weight-decay setting, then repeats Part B
+measurement on intact native interfaces at checkpoint epochs 0, 1, 5, 20, and
+100 and after all eight residual blocks. At every cell it relaxes matched suffix copies on true,
+class-Gaussian, and class-mean activations and records the full cross-matrix.
+Set `SEED`, `DRAW_COUNT`, and `PCA_COMPONENTS` as needed. The first gate uses one
+ResNet seed, three surrogate draws, and 512 PCA components.
 
-Render all five checkpoint artifacts together:
+`scripts/run_vgg_suffix_statistics.sh` uses the same checkpoints and protocol on
+VGG-19+BatchNorm. Its native cuts are `3 5 7 9 11 13 15`: enough coverage to
+resolve middle depth while avoiding the exceptionally large stage-1 activation
+in the first feasibility gate. Both scripts write under
+`artifacts/c_architecture_statistics/` with `RUN_TAG=c_gate_v2` by default, so
+older bridge artifacts cannot be mistaken for the new C experiment.
+
+Run the one-seed gate on a CUDA machine:
+
+```bash
+bash scripts/run_resnet_statistics.sh
+bash scripts/run_vgg_suffix_statistics.sh
+```
+
+Render Part B plus every available C checkpoint artifact together:
 
 ```bash
 python -m tracking2.report artifacts/confirmatory/results.json \
+  --suffix-statistics \
+    artifacts/suffix_statistics/t0_cut3_full_seed0/suffix_statistics.json \
+    artifacts/suffix_statistics/t{1,5,10,20,30}_cut{1,2,3,4}_full_seed0/suffix_statistics.json \
+  --resnet-suffix-statistics artifacts/c_architecture_statistics/resnet/*/resnet_suffix_statistics.json \
+  --vgg-suffix-statistics artifacts/c_architecture_statistics/vgg/*/vgg_suffix_statistics.json \
+  --resnet-criticality artifacts/resnet_criticality/seed0/resnet_criticality.json \
   --criticality artifacts/criticality/results.json \
-  --vgg-suffix-statistics artifacts/vgg_suffix_statistics/seed6-epoch*/vgg_suffix_statistics.json \
   --output report.html
 ```
 
-The C tab keeps the original C1 critical-module evaluation and places the new
-layer-by-training-time statistics map beside its critical boundary. The earlier
-checkpoint-transplant, fresh-randomization, and recovery proposals are archived
-and are not part of the active dashboard evidence chain. Gaussian/true gaps are
-not interpreted unless PCA coverage and held-out moment diagnostics are
-reported; three draws are required for a dashboard-bound artifact.
+The ResNet and VGG views lead with bars showing accuracy change from the common
+unrelaxed checkpoint. Their compact secondary maps use one shared symmetric
+true-activation shortfall scale, defined as true-relaxed minus surrogate-relaxed
+accuracy, so positive means the surrogate endpoint is worse. The dashboard plots
+accuracy only; loss remains in the saved artifacts rather than the visual surface.
+Raw layer indices are not compared across architectures: ResNet cuts are
+post-block and VGG cuts are post-convolution. Existing VGG and ResNet
+critical-module plots appear only after the suffix-statistics results. Gaussian/true
+gaps are not interpreted unless PCA coverage and held-out PCA-space moment
+diagnostics are reported; three draws are required for a dashboard-bound artifact.
+
+## Tangent stability and suffix response (Part D, planned)
+
+Part D is the dynamic extension of the static Parts B/C observations. At a
+checkpoint it anchors the refitted optimum suffix $\psi^*[\phi]$, compares the
+full-system and suffix-only update eigenspectra, and treats a small movement of
+the activation distribution as a driven input. The frequency-resolved operator
+$\mathcal R(e^{i\omega})$ measures what the declared optimizer actually leaves
+uncompensated; the Fisher/GGN Schur complement is its ideal geometric DC
+reference.
+
+No Part D result artifact exists. Its dashboard contains derivations,
+interpretation guides, and a proposed measurement surface, all visibly labeled
+`THEORY · PLANNED · UNRUN`. Multi-step Jacobian products and finite-time Lyapunov
+analysis are explicitly deferred.
+
+## Transformer extension (Part E, measured diagnostic)
+
+> **Checkpointed gate run available (2026-07-22).** The complete seed-0 GPT-2
+> small/TinyStories gate is stored locally at
+> `artifacts/part_e/gate_seed0_20260722/` (4.9 GB). It includes resumable
+> model+optimizer+RNG checkpoints at 0M, 4M, 16M, and 50M loss tokens, nine
+> independently reusable checkpoint×cut analysis cells, immutable replay banks,
+> source/config snapshots, and verified hash manifests. See
+> `artifacts/part_e/README.md` before rerunning or deleting anything. The run did
+> not pass the preregistered full-space PCA gate, so the dashboard remains a
+> mockup pending design revision.
+
+Part E is a direct next-token-prediction replication of Part B. At selected
+GPT-2-small scratch-training checkpoints and residual-stream cuts, it caches
+complete masked sequences, fits mean-only and sequence-Gaussian activation
+proxies, warm-starts three matched suffixes, and records the full 3x3
+relax-by-evaluate matrix against true cached activations.
+
+Only the changes needed for a valid sequence experiment are promoted into the
+primary protocol: causal masks and positions travel with each cached sequence;
+the Gaussian proxy models both channel and cross-position covariance; the tied
+LM head is cloned before suffix-only optimization; uncertainty resamples stories;
+and parity, PCA-coverage, projected-true, and future-label-leakage checks gate any
+claim. IID-token Gaussian and projected-true replay remain secondary diagnostics.
+Instruction/SFT/LoRA/RL branches and finite tracking/bandwidth studies are deferred
+extensions rather than prerequisites for the Part E result.
+
+The dashboard now loads the paired schema-v2 50M-checkpoint diagnostics: the
+gradient-matched primary comparison and equal-nominal-LR control. It reports the
+mechanically valid but scientifically negative result, while preserving the
+original design in [`docs/part_e_gpt2_design.md`](docs/part_e_gpt2_design.md).
+Pass them to the report builder with:
+
+```bash
+--part-e artifacts/part_e/diagnostic_v2_seed0_20260722/suffix_statistics.json \
+--part-e-equal-lr artifacts/part_e/diagnostic_v2_equal_lr_seed0_20260722/suffix_statistics.json
+```

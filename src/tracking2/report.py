@@ -4,6 +4,7 @@ import argparse
 import html
 import json
 import math
+import re
 import statistics
 import textwrap
 from pathlib import Path
@@ -12,6 +13,9 @@ import plotly.graph_objects as go
 from plotly.io import to_html
 from plotly.offline import get_plotlyjs
 from plotly.subplots import make_subplots
+
+from .part_d_moment_mockup import part_d_moment_mockup_html
+from .part_e_mockup import part_e_dashboard_html
 
 
 COLORS = {"plain": "#9ECAE1", "residual": "#08519C", "mean": "#9ECAE1", "covariance": "#4292C6", "true": "#084594"}
@@ -57,17 +61,17 @@ def experiment_a_figure(rows: list[dict]) -> go.Figure:
             if not selected:
                 continue
             by_epoch = {epoch: [row for row in selected if row["epoch"] == epoch] for epoch in sorted({row["epoch"] for row in selected})}
-            estimates = [estimate(group, "loss") for group in by_epoch.values()]
+            estimates = [estimate(group, "accuracy") for group in by_epoch.values()]
             figure.add_trace(go.Scatter(
-                x=list(by_epoch), y=[value[0] for value in estimates],
-                error_y={"type": "data", "array": [value[1] or 0 for value in estimates], "visible": any(value[1] is not None for value in estimates), "thickness": 1.2},
+                x=list(by_epoch), y=[100 * value[0] for value in estimates],
+                error_y={"type": "data", "array": [100 * (value[1] or 0) for value in estimates], "visible": any(value[1] is not None for value in estimates), "thickness": 1.2},
                 mode="lines+markers", name=f"$r=\\mathrm{{{train_distribution}}}$", legendgroup=train_distribution,
                 showlegend=column == 1, line={"color": COLORS[train_distribution], "dash": DASHES[train_distribution], "width": 2},
-                hovertemplate=f"{architecture} · trained on {train_distribution}<br>epoch %{{x}}<br>true loss %{{y:.4f}}<extra></extra>",
+                hovertemplate=f"{architecture} · trained on {train_distribution}<br>epoch %{{x}}<br>true accuracy %{{y:.2f}}%<extra></extra>",
             ), row=1, col=column)
     figure.update_layout(
         title={
-            "text": "True-CIFAR loss after training on each surrogate · $L_{\\mathrm{true}\\mid r}(t)$",
+            "text": "True-CIFAR accuracy after training on each surrogate · $A_{\\mathrm{true}\\mid r}(t)$",
             "x": 0.0,
         },
         height=510,
@@ -76,10 +80,10 @@ def experiment_a_figure(rows: list[dict]) -> go.Figure:
         legend={"orientation": "h", "y": 1.02, "x": 1, "xanchor": "right"},
     )
     figure.update_xaxes(title_text="$t$ · training epoch", dtick=1)
-    figure.update_yaxes(title_text="$L_{\\mathrm{true}\\mid r}(t)$ · test cross-entropy", row=1, col=1)
+    figure.update_yaxes(title_text="$A_{\\mathrm{true}\\mid r}(t)$ · test accuracy (%)", row=1, col=1)
     figure.add_annotation(
         xref="paper", yref="paper", x=0, y=1.12, xanchor="left", showarrow=False,
-        text=wrap_annotation("Lines vary the training distribution; evaluation stays fixed on true CIFAR. Lower is better."),
+        text=wrap_annotation("Lines vary the training distribution; evaluation stays fixed on true CIFAR. Higher is better."),
         font={"size": 12, "color": "#6d6963"},
     )
     return figure
@@ -94,24 +98,24 @@ def experiment_a_reverse_figure(rows: list[dict]) -> go.Figure:
             and row["test_distribution"] == test_distribution
         ]
         by_epoch = {epoch: [row for row in selected if row["epoch"] == epoch] for epoch in sorted({row["epoch"] for row in selected})}
-        estimates = [estimate(group, "loss") for group in by_epoch.values()]
+        estimates = [estimate(group, "accuracy") for group in by_epoch.values()]
         figure.add_trace(go.Scatter(
-            x=list(by_epoch), y=[value[0] for value in estimates], mode="lines+markers",
-            error_y={"type": "data", "array": [value[1] or 0 for value in estimates], "visible": any(value[1] is not None for value in estimates), "thickness": 1.2},
+            x=list(by_epoch), y=[100 * value[0] for value in estimates], mode="lines+markers",
+            error_y={"type": "data", "array": [100 * (value[1] or 0) for value in estimates], "visible": any(value[1] is not None for value in estimates), "thickness": 1.2},
             name=f"$r=\\mathrm{{{test_distribution}}}$",
             line={"color": COLORS[test_distribution], "dash": DASHES[test_distribution], "width": 2},
-            hovertemplate=f"trained on true CIFAR · tested on {test_distribution}<br>epoch %{{x}}<br>loss %{{y:.4f}}<extra></extra>",
+            hovertemplate=f"trained on true CIFAR · tested on {test_distribution}<br>epoch %{{x}}<br>accuracy %{{y:.2f}}%<extra></extra>",
         ))
     figure.update_layout(
-        title={"text": "When does true-CIFAR training solve each surrogate? · $L_{r\\mid\\mathrm{true}}(t)$", "x": 0.0},
+        title={"text": "When does true-CIFAR training solve each surrogate? · $A_{r\\mid\\mathrm{true}}(t)$", "x": 0.0},
         height=500, margin={"l": 75, "r": 25, "t": 105, "b": 65}, template="plotly_white",
         legend={"orientation": "h", "y": 1.02, "x": 1, "xanchor": "right"},
     )
     figure.update_xaxes(title_text="$t$ · training epoch", dtick=1)
-    figure.update_yaxes(title_text="$L_{r\\mid\\mathrm{true}}(t)$ · test cross-entropy")
+    figure.update_yaxes(title_text="$A_{r\\mid\\mathrm{true}}(t)$ · test accuracy (%)")
     figure.add_annotation(
         xref="paper", yref="paper", x=0, y=1.14, xanchor="left", showarrow=False,
-        text=wrap_annotation("Training stays fixed on true CIFAR; lines vary the evaluation distribution. Lower is better."),
+        text=wrap_annotation("Training stays fixed on true CIFAR; lines vary the evaluation distribution. Higher is better."),
         font={"size": 12, "color": "#6d6963"},
     )
     return figure
@@ -127,33 +131,33 @@ def cifar_context_figure(rows: list[dict]) -> go.Figure:
         epoch: [row for row in selected if row["epoch"] == epoch]
         for epoch in sorted({row["epoch"] for row in selected})
     }
-    estimates = [estimate(group, "loss") for group in by_epoch.values()]
+    estimates = [estimate(group, "accuracy") for group in by_epoch.values()]
     epochs = list(by_epoch)
-    means = [value[0] for value in estimates]
+    means = [100 * value[0] for value in estimates]
     figure = go.Figure()
     figure.add_trace(go.Scatter(
         x=epochs, y=means, mode="lines+markers", name="all B checkpoints",
         line={"color": "#4292C6", "width": 2.5}, marker={"size": 7},
-        error_y={"type": "data", "array": [value[1] or 0 for value in estimates], "visible": True, "thickness": 1.2},
-        hovertemplate="epoch %{x}<br>true-CIFAR test CE = %{y:.4f}<extra></extra>",
+        error_y={"type": "data", "array": [100 * (value[1] or 0) for value in estimates], "visible": True, "thickness": 1.2},
+        hovertemplate="epoch %{x}<br>true-CIFAR test accuracy = %{y:.2f}%<extra></extra>",
     ))
     profile_epochs = [epoch for epoch in epochs if epoch in PROFILE_EPOCHS]
     figure.add_trace(go.Scatter(
         x=profile_epochs, y=[means[epochs.index(epoch)] for epoch in profile_epochs],
         mode="markers", name="shown in depth profiles",
         marker={"size": 11, "color": "#084594", "symbol": "circle-open", "line": {"width": 2}},
-        hovertemplate="depth-profile epoch %{x}<br>true-CIFAR test CE = %{y:.4f}<extra></extra>",
+        hovertemplate="depth-profile epoch %{x}<br>true-CIFAR test accuracy = %{y:.2f}%<extra></extra>",
     ))
     figure.update_layout(
-        title={"text": "True-CIFAR loss at the B checkpoints · $L_{\\mathrm{true}\\mid\\mathrm{true}}(t_i)$", "x": 0.0},
+        title={"text": "True-CIFAR accuracy at the B checkpoints · $A_{\\mathrm{true}\\mid\\mathrm{true}}(t_i)$", "x": 0.0},
         height=450, margin={"l": 75, "r": 25, "t": 100, "b": 70}, template="plotly_white",
         legend={"orientation": "h", "x": 0.5, "xanchor": "center", "y": -0.2},
     )
     figure.update_xaxes(title_text="$t_i$ · training epoch", tickmode="array", tickvals=epochs)
-    figure.update_yaxes(title_text="$L_{\\mathrm{true}\\mid\\mathrm{true}}(t_i)$ · test cross-entropy")
+    figure.update_yaxes(title_text="$A_{\\mathrm{true}\\mid\\mathrm{true}}(t_i)$ · test accuracy (%)")
     figure.add_annotation(
         xref="paper", yref="paper", x=0, y=1.14, xanchor="left", showarrow=False,
-        text=wrap_annotation("The same true-trained network used in B, evaluated on the true CIFAR-10 test set. Lower is better."),
+        text=wrap_annotation("The same true-trained network used in B, evaluated on the true CIFAR-10 test set. Higher is better."),
         font={"size": 12, "color": "#6d6963"},
     )
     return figure
@@ -315,11 +319,13 @@ def criticality_heatmap(payload: dict) -> go.Figure:
         colorbar={"title": "Δ test error"},
         hovertemplate="copy %{y} into this layer<br>%{x}<br>all other layers: intact final model<br>mean Δ test error = %{z:.3f}<br>seed SD = %{customdata[1]:.3f}<br>n = %{customdata[0]}<extra></extra>",
     ))
+    is_resnet = payload.get("experiment") == "resnet18_block_criticality"
+    architecture = "ResNet-18 residual block" if is_resnet else "VGG-19 module"
     figure.update_layout(
-        title={"text": "VGG-19 module robustness to checkpoint transplantation", "x": 0},
+        title={"text": f"{architecture} robustness to checkpoint transplantation", "x": 0},
         height=620, template="plotly_white", margin={"l": 105, "r": 35, "t": 95, "b": 150},
     )
-    figure.update_xaxes(title="VGG-19 parametric module · forward order", tickangle=-55)
+    figure.update_xaxes(title=f"{architecture} · forward order", tickangle=-55)
     # Match Figure 3 of Zhang, Bengio, and Singer: re-randomization at the top,
     # then checkpoint sources in chronological order down to the intact model.
     figure.update_yaxes(
@@ -358,8 +364,12 @@ def criticality_training_figure(payload: dict) -> go.Figure:
         mode="lines+markers", name="seed mean", line={"color": "#0072B2", "width": 2.5}, marker={"size": 8},
         hovertemplate="epoch %{x}<br>mean test accuracy = %{y:.2%}<extra></extra>",
     ))
+    is_resnet = payload.get("experiment") == "resnet18_block_criticality"
+    architecture = "ResNet-18" if is_resnet else "VGG-19"
+    if not is_resnet and payload.get("config", {}).get("batch_norm"):
+        architecture += "+BatchNorm"
     figure.update_layout(
-        title={"text": "VGG-19+BatchNorm learning context", "x": 0}, height=410,
+        title={"text": f"{architecture} learning context", "x": 0}, height=410,
         template="plotly_white", margin={"l": 75, "r": 25, "t": 85, "b": 65},
     )
     figure.update_xaxes(title="training epoch")
@@ -399,7 +409,7 @@ SUFFIX_STYLES = {
 }
 
 
-def suffix_statistics_figures(payloads: list[dict], id_suffix: str = "") -> tuple[str, str, str, str]:
+def suffix_statistics_figures(payloads: list[dict], id_suffix: str = "") -> tuple[str, str, str]:
     payloads = sorted(payloads, key=suffix_checkpoint_key)
     order = SUFFIX_ORDER
     labels = SUFFIX_LABELS
@@ -420,24 +430,6 @@ def suffix_statistics_figures(payloads: list[dict], id_suffix: str = "") -> tupl
 
     def trajectory_x(row: dict) -> float:
         return row["relax_batch"] if batch_zoom else row["relax_epoch"]
-
-    trajectories = make_subplots(rows=1, cols=len(payloads), subplot_titles=titles, shared_yaxes=True)
-    for column, payload in enumerate(payloads, start=1):
-        for train in order:
-            rows = trajectory_rows(payload, train)
-            color, dash = styles[train]
-            trajectories.add_trace(go.Scatter(
-                x=[trajectory_x(row) for row in rows], y=[row["loss"] for row in rows],
-                mode="lines+markers", name=labels[train], legendgroup=train,
-                showlegend=column == len(payloads), line={"color": color, "dash": dash, "width": 2.3},
-                hovertemplate=f"{suffix_checkpoint_label(payload)}<br>relax on {labels[train]}<br>{'batch' if batch_zoom else 'u'}=%{{x}}<br>true CE=%{{y:.4f}}<extra></extra>",
-            ), row=1, col=column)
-    trajectories.update_layout(
-        title={"text": "Held-out CIFAR-10 cross-entropy through the frozen true prefix", "x": 0},
-        height=440, margin={"l": 65, "r": 30, "t": 85, "b": 70}, legend={"title": {"text": "relax on"}},
-    )
-    trajectories.update_xaxes(title_text="suffix-relaxation optimizer batch" if batch_zoom else "relaxation epoch (u)")
-    trajectories.update_yaxes(title_text="CIFAR-10 test CE", row=1, col=1)
 
     accuracies = make_subplots(rows=1, cols=len(payloads), subplot_titles=titles, shared_yaxes=True)
     for column, payload in enumerate(payloads, start=1):
@@ -494,7 +486,6 @@ def suffix_statistics_figures(payloads: list[dict], id_suffix: str = "") -> tupl
         f"<p>Representation shape: <code>{html.escape(str(payloads[0]['representation_shape']))}</code>.</p>"
     )
     return (
-        plot_html(trajectories, f"plot-suffix-statistics-time{id_suffix}"),
         plot_html(accuracies, f"plot-suffix-statistics-accuracy{id_suffix}"),
         plot_html(heatmap, f"plot-suffix-statistics-matrix{id_suffix}"),
         diagnostic_table,
@@ -547,7 +538,7 @@ def suffix_accuracy_decomposition_figures(payloads: list[dict]) -> str:
             ))
         figure.update_layout(
             title={"text": f"Cut {cut} · converged accuracy effects", "x": 0}, template="plotly_white",
-            barmode="group", height=330, margin={"l": 62, "r": 18, "t": 58, "b": 58},
+            barmode="relative", height=330, margin={"l": 62, "r": 18, "t": 58, "b": 58},
             legend={"orientation": "h", "y": 1.13, "x": 1, "xanchor": "right"},
             bargap=0.28,
         )
@@ -690,7 +681,7 @@ def vgg_suffix_statistics_detail_figures(payload: dict) -> tuple[go.Figure, str,
         module = by_slice[("native", cut)]["module"]
         figure.update_layout(
             title={"text": f"Cut {cut} · {module} · end-of-protocol accuracy effects", "x": 0},
-            template="plotly_white", barmode="group", height=430,
+            template="plotly_white", barmode="relative", height=430,
             margin={"l": 70, "r": 25, "t": 80, "b": 80},
             legend={"orientation": "h", "y": -0.2},
         )
@@ -721,90 +712,452 @@ def vgg_suffix_statistics_detail_figures(payload: dict) -> tuple[go.Figure, str,
     return accuracy_trajectory_figure(), "".join(decomposition_figures), diagnostics
 
 
-def vgg_statistics_sweep_figures(payloads: list[dict]) -> tuple[go.Figure, go.Figure, str]:
-    """Render the native VGG Part-B replication over layer and training time."""
-    payloads = sorted(payloads, key=lambda p: int(p["config"]["checkpoint_epoch"]))
-    epochs = [int(payload["config"]["checkpoint_epoch"]) for payload in payloads]
-    cuts = sorted({item["cut"] for payload in payloads for item in payload["slices"]})
-    modules = {
-        item["cut"]: item["module"] for payload in payloads for item in payload["slices"]
-    }
+def sweep_checkpoint_epoch(payload: dict) -> tuple[int | None, bool]:
+    """Return the declared epoch, or a filename-only inference for legacy VGG artifacts."""
+    checkpoint_epoch = payload.get("config", {}).get("checkpoint_epoch")
+    if checkpoint_epoch is not None:
+        return int(checkpoint_epoch), False
+    checkpoint_name = Path(str(payload.get("config", {}).get("checkpoint", ""))).name
+    match = re.fullmatch(r"checkpoint_epoch(\d+)\.pt", checkpoint_name)
+    return (int(match.group(1)), True) if match else (None, True)
+
+
+def _native_sweep_cells(payloads: list[dict]) -> dict[tuple[int, int], dict]:
+    """Return one native slice per (checkpoint epoch, cut), rejecting ambiguity."""
+    cells: dict[tuple[int, int], dict] = {}
+    for payload in payloads:
+        epoch, _legacy = sweep_checkpoint_epoch(payload)
+        if epoch is None:
+            continue
+        for item in payload.get("slices", []):
+            if item.get("condition", "native") != "native":
+                continue
+            key = (epoch, int(item["cut"]))
+            if key in cells:
+                raise ValueError(
+                    f"Duplicate native suffix-statistics cell at epoch {epoch}, cut {key[1]}; "
+                    "aggregate training seeds explicitly or pass only one run per cell"
+                )
+            cells[key] = item
+    return cells
+
+
+def _statistics_sweep_data(payloads: list[dict]) -> dict:
+    """Build rectangular plotting data while preserving absent epoch/cut cells as N/A."""
+    grouped: dict[int, list[dict]] = {}
+    for payload in payloads:
+        epoch, _legacy = sweep_checkpoint_epoch(payload)
+        if epoch is not None:
+            grouped.setdefault(epoch, []).append(payload)
+    if not grouped:
+        raise ValueError("No suffix-statistics payload has a declared or filename-inferred checkpoint epoch")
+
+    epochs = sorted(grouped)
+    cells = _native_sweep_cells(payloads)
+    native_items = list(cells.values())
+    cuts = sorted({int(item["cut"]) for item in native_items})
+    if not cuts:
+        raise ValueError("No native suffix-statistics slices were found")
+    modules = {int(item["cut"]): str(item["module"]) for item in native_items}
 
     gaps = {distribution: [] for distribution in ("mean", "gaussian")}
-    coverages, diagnostic_rows = [], []
-    for payload in payloads:
-        by_cut = {item["cut"]: item for item in payload["slices"] if item["condition"] == "native"}
-        coverage_row = []
+    gap_sds = {distribution: [] for distribution in gaps}
+    accuracy_shortfalls = {distribution: [] for distribution in gaps}
+    accuracy_shortfall_sds = {distribution: [] for distribution in gaps}
+    gap_ns = {distribution: [] for distribution in gaps}
+    coverages: list[list[float | None]] = []
+    diagnostic_rows: list[str] = []
+    for epoch in epochs:
+        by_cut = {cut: item for (item_epoch, cut), item in cells.items() if item_epoch == epoch}
+        coverage_row: list[float | None] = []
         gap_rows = {distribution: [] for distribution in gaps}
+        sd_rows = {distribution: [] for distribution in gaps}
+        accuracy_shortfall_rows = {distribution: [] for distribution in gaps}
+        accuracy_sd_rows = {distribution: [] for distribution in gaps}
+        n_rows = {distribution: [] for distribution in gaps}
         for cut in cuts:
-            item = by_cut[cut]
-            final_relax = max(row["relax_epoch"] for row in item["records"])
-            final = [row for row in item["records"] if row["relax_epoch"] == final_relax
-                     and row["eval_distribution"] == "true"]
-            by_draw = {}
+            item = by_cut.get(cut)
+            if item is None or not item.get("records"):
+                coverage_row.append(None)
+                for distribution in gaps:
+                    gap_rows[distribution].append(None)
+                    sd_rows[distribution].append(None)
+                    accuracy_shortfall_rows[distribution].append(None)
+                    accuracy_sd_rows[distribution].append(None)
+                    n_rows[distribution].append(0)
+                continue
+
+            final_relax = max(float(row["relax_epoch"]) for row in item["records"])
+            final = [
+                row for row in item["records"]
+                if float(row["relax_epoch"]) == final_relax and row["eval_distribution"] == "true"
+            ]
+            by_draw: dict[int, dict[str, dict[str, float]]] = {}
             for row in final:
-                by_draw.setdefault(row["draw"], {})[row["train_distribution"]] = 100 * row["accuracy"]
+                by_draw.setdefault(int(row.get("draw", 0)), {})[row["train_distribution"]] = {
+                    "loss": float(row["loss"]),
+                    "accuracy": 100 * float(row["accuracy"]),
+                }
             for distribution in gaps:
-                gap_rows[distribution].append(statistics.fmean(
-                    values[distribution] - values["true"] for values in by_draw.values()
-                ))
-            coverage_row.append(100 * item["explained_variance_fraction"])
+                values = [
+                    draw_values[distribution]["loss"] - draw_values["true"]["loss"]
+                    for draw_values in by_draw.values()
+                    if distribution in draw_values and "true" in draw_values
+                ]
+                accuracy_values = [
+                    draw_values["true"]["accuracy"] - draw_values[distribution]["accuracy"]
+                    for draw_values in by_draw.values()
+                    if distribution in draw_values and "true" in draw_values
+                ]
+                gap_rows[distribution].append(statistics.fmean(values) if values else None)
+                sd_rows[distribution].append(statistics.stdev(values) if len(values) > 1 else (0.0 if values else None))
+                accuracy_shortfall_rows[distribution].append(
+                    statistics.fmean(accuracy_values) if accuracy_values else None
+                )
+                accuracy_sd_rows[distribution].append(
+                    statistics.stdev(accuracy_values)
+                    if len(accuracy_values) > 1 else (0.0 if accuracy_values else None)
+                )
+                n_rows[distribution].append(len(values))
+            coverage = item.get("explained_variance_fraction")
+            coverage_row.append(100 * float(coverage) if coverage is not None else None)
             for distribution in ("gaussian", "mean"):
-                diagnostics = [row for row in item["moment_diagnostics"]
-                               if row["distribution"] == distribution]
+                diagnostics = [
+                    row for row in item.get("moment_diagnostics", [])
+                    if row.get("distribution") == distribution
+                ]
+                if diagnostics:
+                    mean_error = statistics.fmean(float(row["class_mean_relative_error"]) for row in diagnostics)
+                    covariance_error = statistics.fmean(float(row["class_covariance_relative_error"]) for row in diagnostics)
+                    mean_text, covariance_text = f"{mean_error:.3f}", f"{covariance_error:.3f}"
+                    diagnostic_space = ", ".join(sorted({
+                        str(row.get("diagnostic_space", "legacy native space")) for row in diagnostics
+                    }))
+                else:
+                    mean_text = covariance_text = "N/A"
+                    diagnostic_space = "N/A"
+                coverage_text = f"{float(coverage):.1%}" if coverage is not None else "N/A"
                 diagnostic_rows.append(
-                    f"<tr><th>{payload['config']['checkpoint_epoch']}</th>"
-                    f"<td>{cut} · {html.escape(item['module'])}</td>"
+                    f"<tr><th>{epoch}</th><td>{cut} · {html.escape(str(item['module']))}</td>"
                     f"<td>{html.escape(SUFFIX_LABELS[distribution])}</td>"
-                    f"<td>{statistics.fmean(row['class_mean_relative_error'] for row in diagnostics):.3f}</td>"
-                    f"<td>{statistics.fmean(row['class_covariance_relative_error'] for row in diagnostics):.3f}</td>"
-                    f"<td>{item['explained_variance_fraction']:.1%}</td>"
-                    f"<td>{len(diagnostics)}</td></tr>"
+                    f"<td>{mean_text}</td><td>{covariance_text}</td>"
+                    f"<td>{html.escape(diagnostic_space)}</td>"
+                    f"<td>{coverage_text}</td><td>{len(diagnostics)}</td></tr>"
                 )
         for distribution in gaps:
             gaps[distribution].append(gap_rows[distribution])
+            gap_sds[distribution].append(sd_rows[distribution])
+            accuracy_shortfalls[distribution].append(accuracy_shortfall_rows[distribution])
+            accuracy_shortfall_sds[distribution].append(accuracy_sd_rows[distribution])
+            gap_ns[distribution].append(n_rows[distribution])
         coverages.append(coverage_row)
 
-    labels = [f"{cut} · {modules[cut]}" for cut in cuts]
-    bound = max(abs(value) for matrix in gaps.values() for row in matrix for value in row) or 1.0
+    loss_values = [
+        abs(value) for matrix in gaps.values() for row in matrix for value in row
+        if value is not None
+    ]
+    accuracy_values = [
+        abs(value) for matrix in accuracy_shortfalls.values() for row in matrix for value in row
+        if value is not None
+    ]
+    boundary_positions: list[float] = []
+    stages = []
+    for cut in cuts:
+        match = re.match(r"stage(\d+)\.", modules[cut])
+        stages.append(int(match.group(1)) if match else None)
+    for index, (left, right) in enumerate(zip(stages, stages[1:])):
+        if left is not None and right is not None and left != right:
+            boundary_positions.append(index + 0.5)
+    return {
+        "epochs": epochs, "cuts": cuts, "modules": modules, "gaps": gaps,
+        "gap_sds": gap_sds, "accuracy_shortfalls": accuracy_shortfalls,
+        "accuracy_shortfall_sds": accuracy_shortfall_sds, "gap_ns": gap_ns, "coverages": coverages,
+        "diagnostic_rows": diagnostic_rows,
+        "bound": max(loss_values, default=1.0) or 1.0,
+        "accuracy_bound": max(accuracy_values, default=1.0) or 1.0,
+        "boundary_positions": boundary_positions,
+    }
+
+
+def vgg_statistics_sweep_figures(
+    payloads: list[dict], shared_accuracy_bound: float | None = None,
+) -> tuple[go.Figure, go.Figure, str]:
+    """Render the common native suffix-statistics protocol for ResNet or VGG in accuracy space."""
+    data = _statistics_sweep_data(payloads)
+    is_resnet = any(payload.get("experiment") == "resnet18_suffix_statistics_sweep" for payload in payloads)
+    architecture = "ResNet-18" if is_resnet else "VGG-19"
+    cut_label = "residual-block output" if is_resnet else "convolutional-module output"
+    labels = [f"{cut} · {data['modules'][cut]}" for cut in data["cuts"]]
+    epoch_labels = [str(epoch) for epoch in data["epochs"]]
+    bound = max(float(shared_accuracy_bound or data["accuracy_bound"]), 1e-9)
+
     gap_figure = make_subplots(rows=1, cols=2, subplot_titles=("mean-only", "class-Gaussian"))
     for column, distribution in enumerate(("mean", "gaussian"), start=1):
+        custom = [
+            [[
+                data["accuracy_shortfall_sds"][distribution][row][col],
+                data["gap_ns"][distribution][row][col],
+            ]
+             for col in range(len(data["cuts"]))]
+            for row in range(len(data["epochs"]))
+        ]
         gap_figure.add_trace(go.Heatmap(
-            z=gaps[distribution], x=labels, y=epochs, zmin=-bound, zmax=bound, zmid=0,
-            colorscale="RdBu", reversescale=True, showscale=column == 2,
-            colorbar={"title": "accuracy gap (pp)"},
-            text=[[f"{value:+.1f}" for value in row] for row in gaps[distribution]],
+            z=data["accuracy_shortfalls"][distribution], customdata=custom, x=labels, y=epoch_labels,
+            zmin=-bound, zmax=bound, zmid=0, colorscale="RdBu", reversescale=False,
+            showscale=column == 2, colorbar={"title": "shortfall (pp)"},
+            text=[["N/A" if value is None else f"{value:+.2f}" for value in row]
+                  for row in data["accuracy_shortfalls"][distribution]],
             texttemplate="%{text}",
-            hovertemplate="epoch %{y}<br>%{x}<br>gap vs true relaxation=%{z:+.2f} pp<extra></extra>",
+            hovertemplate=("epoch %{y}<br>%{x}<br>true-relaxed − surrogate-relaxed accuracy="
+                           "%{z:+.2f} pp<br>shortfall draw SD=%{customdata[0]:.2f} pp"
+                           "<br>n=%{customdata[1]}<extra></extra>"),
         ), row=1, col=column)
-        gap_figure.add_vline(x=1.5, line_dash="dash", line_color="#333", row=1, col=column)
+        for position in data["boundary_positions"]:
+            gap_figure.add_vline(x=position, line_dash="dash", line_color="#333", row=1, col=column)
     gap_figure.update_layout(
-        title={"text": "VGG Part-B replication · held-out true-activation accuracy", "x": 0},
+        title={"text": f"{architecture} surrogate-relaxation shortfall · positive means worse than true relaxation", "x": 0},
         template="plotly_white", height=520, margin={"l": 75, "r": 70, "t": 90, "b": 125},
     )
-    gap_figure.update_xaxes(title="frozen VGG cut", tickangle=-35)
-    gap_figure.update_yaxes(title="VGG training checkpoint (epoch)", autorange="reversed", row=1, col=1)
+    gap_figure.update_xaxes(title=f"frozen {architecture} {cut_label}", tickangle=-35)
+    gap_figure.update_yaxes(
+        title=f"{architecture} training checkpoint (epoch)", type="category",
+        autorange="reversed", row=1, col=1,
+    )
+    gap_figure.update_yaxes(type="category", autorange="reversed", row=1, col=2)
 
     coverage_figure = go.Figure(go.Heatmap(
-        z=coverages, x=labels, y=epochs, zmin=0, zmax=100, colorscale="Cividis",
+        z=data["coverages"], x=labels, y=epoch_labels, zmin=0, zmax=100, colorscale="Cividis",
         colorbar={"title": "variance (%)"},
-        text=[[f"{value:.1f}%" for value in row] for row in coverages], texttemplate="%{text}",
+        text=[["N/A" if value is None else f"{value:.1f}%" for value in row]
+              for row in data["coverages"]],
+        texttemplate="%{text}",
         hovertemplate="epoch %{y}<br>%{x}<br>PCA coverage=%{z:.1f}%<extra></extra>",
     ))
-    coverage_figure.add_vline(x=1.5, line_dash="dash", line_color="white")
+    for position in data["boundary_positions"]:
+        coverage_figure.add_vline(x=position, line_dash="dash", line_color="white")
     coverage_figure.update_layout(
-        title={"text": "PCA variance coverage at every measured interface", "x": 0},
+        title={"text": f"{architecture} PCA variance coverage at every measured interface", "x": 0},
         template="plotly_white", height=430, margin={"l": 75, "r": 70, "t": 80, "b": 125},
     )
-    coverage_figure.update_xaxes(title="frozen VGG cut", tickangle=-35)
-    coverage_figure.update_yaxes(title="VGG training checkpoint (epoch)", autorange="reversed")
+    coverage_figure.update_xaxes(title=f"frozen {architecture} {cut_label}", tickangle=-35)
+    coverage_figure.update_yaxes(
+        title=f"{architecture} training checkpoint (epoch)", type="category", autorange="reversed",
+    )
     diagnostics = (
         "<table><thead><tr><th>epoch</th><th>cut</th><th>surrogate</th>"
         "<th>class-mean relative error</th><th>class-covariance relative error</th>"
-        "<th>PCA coverage</th><th>draws</th></tr></thead><tbody>"
-        + "".join(diagnostic_rows) + "</tbody></table>"
+        "<th>diagnostic space</th><th>PCA coverage</th><th>draws</th></tr></thead><tbody>"
+        + "".join(data["diagnostic_rows"]) + "</tbody></table>"
     )
     return gap_figure, coverage_figure, diagnostics
+
+
+def sweep_focal_trajectory_figure(payloads: list[dict]) -> tuple[go.Figure, int, str]:
+    """Show B-style accuracy dynamics at one central native interface."""
+    data = _statistics_sweep_data(payloads)
+    cells = _native_sweep_cells(payloads)
+    focal_cut = data["cuts"][len(data["cuts"]) // 2]
+    focal_module = data["modules"][focal_cut]
+    epochs = [epoch for epoch in data["epochs"] if (epoch, focal_cut) in cells]
+    is_resnet = any(
+        payload.get("experiment") == "resnet18_suffix_statistics_sweep" for payload in payloads
+    )
+    architecture = "ResNet-18" if is_resnet else "VGG-19"
+    figure = make_subplots(
+        rows=1, cols=len(epochs), subplot_titles=[f"epoch {epoch}" for epoch in epochs],
+        shared_yaxes=True,
+    )
+    for column, epoch in enumerate(epochs, start=1):
+        records = cells[(epoch, focal_cut)]["records"]
+        for train_distribution in SUFFIX_ORDER:
+            grouped: dict[float, list[float]] = {}
+            for row in records:
+                if (
+                    row["train_distribution"] == train_distribution
+                    and row["eval_distribution"] == "true"
+                ):
+                    grouped.setdefault(float(row["relax_epoch"]), []).append(100 * float(row["accuracy"]))
+            relax_epochs = sorted(grouped)
+            means = [statistics.fmean(grouped[relax_epoch]) for relax_epoch in relax_epochs]
+            custom = [
+                [
+                    statistics.stdev(grouped[relax_epoch])
+                    if len(grouped[relax_epoch]) > 1 else 0.0,
+                    len(grouped[relax_epoch]),
+                ]
+                for relax_epoch in relax_epochs
+            ]
+            color, dash = SUFFIX_STYLES[train_distribution]
+            figure.add_trace(
+                go.Scatter(
+                    x=relax_epochs, y=means, customdata=custom, mode="lines+markers",
+                    name=SUFFIX_LABELS[train_distribution], legendgroup=train_distribution,
+                    showlegend=column == len(epochs), line={"color": color, "dash": dash, "width": 2.3},
+                    hovertemplate=(
+                        f"epoch {epoch}<br>relax on {SUFFIX_LABELS[train_distribution]}"
+                        "<br>relaxation epoch=%{x}<br>mean true accuracy=%{y:.2f}%"
+                        "<br>draw SD=%{customdata[0]:.2f} pp<br>n=%{customdata[1]}<extra></extra>"
+                    ),
+                ),
+                row=1, col=column,
+            )
+    figure.update_layout(
+        title={
+            "text": (
+                f"{architecture} focal B-style relaxation trajectories · "
+                f"cut {focal_cut} · {focal_module}"
+            ),
+            "x": 0,
+        },
+        template="plotly_white", height=440,
+        margin={"l": 70, "r": 35, "t": 90, "b": 70},
+        legend={"title": {"text": "relax on"}},
+    )
+    figure.update_xaxes(title="suffix-relaxation epoch")
+    figure.update_yaxes(title="held-out true-activation accuracy (%)", row=1, col=1)
+    return figure, focal_cut, focal_module
+
+
+def sweep_accuracy_change_figure(payloads: list[dict]) -> go.Figure:
+    """Show the absolute effect of each relaxation from its shared warm start."""
+    data = _statistics_sweep_data(payloads)
+    cells = _native_sweep_cells(payloads)
+    is_resnet = any(
+        payload.get("experiment") == "resnet18_suffix_statistics_sweep" for payload in payloads
+    )
+    architecture = "ResNet-18" if is_resnet else "VGG-19"
+    columns = 2
+    rows = (len(data["cuts"]) + columns - 1) // columns
+    subplot_titles = [
+        f"cut {cut} · {data['modules'][cut]}" for cut in data["cuts"]
+    ]
+    figure = make_subplots(
+        rows=rows, cols=columns, subplot_titles=subplot_titles,
+        shared_yaxes="all", vertical_spacing=min(0.12, 0.24 / max(rows, 1)),
+        horizontal_spacing=0.10,
+    )
+    colors = {"mean": "#D55E00", "gaussian": "#0072B2", "true": "#222222"}
+    labels = {
+        "mean": "mean-only relaxation", "gaussian": "Gaussian relaxation",
+        "true": "true-data relaxation",
+    }
+    for panel_index, cut in enumerate(data["cuts"]):
+        row_index, column_index = divmod(panel_index, columns)
+        plot_row, plot_column = row_index + 1, column_index + 1
+        available_epochs = [epoch for epoch in data["epochs"] if (epoch, cut) in cells]
+        for train_distribution in ("mean", "gaussian", "true"):
+            changes, errors, custom = [], [], []
+            for epoch in available_epochs:
+                records = cells[(epoch, cut)]["records"]
+                initial_relax = min(float(record["relax_epoch"]) for record in records)
+                final_relax = max(float(record["relax_epoch"]) for record in records)
+                by_draw: dict[int, dict[str, float]] = {}
+                for record in records:
+                    if record["eval_distribution"] != "true":
+                        continue
+                    draw = int(record.get("draw", 0))
+                    if (
+                        record["train_distribution"] == "true"
+                        and float(record["relax_epoch"]) == initial_relax
+                    ):
+                        by_draw.setdefault(draw, {})["start"] = 100 * float(record["accuracy"])
+                    if (
+                        record["train_distribution"] == train_distribution
+                        and float(record["relax_epoch"]) == final_relax
+                    ):
+                        by_draw.setdefault(draw, {})["end"] = 100 * float(record["accuracy"])
+                complete = [values for values in by_draw.values() if {"start", "end"} <= values.keys()]
+                values = [entry["end"] - entry["start"] for entry in complete]
+                changes.append(statistics.fmean(values) if values else None)
+                errors.append(statistics.stdev(values) if len(values) > 1 else (0.0 if values else None))
+                custom.append([
+                    statistics.fmean(entry["start"] for entry in complete) if complete else None,
+                    statistics.fmean(entry["end"] for entry in complete) if complete else None,
+                    len(complete),
+                ])
+            figure.add_trace(
+                go.Bar(
+                    x=[str(epoch) for epoch in available_epochs], y=changes,
+                    error_y={"type": "data", "array": errors, "visible": True,
+                             "thickness": 1, "width": 2},
+                    customdata=custom, name=labels[train_distribution],
+                    legendgroup=train_distribution, showlegend=panel_index == 0,
+                    marker_color=colors[train_distribution],
+                    hovertemplate=(
+                        f"cut {cut} · {data['modules'][cut]}<br>checkpoint epoch %{{x}}"
+                        "<br>%{fullData.name}<br>unrelaxed=%{customdata[0]:.2f}%"
+                        "<br>endpoint=%{customdata[1]:.2f}%<br>change=%{y:+.2f} pp"
+                        "<br>draws=%{customdata[2]}<extra></extra>"
+                    ),
+                ),
+                row=plot_row, col=plot_column,
+            )
+        figure.update_xaxes(title_text="training checkpoint (epoch)", type="category",
+                            row=plot_row, col=plot_column)
+        figure.update_yaxes(zeroline=True, zerolinecolor="#555", zerolinewidth=1.4,
+                            row=plot_row, col=plot_column)
+    figure.update_layout(
+        title={
+            "text": f"{architecture} · relaxation effects from the shared warm start",
+            "x": 0,
+        },
+        template="plotly_white", barmode="relative", bargap=0.26,
+        height=260 * rows + 135, margin={"l": 75, "r": 25, "t": 110, "b": 75},
+        legend={"orientation": "h", "y": 1.055, "x": 1, "xanchor": "right"},
+    )
+    figure.update_yaxes(title_text="accuracy change from unrelaxed suffix (pp)", col=1)
+    return figure
+
+
+def sweep_endpoint_audit_details(payloads: list[dict]) -> str:
+    """Render every final 3x3 cross-evaluation matrix as collapsed audit detail."""
+    cells = _native_sweep_cells(payloads)
+    matrix_sections = []
+    for (epoch, cut), item in sorted(cells.items()):
+        records = item.get("records", [])
+        if not records:
+            continue
+        final_relax = max(float(row["relax_epoch"]) for row in records)
+        final_rows = [row for row in records if float(row["relax_epoch"]) == final_relax]
+        body_rows = []
+        for evaluation in SUFFIX_ORDER:
+            cells_html = []
+            for train_distribution in SUFFIX_ORDER:
+                values = [
+                    row for row in final_rows
+                    if row["eval_distribution"] == evaluation
+                    and row["train_distribution"] == train_distribution
+                ]
+                if values:
+                    mean_accuracy = statistics.fmean(float(row["accuracy"]) for row in values)
+                    accuracy_sd = (
+                        statistics.stdev(float(row["accuracy"]) for row in values)
+                        if len(values) > 1 else 0.0
+                    )
+                    cell = (
+                        f'<td title="accuracy SD={accuracy_sd:.4f}">'
+                        f"{mean_accuracy:.1%} accuracy<br>n={len(values)}</td>"
+                    )
+                else:
+                    cell = "<td>N/A</td>"
+                cells_html.append(cell)
+            body_rows.append(
+                f"<tr><th>{html.escape(SUFFIX_LABELS[evaluation])}</th>{''.join(cells_html)}</tr>"
+            )
+        matrix_sections.append(
+            f'<details><summary>epoch {epoch} · cut {cut} · {html.escape(str(item["module"]))} '
+            f"· relaxation epoch {final_relax:g}</summary>"
+            '<table><thead><tr><th>evaluate on ↓ / relax on →</th>'
+            + "".join(f"<th>{html.escape(SUFFIX_LABELS[name])}</th>" for name in SUFFIX_ORDER)
+            + f"</tr></thead><tbody>{''.join(body_rows)}</tbody></table></details>"
+        )
+    return (
+        '<details class="audit"><summary><b>Audit detail · all final 3×3 cross-evaluation matrices</b></summary>'
+        '<p>Each cell reports mean held-out accuracy and draw count. '
+        'Hover the cell for across-draw accuracy SD. Rows are evaluation distributions; columns are '
+        'suffix-relaxation distributions.</p>'
+        + "".join(matrix_sections) + "</details>"
+    )
 
 
 def build_report(
@@ -812,6 +1165,10 @@ def build_report(
     criticality_path: Path | None = None,
     suffix_statistics_paths: list[Path] | None = None,
     vgg_suffix_statistics_paths: list[Path] | None = None,
+    resnet_criticality_path: Path | None = None,
+    resnet_suffix_statistics_paths: list[Path] | None = None,
+    part_e_path: Path | None = None,
+    part_e_equal_lr_path: Path | None = None,
 ) -> None:
     payload = json.loads(results_path.read_text())
     seeds = payload["config"].get("seeds", [payload["config"].get("seed", 0)])
@@ -857,70 +1214,258 @@ def build_report(
         "fisher": plot_html(fisher_figure(b_rows), "plot-fisher"),
     }
     suffix_statistics = [json.loads(path.read_text()) for path in (suffix_statistics_paths or []) if path.exists()]
-    criticality = json.loads(criticality_path.read_text()) if criticality_path and criticality_path.exists() else None
-    vgg_suffix_statistics = [json.loads(path.read_text()) for path in (vgg_suffix_statistics_paths or [])
-                             if path.exists()]
-    criticality_section = ""
+    resnet_suffix_statistics = [
+        json.loads(path.read_text()) for path in (resnet_suffix_statistics_paths or []) if path.exists()
+    ]
+    vgg_suffix_statistics = [
+        json.loads(path.read_text()) for path in (vgg_suffix_statistics_paths or []) if path.exists()
+    ]
+    resnet_criticality = (
+        json.loads(resnet_criticality_path.read_text())
+        if resnet_criticality_path and resnet_criticality_path.exists() else None
+    )
+    vgg_criticality = (
+        json.loads(criticality_path.read_text())
+        if criticality_path and criticality_path.exists() else None
+    )
+
+    # B remains the small residual-CNN suffix-statistics experiment. C reuses its
+    # protocol on deeper ResNet/VGG models without allowing either payload list to
+    # overwrite the other.
+    sweep_groups = [group for group in (resnet_suffix_statistics, vgg_suffix_statistics) if group]
+    c_mock_flags = [
+        bool(item.get("config", {}).get("fake_data"))
+        or str(item.get("status", "")).startswith("MOCKUP")
+        for group in sweep_groups for item in group
+    ]
+    if any(c_mock_flags) and not all(c_mock_flags):
+        raise ValueError("Cannot mix measured and mock suffix-statistics evidence in Part C")
+    shared_accuracy_bound = max(
+        (_statistics_sweep_data(group)["accuracy_bound"] for group in sweep_groups), default=1.0,
+    )
     criticality_provenance = ""
-    if criticality:
-        figures["criticality"] = plot_html(criticality_heatmap(criticality), "plot-criticality")
-        figures["criticality_training"] = plot_html(criticality_training_figure(criticality), "plot-criticality-training")
-        baselines = criticality["baselines"] if "baselines" in criticality else [criticality["baseline"]]
-        baseline_accuracy = statistics.fmean(row["accuracy"] for row in baselines)
+
+    def architecture_sweep_section(
+        architecture: str, payloads: list[dict], paths: list[Path], plot_key: str,
+    ) -> tuple[str, str]:
+        if not payloads:
+            return (
+                f'<div class="section"><div class="status">RESULT NOT LOADED</div>'
+                f'<h2>{html.escape(architecture)} replication</h2>'
+                '<p>The planned native-interface suffix-statistics sweep will use the same '
+                'true, class-Gaussian, and mean-only relaxation contrast as B.</p></div>',
+                "",
+            )
+        data = _statistics_sweep_data(payloads)
+        sweep_plot, coverage_plot, sweep_diagnostics = vgg_statistics_sweep_figures(
+            payloads, shared_accuracy_bound=shared_accuracy_bound,
+        )
+        change_plot = sweep_accuracy_change_figure(payloads)
+        focal_plot, focal_cut, focal_module = sweep_focal_trajectory_figure(payloads)
+        sweep_plot_html = plot_html(sweep_plot, f"plot-c-{plot_key}-statistics-sweep")
+        change_plot_html = plot_html(change_plot, f"plot-c-{plot_key}-accuracy-change")
+        coverage_plot_html = plot_html(coverage_plot, f"plot-c-{plot_key}-statistics-coverage")
+        focal_plot_html = plot_html(focal_plot, f"plot-c-{plot_key}-focal-trajectories")
+        endpoint_audit = sweep_endpoint_audit_details(payloads)
+        mock_flags = [
+            bool(payload.get("config", {}).get("fake_data"))
+            or str(payload.get("status", "")).startswith("MOCKUP")
+            for payload in payloads
+        ]
+        if any(mock_flags) and not all(mock_flags):
+            raise ValueError(f"Cannot mix measured and mock {architecture} suffix-statistics payloads")
+        legacy_epochs = [
+            epoch for payload in payloads
+            for epoch, legacy in [sweep_checkpoint_epoch(payload)] if epoch is not None and legacy
+        ]
+        status = f"PRELIMINARY · {len(data['epochs'])}/5 CHECKPOINTS"
+        legacy_note = ""
+        if all(mock_flags):
+            status = "MOCKUP / PIPELINE SMOKE TEST · NOT SCIENTIFIC EVIDENCE"
+            legacy_note = (
+                '<div class="guide"><b>Mock data.</b> This section validates report plumbing only '
+                'and must not be interpreted as an architecture result.</div>'
+            )
+        elif legacy_epochs:
+            inferred = ", ".join(str(epoch) for epoch in sorted(set(legacy_epochs)))
+            status = "LEGACY PREVIEW · PRELIMINARY · NATIVE SLICES ONLY"
+            legacy_note = (
+                f"<div class=\"guide\"><b>Legacy preview.</b> Checkpoint epoch {inferred} was inferred solely "
+                "from the checkpoint filename because this older artifact has no declared "
+                "<code>checkpoint_epoch</code>. Reset/transplant slices are excluded. This preview is not a "
+                "replacement for the planned rectangular native sweep.</div>"
+            )
+        coverage_values = [value for row in data["coverages"] for value in row if value is not None]
+        positive_ns = [
+            n for distribution in data["gap_ns"].values() for row in distribution for n in row if n > 0
+        ]
+        gaussian_diagnostics = [
+            diagnostic for payload in payloads for item in payload.get("slices", [])
+            if item.get("condition", "native") == "native"
+            for diagnostic in item.get("moment_diagnostics", [])
+            if diagnostic.get("distribution") == "gaussian"
+        ]
+        target_gaussian_diagnostics = [
+            diagnostic for diagnostic in gaussian_diagnostics
+            if diagnostic.get("diagnostic_space") == "fitted PCA subspace"
+        ]
+        legacy_gaussian_diagnostics = [
+            diagnostic for diagnostic in gaussian_diagnostics
+            if diagnostic.get("diagnostic_space") != "fitted PCA subspace"
+        ]
+        if target_gaussian_diagnostics:
+            status += " · PCA-TARGET MOMENTS REPORTED"
+        elif legacy_gaussian_diagnostics:
+            status += " · LEGACY MOMENT CHECK DOES NOT TEST THE PCA TARGET"
+        else:
+            status += " · MOMENT CHECK UNAVAILABLE"
+        validation_parts = []
+        if coverage_values:
+            validation_parts.append(
+                f"PCA coverage spans {min(coverage_values):.1f}%–{max(coverage_values):.1f}%"
+            )
+        if positive_ns:
+            validation_parts.append(
+                f"endpoint comparisons use {min(positive_ns)}–{max(positive_ns)} draws per cell"
+            )
+        if target_gaussian_diagnostics:
+            mean_errors = [
+                float(row["class_mean_relative_error"]) for row in target_gaussian_diagnostics
+            ]
+            covariance_errors = [
+                float(row["class_covariance_relative_error"]) for row in target_gaussian_diagnostics
+            ]
+            validation_parts.append(
+                f"held-out PCA-target Gaussian relative errors span {min(mean_errors):.1%}–{max(mean_errors):.1%} "
+                f"for class means and {min(covariance_errors):.1%}–{max(covariance_errors):.1%} for covariances"
+            )
+        if legacy_gaussian_diagnostics:
+            validation_parts.append(
+                f"the {len(legacy_gaussian_diagnostics)} saved Gaussian diagnostics compare full native-space "
+                "covariances even though the surrogate targets only the fitted PCA subspace; they are labeled "
+                "legacy and cannot establish either success or failure"
+            )
+        validation_note = "; ".join(validation_parts) or "validation diagnostics are unavailable"
+        section = rf'''<div class="section"><div class="status">{status}</div>
+<h2>{html.escape(architecture)} · the Part-B intervention across depth and training time</h2>
+<p>At every loaded native interface, matched suffixes start from the <b>same checkpoint suffix</b> and relax on true, class-Gaussian, or mean-only activations. Every displayed endpoint is then evaluated on the same held-out true activations.</p>
+<div class="guide"><b>How to read the stacked bars.</b> Each colored segment is the signed accuracy change for one alternative relaxation condition. Positive and negative segments stack on opposite sides of zero. Read each segment’s height and hover value; the cumulative stack is only a compact layout and is <b>not</b> a combined experimental outcome. True-data relaxation is measured rather than assumed to improve the network.</div>
+{legacy_note}<div class="guide"><b>Moment-check status:</b> {validation_note}. The legacy numbers are a diagnostic-definition problem, not evidence that the sampler failed to draw from its fitted Gaussian.</div>
+<h3>What each relaxation actually does</h3>
+{change_plot_html}<p><b>Uncertainty:</b> bar heights average surrogate draws; error bars are across-draw standard deviations, not uncertainty across independently trained networks. Scope: checkpoints {html.escape(str(data['epochs']))}.</p>
+<h3>Part-B dynamics at a central interface</h3>
+<p>To retain B's time-course view without multiplying plots at every cell, this focal panel shows cut {focal_cut} · {html.escape(focal_module)} across all loaded checkpoints. The complete endpoint matrices remain immediately below in collapsed audit detail.</p>
+{focal_plot_html}
+<h3>Compact endpoint comparison · positive shortfall means the surrogate is worse</h3>
+<p>The bars above answer whether each relaxation improved or damaged the original network. This secondary map asks a different question: how far each surrogate endpoint falls below the matched true-relaxation endpoint. Define $S_r=A_{{\mathrm{{true}}\mid\mathrm{{true}}}}^{{\mathrm{{after}}}}-A_{{\mathrm{{true}}\mid r}}^{{\mathrm{{after}}}}$. Thus $S_r&gt;0$ means the surrogate-relaxed suffix is worse, $S_r=0$ means it matches, and $S_r&lt;0$ means it did better under this finite protocol.</p>
+<div class="guide"><b>Interpretation guide.</b> Near-zero Gaussian shortfall with a positive mean-only shortfall supports approximate second-order sufficiency at that interface. A positive Gaussian shortfall weakens it. Read horizontally for depth and vertically for training time. Dashed lines show architecture stage boundaries only. Both architectures use the same symmetric range of ±{shared_accuracy_bound:.2f} percentage points.</div>
+{sweep_plot_html}<p>Hover reports accuracy-shortfall SD and n for every populated cell.</p>{endpoint_audit}
+<h3>Surrogate fidelity</h3><p>PCA coverage and held-out moment errors are part of the result, not optional provenance.</p>
+{coverage_plot_html}{sweep_diagnostics}</div>'''
+        artifact_paths = ", ".join(html.escape(str(path)) for path in paths if path.exists()) or "not recorded"
+        devices = sorted({str(payload.get("device", "unknown")) for payload in payloads})
+        runtime = sum(float(payload.get("runtime_seconds", 0.0)) for payload in payloads)
+        provenance = (
+            f"<h2>{html.escape(architecture)} architecture replication</h2><p>Artifacts: {artifact_paths}"
+            f"<br>Status: {status}<br>Devices: {html.escape(str(devices))}"
+            f"<br>Aggregate runtime: {runtime:.1f} seconds</p>"
+        )
+        return section, provenance
+
+    resnet_section, resnet_provenance = architecture_sweep_section(
+        "ResNet-18", resnet_suffix_statistics, resnet_suffix_statistics_paths or [], "resnet",
+    )
+    vgg_section, vgg_provenance = architecture_sweep_section(
+        "VGG-19", vgg_suffix_statistics, vgg_suffix_statistics_paths or [], "vgg",
+    )
+    criticality_provenance += resnet_provenance + vgg_provenance
+
+    def archived_criticality_section(
+        architecture: str, payload: dict, path: Path, plot_key: str,
+    ) -> tuple[str, str]:
+        heatmap = plot_html(criticality_heatmap(payload), f"plot-c-{plot_key}-criticality")
+        training = (
+            plot_html(criticality_training_figure(payload), f"plot-c-{plot_key}-criticality-training")
+            if payload.get("training") else ""
+        )
+        baselines = payload["baselines"] if "baselines" in payload else [payload["baseline"]]
+        baseline_accuracy = statistics.fmean(float(row["accuracy"]) for row in baselines)
         seed_count = len(baselines)
-        reset0: dict[str, list[float]] = {}
-        for row in criticality["interventions"]:
-            if row["source"] == "0":
-                reset0.setdefault(row["module"], []).append(row["delta_error"])
-        early = [statistics.fmean(reset0[name]) for name in criticality["module_names"][:9]]
-        robust = [statistics.fmean(reset0[name]) for name in criticality["module_names"][9:16]]
-        final_epoch = max(criticality["config"]["checkpoint_epochs"])
-        uncertainty = (f"Heatmap cells are means across {seed_count} independent seeds; "
-                       "hover reports the across-seed standard deviation. Training-curve bars are two-sided 95% Student-t intervals."
-                       if seed_count > 1 else "This gate artifact contains one independent seed.")
-        criticality_section = rf"""<div class="section"><div class="status">MEASURED · C1 · {seed_count} SEED{'S' if seed_count != 1 else ''}</div><h2>B0 · A critical band appears in VGG-19</h2><p>Following Zhang, Bengio, and Singer, every heatmap cell starts from the <b>final epoch-{final_epoch} model</b> and replaces exactly one module with that module's value from checkpoint $\tau$; every other module stays final. A convolution and its BatchNorm affine parameters and running state are treated as one atomic module. No fine-tuning occurs after transplantation.</p><div class="equation">$$\theta^T_m\leftarrow\theta^\tau_m,\qquad C_m^\tau=L(\theta^T_{{-m}},\theta^\tau_m)-L(\theta^T)$$</div><div class="guide"><b>Interpretation guide.</b> This is a compatibility probe against the final network, not a trajectory showing a checkpoint-$\tau$ model being reset at time $\tau$. Bright cells mean the final predictor is incompatible with that historical version of the module. Compatibility need not be monotone in $\tau$: checkpoint 0 can work while checkpoint 1 does not. The paper explicitly notes this pattern in normalization/weight-decay variants. The final-checkpoint row must be zero.</div>{figures['criticality']}<p><b>Measured result:</b> the intact epoch-{final_epoch} models average {baseline_accuracy:.2%} test accuracy. Resetting modules through <code>stage4.conv1</code> to epoch 0 increases test error by {min(early):.1%}–{max(early):.1%} on average; resetting <code>stage4.conv2</code> through most of stage 5 changes error by {min(robust):.1%}–{max(robust):.1%}. This is the sharp critical/robust transition against which C2 compares the native suffix-statistics map.</p><p><b>Uncertainty:</b> {uncertainty}</p><p><b>Caveat:</b> the headline VGG experiment in the paper is normalization-free, whereas this positive control uses BatchNorm and treats Conv+BN as atomic. The unusually destructive epoch-1–5 band may therefore reflect early Conv/BN co-adaptation as well as convolutional feature compatibility. Criticality establishes dependence on a learned module, not dependence on higher-order activation statistics.</p>{figures['criticality_training']}</div>"""
-        device = criticality.get("device", "multiple / see source artifacts")
-        seeds_label = criticality["config"].get("seeds", [criticality["config"].get("seed")])
-        criticality_provenance = f"""<h2>VGG critical-module gate</h2><p>Artifact: {html.escape(str(criticality_path))}<br>Device: {html.escape(str(device))}<br>Seeds: {html.escape(str(seeds_label))}<br>Runtime: {criticality['runtime_seconds']:.1f} aggregate seconds<br>Architecture: full-width VGG-19 + BatchNorm; Conv+BN transplanted atomically<br>Intervention records: {len(criticality['interventions'])}</p>"""
-    bridge_section = ""
-    if vgg_suffix_statistics and all(
-        payload_item["config"].get("checkpoint_epoch") is None
-        for payload_item in vgg_suffix_statistics
+        final_epoch = max(payload["config"]["checkpoint_epochs"])
+        epoch_zero: dict[str, list[float]] = {}
+        for row in payload.get("interventions", []):
+            if row.get("source") == "0":
+                epoch_zero.setdefault(str(row["module"]), []).append(float(row["delta_error"]))
+        ranked = sorted(
+            ((module, statistics.fmean(values)) for module, values in epoch_zero.items()),
+            key=lambda item: item[1], reverse=True,
+        )
+        top_modules = ", ".join(
+            f"<code>{html.escape(module)}</code> ({effect:+.1%})" for module, effect in ranked[:3]
+        ) or "no checkpoint-0 interventions were recorded"
+        uncertainty = (
+            f"cells average {seed_count} independent seeds; hover reports seed SD and n"
+            if seed_count > 1 else "this archived gate contains one independent seed"
+        )
+        section = rf'''<div class="section"><div class="status">ARCHIVED CRITICAL-MODULE MEASUREMENT · SECONDARY CONTEXT</div>
+<h2>{html.escape(architecture)} block/module transplantation</h2>
+<p>Starting from the intact final epoch-{final_epoch} model, replace one learned block or module with its saved historical value and evaluate immediately without fine-tuning. This asks about historical compatibility, not which activation moments the suffix needs.</p>
+<div class="equation">$$\theta^T_m\leftarrow\theta^\tau_m,\qquad C_m^\tau=L(\theta^T_{{-m}},\theta^\tau_m)-L(\theta^T)$$</div>
+<div class="guide"><b>How to read this appendix.</b> Bright cells mean that one transplant raises final-model test error. The final-checkpoint row is the null. These plots do not define, validate, or explain the stage boundaries in the suffix-statistics maps above.</div>
+{heatmap}<p><b>Archived result:</b> intact accuracy is {baseline_accuracy:.2%}. The three largest checkpoint-0 effects are {top_modules}. <b>Uncertainty:</b> {uncertainty}.</p>
+{training}</div>'''
+        seeds_label = payload["config"].get("seeds", [payload["config"].get("seed")])
+        provenance = (
+            f"<h2>Archived {html.escape(architecture)} criticality</h2>"
+            f"<p>Artifact: {html.escape(str(path))}<br>Device: {html.escape(str(payload.get('device', 'unknown')))}"
+            f"<br>Seeds: {html.escape(str(seeds_label))}<br>Runtime: {float(payload.get('runtime_seconds', 0.0)):.1f} seconds"
+            f"<br>Intervention records: {len(payload.get('interventions', []))}</p>"
+        )
+        return section, provenance
+
+    criticality_sections = []
+    for architecture, criticality_payload, path, plot_key in (
+        ("ResNet-18", resnet_criticality, resnet_criticality_path, "resnet"),
+        ("VGG-19", vgg_criticality, criticality_path, "vgg"),
     ):
-        bridge_payload = vgg_suffix_statistics[0]
-        bridge_plot = plot_html(vgg_suffix_statistics_figure(bridge_payload), "plot-vgg-suffix-statistics")
-        trajectory, decompositions, diagnostics = vgg_suffix_statistics_detail_figures(bridge_payload)
-        trajectory_plot = plot_html(trajectory, "plot-vgg-suffix-statistics-accuracy")
-        coverages = [item["explained_variance_fraction"] for item in bridge_payload["slices"]]
-        draw_count = bridge_payload["config"]["surrogate_draws"]
-        validation_passed = min(coverages) >= 0.8 and draw_count >= 3
-        bridge_status = ("MEASURED · VALIDATION PASSED" if validation_passed else
-                         "PRELIMINARY MEASUREMENT · VALIDATION GATE FAILED")
-        validation_note = (f"PCA coverage spans {min(coverages):.1%}–{max(coverages):.1%}; "
-                           f"the artifact contains {draw_count} surrogate draws.")
-        bridge_section = f'''<div class="section"><div class="status">{bridge_status}</div><h2>C2–C3 · Activation statistics across the critical boundary</h2><p>C2 applies the Part-B true/mean/Gaussian suffix-relaxation contrast at four native VGG interfaces. C3 repeats it after transplanting the cut module from checkpoint 0. The headline gap is held-out true-activation accuracy relative to the matched suffix relaxed on true activations.</p><div class="guide"><b>Validation:</b> {validation_note}</div>{bridge_plot}<h3>First-epoch accuracy gaps</h3><p>To expose the early dynamics without an uninformative 0–100% axis, every panel shows surrogate-minus-true accuracy over one relaxation epoch on a fractional-epoch axis. Zero means equal held-out accuracy to matched true relaxation. Module titles appear once across the top; C2/C3 are row labels rather than repeated facet titles. Lines are means across draws and error bars are across-draw standard deviations.</p>{trajectory_plot}<h3>End-of-protocol accuracy effects</h3><p>These one-epoch effects are finite-protocol measurements, not convergence claims. Native and checkpoint-0-transplanted interfaces share the same axis within each layer.</p>{decompositions}<h3>Surrogate fidelity</h3>{diagnostics}<p><b>Scope:</b> one independently trained VGG seed and {draw_count} surrogate draws. This supports within-model native/transplant comparisons, not across-training-seed uncertainty.</p></div>'''
-        criticality_provenance += f'''<h2>VGG suffix-statistics bridge</h2><p>Artifact: {html.escape(str(vgg_suffix_statistics_paths[0]))}<br>Status: {bridge_status}<br>Device: {html.escape(str(bridge_payload['device']))}<br>Runtime: {bridge_payload['runtime_seconds']:.1f} aggregate seconds</p>'''
-    elif vgg_suffix_statistics:
-        sweep_plot, coverage_plot, sweep_diagnostics = vgg_statistics_sweep_figures(vgg_suffix_statistics)
-        sweep_plot_html = plot_html(sweep_plot, "plot-vgg-statistics-sweep")
-        coverage_plot_html = plot_html(coverage_plot, "plot-vgg-statistics-coverage")
-        coverages = [item["explained_variance_fraction"] for payload_item in vgg_suffix_statistics
-                     for item in payload_item["slices"]]
-        draw_count = min(payload_item["config"]["surrogate_draws"] for payload_item in vgg_suffix_statistics)
-        validation_passed = min(coverages) >= 0.8 and draw_count >= 3
-        bridge_status = ("MEASURED · VALIDATION PASSED" if validation_passed else
-                         "PRELIMINARY MEASUREMENT · VALIDATION GATE FAILED")
-        validation_note = (f"PCA coverage spans {min(coverages):.1%}–{max(coverages):.1%}; "
-                           f"the artifact contains {draw_count} surrogate draw{'s' if draw_count != 1 else ''}. "
-                           "Do not interpret Gaussian/true gaps until every displayed cut clears 80% coverage and at least three draws are present.")
-        checkpoint_labels = [int(payload_item["config"]["checkpoint_epoch"])
-                             for payload_item in vgg_suffix_statistics]
-        bridge_section = f'''<div class="section"><div class="status">{bridge_status}</div><h2>C2 · Does statistical tracking change at the critical boundary?</h2><p>This is a direct VGG replication of Part B on the <b>intact native training trajectory</b>. At each checkpoint and cut, matched warm-started suffixes relax on true, class-Gaussian, or mean-only activations. Every heatmap cell is held-out true-activation accuracy minus the accuracy of the matched suffix relaxed on true activations. Zero means equal finite-protocol performance; negative values mean the surrogate-trained suffix is worse.</p><div class="guide"><b>Interpretation guide.</b> The dashed vertical line marks the C1 transition between <code>stage4.conv1</code> and <code>stage4.conv2</code>. A coincident change in the Gaussian/true gap supports a descriptive relationship between module criticality and the statistics required for suffix relearning. It does not establish that either causes the other.</div><div class="guide"><b>Validation:</b> {validation_note}</div>{sweep_plot_html}<p><b>Scope:</b> one independently trained VGG seed, checkpoints {html.escape(str(checkpoint_labels))}, and at least {draw_count} surrogate draws per cell. The checkpoint-transplant and recovery experiments previously shown here are archived and are not part of the active evidence chain.</p><h3>Surrogate fidelity</h3><p>PCA coverage and held-out moment errors are part of the result, not optional provenance. A Gaussian gap cannot be attributed to higher-order structure when the Gaussian proxy materially misses its target covariance.</p>{coverage_plot_html}{sweep_diagnostics}</div>'''
-        artifact_paths = ", ".join(html.escape(str(path)) for path in (vgg_suffix_statistics_paths or []))
-        total_runtime = sum(payload_item["runtime_seconds"] for payload_item in vgg_suffix_statistics)
-        criticality_provenance += f'''<h2>VGG Part-B replication</h2><p>Artifacts: {artifact_paths}<br>Status: {bridge_status}<br>Device: {html.escape(str(vgg_suffix_statistics[0]['device']))}<br>Aggregate runtime: {total_runtime:.1f} seconds</p>'''
-    elif criticality:
-        bridge_section = '''<div class="section"><div class="status">C2 · RUNNING / RESULT NOT YET LOADED</div><h2>C2 · VGG replication of Part B</h2><p>The active experiment freezes intact VGG prefixes at epochs 0, 1, 5, 20, and 100 and cuts 7–10, then relaxes matched suffixes on true, class-Gaussian, or mean-only activations. The dashboard will display a layer-by-training-time map beside the C1 boundary. No transplantation or recovery experiment is in the active evidence chain.</p></div>'''
+        if criticality_payload is not None and path is not None:
+            section, provenance = archived_criticality_section(
+                architecture, criticality_payload, path, plot_key,
+            )
+            criticality_sections.append(section)
+            criticality_provenance += provenance
+
+    has_c_evidence = bool(sweep_groups or criticality_sections)
+    criticality_intro = (
+        '<div class="section"><div class="status">ARCHIVED / SECONDARY</div>'
+        '<h2>Critical-module measurements</h2><p>These compatibility interventions are retained '
+        'after the architecture-replication results for context. They are a different experiment and '
+        'do not define a boundary for the suffix-statistics maps.</p></div>' if criticality_sections else ""
+    )
+    c_section = (
+        '<div class="section"><div class="status">ARCHITECTURE REPLICATION · SAME INTERVENTION AS B</div>'
+        '<h2>C · Does the suffix-statistics pattern persist in deeper ResNet and VGG models?</h2>'
+        '<p>C repeats B’s frozen-interface intervention across training time and depth in two established '
+        'architectures. The presentation uses held-out accuracy throughout; C reduces the data and relaxation budgets '
+        'and samples VGG interfaces for feasibility.</p>'
+        '<div class="contrast-grid"><div><b>Part B · bounded reference</b>'
+        '<span>50k train / 10k held out · PCA 256 · 10 relaxation epochs · one surrogate draw</span></div>'
+        '<div><b>Part C · architecture gate</b>'
+        '<span>10k train / 2k held out · PCA up to 512 · 5 relaxation epochs · three surrogate draws · one training seed</span></div></div>'
+        r'<div class="equation">$$\begin{aligned}\Delta A_r(t,\ell)&=A_{\mathrm{true}\mid r}^{\mathrm{after}}-A^{\mathrm{before}},\\'
+        r'S_r(t,\ell)&=A_{\mathrm{true}\mid\mathrm{true}}^{\mathrm{after}}-A_{\mathrm{true}\mid r}^{\mathrm{after}}.\end{aligned}$$</div>'
+        '<p><b>Two different questions:</b> $\\Delta A_r$ says whether a relaxation improved or harmed the original checkpoint; '
+        '$S_r$ says whether a surrogate relaxation finished below the matched true-data relaxation. Positive $S_r$ means a shortfall, not an improvement.</p></div>'
+        + resnet_section + vgg_section + criticality_intro + "".join(criticality_sections)
+        if has_c_evidence else ""
+    )
+    d_section = part_d_moment_mockup_html()
+    part_e_measured = bool(
+        part_e_path is not None and part_e_equal_lr_path is not None
+        and part_e_path.exists() and part_e_equal_lr_path.exists()
+    )
+    e_section = part_e_dashboard_html(part_e_path, part_e_equal_lr_path)
+    criticality_section = ""
     config_rows = "".join(f"<tr><th>{html.escape(str(k))}</th><td>{html.escape(str(v))}</td></tr>" for k, v in payload["config"].items())
     mathjax = Path("assets/mathjax-tex-svg.js").read_text()
     if mockup:
@@ -930,7 +1475,7 @@ def build_report(
             "This one-seed, three-epoch residual-network pilot validates the measurements but is too small for a mechanistic conclusion. "
             "At the last checkpoint, tracking loss exceeds resolving loss at every cut, while both are small and do not vary monotonically with depth. "
             "The actual suffix update aligns more strongly with movement of the refitted optimum than with the pre-existing resolving direction at every cut. "
-            "True-data training has the best accuracy, while covariance-surrogate training has slightly lower cross-entropy, so the three-epoch distributional result is not yet clean."
+            "True-data training has the best held-out accuracy, but three epochs are insufficient for a distributional conclusion."
         )
     else:
         final_epoch = max(row["epoch"] for row in a_rows)
@@ -939,7 +1484,7 @@ def build_report(
                 row for row in a_rows
                 if row["epoch"] == final_epoch and row["test_distribution"] == "true"
                 and row["train_distribution"] == distribution
-            ], "loss")[0]
+            ], "accuracy")[0]
             for distribution in ("mean", "covariance", "true")
         }
         final_tracking = [row for row in b_rows if row["epoch"] == max(row["epoch"] for row in b_rows)]
@@ -961,8 +1506,8 @@ def build_report(
             difference_mean, difference_ci, _ = estimate(difference_rows, "difference")
             alignment_difference_with_ci += difference_ci is not None and difference_mean - difference_ci > 0
         current_answer = (
-            f"At epoch {final_epoch}, true-CIFAR loss is {final_true['true']:.2f} after true-data training, "
-            f"versus {final_true['covariance']:.2f} after covariance-surrogate training and {final_true['mean']:.2f} after mean-only training. "
+            f"At epoch {final_epoch}, true-CIFAR accuracy is {final_true['true']:.1%} after true-data training, "
+            f"versus {final_true['covariance']:.1%} after covariance-surrogate training and {final_true['mean']:.1%} after mean-only training. "
             f"The layerwise evidence is mixed: point-estimate tracking demand exceeds resolving gain at "
             f"{positive_tracking}/{len(cut_means)} cuts, but positive tracking demand excludes zero at only "
             f"{tracking_positive_with_ci}/{len(cut_means)} cuts. The actual suffix update aligns significantly more with optimum motion than with the old resolving direction at "
@@ -981,10 +1526,10 @@ def build_report(
                                if item["config"].get("cut") == focal_cut
                                and item["config"].get("train_size") == 50000]
         display_suffix = focal_coarse_suffix or coarse_suffix or suffix_statistics
-        suffix_time, suffix_accuracy, suffix_matrix, suffix_diagnostics = suffix_statistics_figures(display_suffix)
+        suffix_accuracy, suffix_matrix, suffix_diagnostics = suffix_statistics_figures(display_suffix)
         zoom_result = ""
         if zoom_suffix:
-            _zoom_time, zoom_accuracy, _zoom_matrix, zoom_diagnostics = suffix_statistics_figures(zoom_suffix, "-epoch0-zoom")
+            zoom_accuracy, _zoom_matrix, zoom_diagnostics = suffix_statistics_figures(zoom_suffix, "-epoch0-zoom")
             later_decomposition = [item for item in coarse_suffix if item["config"]["checkpoint_epoch"] > 0]
             zoom_decomposition = suffix_accuracy_decomposition_figures(
                 (decomposition_suffix or zoom_suffix) + later_decomposition
@@ -1003,15 +1548,14 @@ def build_report(
                 "the remaining checkpoints follow the same deterministic first-epoch minibatch order. "
                 "All four zoom slices ran on CPU; compare their motion internally, while treating the separately rendered "
                 "epoch 0/1/5 GPU triptych as a distinct device realization.</p>"
-                "<div class=\"guide decomposition-guide\"><div><b>Interpretation guide.</b> Every colored bar independently starts at the unrelaxed suffix accuracy. "
-                "Orange, blue, and black show the change after mean-only, Gaussian, and true-data convergence respectively. "
-                "A performance drop extends below zero; if ordinary training has already optimized the suffix, black should be near zero.</div>"
-                "<svg class=\"decomposition-svg\" viewBox=\"0 0 250 150\" role=\"img\" aria-label=\"Schematic zero-rooted accuracy effects\">"
-                "<line x1=\"18\" y1=\"48\" x2=\"232\" y2=\"48\" stroke=\"#777\" stroke-width=\"2\"/>"
-                "<rect x=\"52\" y=\"48\" width=\"38\" height=\"72\" fill=\"#D55E00\"/><rect x=\"106\" y=\"48\" width=\"38\" height=\"42\" fill=\"#0072B2\"/>"
-                "<rect x=\"160\" y=\"48\" width=\"38\" height=\"4\" fill=\"#222\"/>"
-                "<text x=\"51\" y=\"138\" font-size=\"10\" fill=\"#333\">mean</text><text x=\"101\" y=\"108\" font-size=\"10\" fill=\"#333\">Gaussian</text>"
-                "<text x=\"165\" y=\"69\" font-size=\"10\" fill=\"#333\">true</text><text x=\"20\" y=\"43\" font-size=\"10\" fill=\"#555\">0 pp</text></svg></div>"
+                "<div class=\"guide decomposition-guide\"><div><b>Interpretation guide.</b> Orange, blue, and black segments show the signed accuracy changes after mean-only, Gaussian, and true-data convergence. "
+                "Positive and negative changes stack separately around zero. Compare segment heights—not the cumulative top, because the three relaxations are alternatives rather than additive components.</div>"
+                "<svg class=\"decomposition-svg\" viewBox=\"0 0 250 150\" role=\"img\" aria-label=\"Schematic signed stacked accuracy effects\">"
+                "<line x1=\"18\" y1=\"62\" x2=\"232\" y2=\"62\" stroke=\"#777\" stroke-width=\"2\"/>"
+                "<rect x=\"96\" y=\"54\" width=\"52\" height=\"8\" fill=\"#222\"/><rect x=\"96\" y=\"62\" width=\"52\" height=\"30\" fill=\"#0072B2\"/>"
+                "<rect x=\"96\" y=\"92\" width=\"52\" height=\"42\" fill=\"#D55E00\"/>"
+                "<text x=\"154\" y=\"60\" font-size=\"10\" fill=\"#333\">true</text><text x=\"154\" y=\"82\" font-size=\"10\" fill=\"#333\">Gaussian</text>"
+                "<text x=\"154\" y=\"118\" font-size=\"10\" fill=\"#333\">mean</text><text x=\"20\" y=\"57\" font-size=\"10\" fill=\"#555\">0 pp</text></svg></div>"
                 f"{zoom_accuracy}<h2>Converged accuracy effects by cut</h2>"
                 "<p>Each condition is evaluated on held-out true activations after the full suffix relaxation and shown relative to its common unrelaxed accuracy. Checkpoints are evenly spaced "
                 "categories labeled by their actual training time in epochs; this keeps initialization and the earliest measurements legible "
@@ -1027,40 +1571,31 @@ def build_report(
             )
         suffix_is_mock = any(item["status"].startswith("MOCKUP") for item in suffix_statistics)
         primary_suffix = max(display_suffix, key=suffix_checkpoint_key)
-        result_heading = "MOCKUP · pipeline smoke result" if suffix_is_mock else "Measured pilot result"
+        result_heading = "MOCKUP · pipeline smoke result" if suffix_is_mock else "Measured bounded-sweep result"
         result_watermark = '<div class="guide"><b>MOCKUP — fake-data pipeline check, not scientific evidence.</b></div>' if suffix_is_mock else ""
         final_relax = max(row["relax_epoch"] for row in primary_suffix["records"])
         true_final = {
             row["train_distribution"]: row for row in primary_suffix["records"]
             if row["relax_epoch"] == final_relax and row["eval_distribution"] == "true"
         }
-        epoch_zero = next((item for item in suffix_statistics if item["config"]["checkpoint_epoch"] == 0), None)
-        epoch_zero_note = ""
-        if epoch_zero and not suffix_is_mock:
-            mean_true = sorted(
-                (row for row in epoch_zero["records"] if row["train_distribution"] == "mean" and row["eval_distribution"] == "true"),
-                key=lambda row: row["relax_epoch"],
-            )
-            if len(mean_true) > 1:
-                epoch_zero_note = (
-                    f"<div class=\"guide\"><b>Why epoch-0 mean-only CE rises.</b> From $u=0$ to $u=1$, "
-                    f"CIFAR accuracy rises from {mean_true[0]['accuracy']:.1%} to {mean_true[1]['accuracy']:.1%}, "
-                    f"even as CE rises from {mean_true[0]['loss']:.3f} to {mean_true[1]['loss']:.3f}. "
-                    "The suffix learns useful mean-based decisions but becomes overconfident on its remaining CIFAR mistakes. "
-                    "Also, one plotted relaxation epoch is a full pass over 50,000 surrogate activations, not one optimizer step.</div>"
-                )
         measured_takeaway = "" if suffix_is_mock else (
             f"<p><b>Epoch {primary_suffix['config']['checkpoint_epoch']} takeaway.</b> After {final_relax:g} relaxation epochs, true-activation accuracy is "
             f"{true_final['true']['accuracy']:.1%} for true relaxation, {true_final['gaussian']['accuracy']:.1%} "
             f"for Gaussian relaxation, and {true_final['mean']['accuracy']:.1%} for mean-only relaxation. "
             f"The Gaussian suffix therefore trails true relaxation by "
             f"{100 * (true_final['true']['accuracy'] - true_final['gaussian']['accuracy']):.1f} percentage points; mean-only trails by "
-            f"{100 * (true_final['true']['accuracy'] - true_final['mean']['accuracy']):.1f} points. This does not support Gaussian sufficiency under the pilot protocol. "
-            "However, the conclusion is conditional on the PCA truncation and the held-out covariance mismatch reported below.</p>"
+            f"{100 * (true_final['true']['accuracy'] - true_final['mean']['accuracy']):.1f} points. This does not support Gaussian sufficiency under the bounded protocol. "
+            "The conclusion is conditional on the declared PCA truncation; the legacy moment table below does not validly measure fidelity to that PCA target.</p>"
         )
         b_result = (
-            f"<h2>{result_heading}</h2>{result_watermark}{suffix_accuracy}{measured_takeaway}{zoom_result}"
-            f"<h2>Surrogate validation</h2>{suffix_diagnostics}"
+            f"<h2>{result_heading}</h2>{result_watermark}"
+            "<h3>Relaxation trajectories · held-out accuracy</h3>"
+            "<p>All three suffixes begin from the same checkpoint. True-data relaxation is a measured control, not a promise of improvement; the trained suffix may already be near the best point reachable under this finite refit protocol.</p>"
+            f"{suffix_accuracy}"
+            "<h3>Final 3×3 cross-evaluation matrices</h3>"
+            "<p>Rows specify the activation distribution used for evaluation; columns specify the distribution used to relax the suffix. The true row is the decisive held-out comparison, while the other rows reveal distribution-specific wins.</p>"
+            f"{suffix_matrix}{measured_takeaway}{zoom_result}"
+            f"<h2>Surrogate validation</h2><div class=\"guide\"><b>What the saved moment numbers do—and do not—say.</b> These legacy artifacts compare reconstructed samples with the full native activation covariance even though the surrogate only targets the fitted PCA subspace. They also do not subtract the covariance-estimation noise expected from two finite high-dimensional samples. Large relative errors therefore do not establish that Gaussian sampling failed. The updated runner measures in PCA coordinates; a new artifact is needed to populate that corrected check.</div>{suffix_diagnostics}"
             f"<p><b>Epistemic status:</b> {html.escape(', '.join(sorted({item['status'] for item in suffix_statistics})))}. "
             "These checkpoint slices use one seed; sufficiency requires repeat surrogate draws and independent seeds.</p>"
         )
@@ -1070,7 +1605,7 @@ def build_report(
             f"At epoch {primary_suffix['config']['checkpoint_epoch']}, cut 3, Gaussian relaxation does not preserve true-activation performance: it trails true relaxation by "
             f"{100 * (true_final['true']['accuracy'] - true_final['gaussian']['accuracy']):.1f} accuracy points versus "
             f"{100 * (true_final['true']['accuracy'] - true_final['mean']['accuracy']):.1f} points for mean-only. "
-            "This weakens the Gaussian-sufficiency hypothesis, but the activation Gaussian matches only the declared PCA proxy and has substantial held-out covariance error."
+            "This weakens the Gaussian-sufficiency hypothesis for the declared PCA proxy. The saved native-space moment diagnostic cannot determine whether that proxy was sampled faithfully."
         )
     else:
         b_result = (
@@ -1084,9 +1619,9 @@ def build_report(
             "so there is not yet a measured answer for the epoch-5, cut-3 suffix-statistics pilot."
         )
     redesigned_b = rf"""<section id="b" class="panel"><div class="section">
-<div class="status">REDESIGNED PILOT · EPOCHS 0, 1, 5 · CUT 3</div>
-<h2>B · Which statistics of $\phi_{{t,3}}(x)$ can the suffix use?</h2>
-<p>At each checkpoint $t\in\{{0,1,5\}}$, freeze the prefix at cut 3. Fit class-conditional mean-only and Gaussian maximum-entropy proxies to its activations. Warm-start three identical suffixes from that checkpoint, relax each on one activation distribution, then cross-evaluate on all three.</p>
+<div class="status">BOUNDED SWEEP · SIX CHECKPOINTS · FOCAL VIEW AT CUT 3</div>
+<h2>B · Which statistics of $\phi_{{t,\ell}}(x)$ can the suffix use?</h2>
+<p>The bounded four-block residual CNN is measured at checkpoints $t\in\{{0,1,5,10,20,30\}}$ and all nonempty cuts. This focal view fixes cut 3 so the relaxation trajectories and cross-evaluation matrix remain readable. At each slice, fit class-conditional mean-only and Gaussian maximum-entropy proxies to the frozen activations; warm-start three identical suffixes from the checkpoint, relax each on one activation distribution, then cross-evaluate on all three.</p>
 <h2>What exactly is the activation surrogate?</h2>
 <p>Flatten the cut-3 activation $h=\phi_{{t,3}}(x)\in\mathbb R^D$ and project it into a $k=256$ dimensional PCA subspace:</p>
 <div class="equation">$$z=U(h-\bar h),\qquad U\in\mathbb R^{{k\times D}}.$$</div>
@@ -1103,14 +1638,14 @@ def build_report(
 <title>Tracking statistical structure — {status}</title><script>{get_plotlyjs()}</script>
 <script>window.MathJax={{tex:{{inlineMath:[['$','$']],displayMath:[['$$','$$']]}}}};</script><script>{mathjax}</script>
 <style>
-:root{{--ink:#272522;--muted:#6d6963;--paper:#fbfaf7;--line:#ddd8ce;--accent:#0072b2}}*{{box-sizing:border-box}}body{{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 system-ui,sans-serif}}main{{max-width:1180px;margin:auto;padding:34px 28px 80px}}h1{{font:700 2.25rem/1.1 Georgia,serif;margin:.2rem 0}}h2{{font:700 1.55rem Georgia,serif;margin-top:0}}.status{{letter-spacing:.09em;font-size:.76rem;font-weight:800;color:#a43d2f}}.hero{{display:grid;grid-template-columns:1.4fr 1fr;gap:28px;align-items:start}}.card,.section{{background:white;border:1px solid var(--line);border-radius:12px;padding:22px;margin:22px 0}}.equation{{border-left:4px solid var(--accent);padding:12px 18px;background:#f3f8fb;margin:18px 0}}nav{{position:sticky;top:0;z-index:4;background:rgba(251,250,247,.95);border-bottom:1px solid var(--line);padding:10px calc((100% - 1120px)/2)}}nav button{{border:0;background:none;padding:9px 15px;font-weight:700;color:var(--muted);cursor:pointer}}nav button.active{{color:var(--accent);border-bottom:2px solid var(--accent)}}.panel{{display:none}}.panel.active{{display:block}}.guide{{background:#fff8e8;border-left:4px solid #e69f00;padding:10px 14px;margin:14px 0}}.decomposition-guide{{display:flex;gap:22px;align-items:center}}.decomposition-guide>div{{flex:1}}.decomposition-svg{{display:block;width:250px;max-width:38%;height:150px;flex:none;background:#fffdf7;border:1px solid #eadfca;border-radius:8px}}.watermark{{position:fixed;z-index:20;right:2rem;bottom:1.5rem;transform:rotate(-8deg);font-size:1.35rem;font-weight:800;color:rgba(170,45,35,.28);pointer-events:none}}.spec-source{{white-space:pre-wrap;font:14px/1.55 ui-monospace,monospace}}table{{border-collapse:collapse;width:100%}}th,td{{text-align:left;border-bottom:1px solid var(--line);padding:7px;vertical-align:top}}th{{width:28%}}@media(max-width:760px){{.hero{{grid-template-columns:1fr}}.decomposition-guide{{display:block}}.decomposition-svg{{max-width:100%;margin:12px auto 0}}main{{padding:24px 14px}}nav{{padding:8px}}}}
+:root{{--ink:#272522;--muted:#6d6963;--paper:#fbfaf7;--line:#ddd8ce;--accent:#0072b2}}*{{box-sizing:border-box}}body{{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 system-ui,sans-serif}}main{{max-width:1180px;margin:auto;padding:34px 28px 80px}}h1{{font:700 2.25rem/1.1 Georgia,serif;margin:.2rem 0}}h2{{font:700 1.55rem Georgia,serif;margin-top:0}}.status{{letter-spacing:.09em;font-size:.76rem;font-weight:800;color:#a43d2f}}.hero{{display:grid;grid-template-columns:1.4fr 1fr;gap:28px;align-items:start}}.card,.section{{background:white;border:1px solid var(--line);border-radius:12px;padding:22px;margin:22px 0}}.equation{{border-left:4px solid var(--accent);padding:12px 18px;background:#f3f8fb;margin:18px 0}}.contrast-grid{{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:18px 0}}.contrast-grid>div{{border:1px solid var(--line);border-top:4px solid var(--accent);border-radius:9px;padding:14px;background:#fbfdff}}.contrast-grid b,.contrast-grid span{{display:block}}.contrast-grid span{{margin-top:5px;color:var(--muted)}}details.audit{{border:1px solid var(--line);border-radius:9px;padding:12px 14px;margin:18px 0;background:#fbfdff}}details.audit details{{margin:10px 0;padding-left:12px;border-left:3px solid #d6e7f1}}details.audit th{{width:auto}}summary{{cursor:pointer}}nav{{position:sticky;top:0;z-index:4;background:rgba(251,250,247,.95);border-bottom:1px solid var(--line);padding:10px calc((100% - 1120px)/2)}}nav button{{border:0;background:none;padding:9px 15px;font-weight:700;color:var(--muted);cursor:pointer}}nav button.active{{color:var(--accent);border-bottom:2px solid var(--accent)}}.panel{{display:none}}.panel.active{{display:block}}.guide{{background:#fff8e8;border-left:4px solid #e69f00;padding:10px 14px;margin:14px 0}}.decomposition-guide{{display:flex;gap:22px;align-items:center}}.decomposition-guide>div{{flex:1}}.decomposition-svg{{display:block;width:250px;max-width:38%;height:150px;flex:none;background:#fffdf7;border:1px solid #eadfca;border-radius:8px}}.watermark{{position:fixed;z-index:20;right:2rem;bottom:1.5rem;transform:rotate(-8deg);font-size:1.35rem;font-weight:800;color:rgba(170,45,35,.28);pointer-events:none}}.spec-source{{white-space:pre-wrap;font:14px/1.55 ui-monospace,monospace}}table{{border-collapse:collapse;width:100%}}th,td{{text-align:left;border-bottom:1px solid var(--line);padding:7px;vertical-align:top}}th{{width:28%}}@media(max-width:760px){{.hero,.contrast-grid{{grid-template-columns:1fr}}.decomposition-guide{{display:block}}.decomposition-svg{{max-width:100%;margin:12px auto 0}}main{{padding:24px 14px}}nav{{padding:8px}}}}
 </style></head><body>{watermark}<nav id="tabs"><button data-tab="overview" class="active">Overview</button><button data-tab="a">A · Surrogates</button><button data-tab="b">B · Tracking</button><button data-tab="spec">Spec</button><button data-tab="provenance">Provenance</button></nav><main>
 <section id="overview" class="panel active"><div class="hero"><div><div class="status">{status}</div><h1>Tracking statistical structure through a residual stream</h1><p>At each cut of a residual network, how much downstream learning improves the current representation, and how much merely tracks a representation that is moving upstream?</p><div class="equation">$$\Delta L_{{\mathrm{{resolve}},\ell}}(t)=L(\phi_t,\psi_t)-L(\phi_t,\psi^*[\phi_t])$$</div><p><b>Current answer:</b> {current_answer}</p></div><div class="card"><b>Experiment map</b><p><b>A.</b> Train the residual CNN on class-mean, class-covariance, and true distributions; cross-evaluate all.</p><p><b>B.</b> Warm-refit each suffix at fixed residual-stream cuts, measure resolving and tracking terms, then estimate suffix-compensated prefix Fisher sensitivity.</p></div></div>
 <div class="section"><h2>Mathematical formulation</h2><p>Let $P=P_R$ denote the true data distribution and let $P_r$ be an order-$r$ surrogate retaining a prescribed family of class-conditional statistics through order $r$. Training on $P_r$ gives parameters $\theta_r(t)$. The two original cross-distribution questions are</p><div class="equation">$$\begin{{aligned}}L_{{\mathrm{{true}}\mid r}}(t)&=\mathbb E_{{(x,y)\sim P_R}}\,\ell(f_{{\theta_r(t)}}(x),y),\\[2pt]L_{{r\mid\mathrm{{true}}}}(t)&=\mathbb E_{{(x,y)\sim P_r}}\,\ell(f_{{\theta_R(t)}}(x),y).
 \end{{aligned}}$$</div><p>The first asks how far training on statistics through order $r$ transfers to the true distribution. The second asks when a model trained on true data becomes able to solve each lower-complexity surrogate. In this pilot, $r$ indexes the class-mean proxy, the class-conditional Gaussian covariance surrogate, and true CIFAR rather than literal finite cumulant truncations.</p><p>At layer cut $\ell$, split the network into an upstream representation and downstream computation,</p><div class="equation">$$f_{{a,b}}(x)=\psi_b^\ell\!\left(\phi_a^\ell(x)\right),\qquad b^*(a)\in\arg\min_b L(a,b).$$</div><p>As the upstream parameters $a(t)$ learn, the optimal suffix $b^*(a(t))$ moves. With suffix error $e(t)=b(t)-b^*(a(t))$, a local quadratic approximation gives</p><div class="equation">$$\begin{{aligned}}\dot e&\approx-\eta_bH_{{bb}}e-J_*(a)\dot a,\\[2pt]J_*(a)=\frac{{db^*}}{{da}}&=-H_{{bb}}^\dagger H_{{ba}}.
 \end{{aligned}}$$</div><p>The term $-\eta_bH_{{bb}}e$ is <b>resolution</b>: downstream learning toward the optimum for the representation currently present. The term $-J_*(a)\dot a$ is <b>tracking forcing</b>: downstream work induced because upstream learning moved that optimum. Experiment B approximates these roles with finite checkpoint refits and cross-checkpoint head transfers, then asks how their balance changes across residual-stream depth.</p></div>
 <div class="section"><h2>Decisive contrasts</h2><p><b>Distributional progression:</b> later improvement on true data after covariance-only training suggests structure beyond class means/covariances becomes useful. <b>Tracking with depth:</b> tracking demand larger than suffix refit gain suggests downstream computation is spending more of its local adaptation budget following a moving interface than resolving the current one. <b>Compensability:</b> a larger Fisher Schur fraction means more prefix sensitivity can be locally absorbed downstream.</p></div></section>
-<section id="a" class="panel"><div class="section"><h2>A · Which retained statistics support true-distribution performance?</h2><div class="equation">$$L_{{s\mid r}}(t)=\mathbb E_{{(x,y)\sim P_s}}\!\left[-\log p_{{\theta_r(t)}}(y\mid x)\right]$$</div><p><b>Plotted object.</b> The residual-network parameters $\theta_r(t)$ are trained on distribution $P_r$ and evaluated on $P_s$. The first slice fixes $s=\mathrm{{true}}$ and varies the training distribution; the second fixes $r=\mathrm{{true}}$ and varies the evaluation distribution. Lower is better.</p><div class="guide"><b>Interpretation guide.</b> Early improvement after covariance-surrogate training supports early use of second-order structure. A later separation favoring true-data training supports subsequent use of unmatched structure. Earlier reduction of $L_{{r\mid\mathrm{{true}}}}$ for simpler surrogates would be the complementary “progressive resolution” signature.</div>{figures['a']}{figures['a_reverse']}<p><b>Caveat:</b> “mean” is a class-mean plus isotropic-nuisance proxy; “covariance” is Gaussian matching in the fitted PCA space. Neither deletes literal pixel cumulants.</p></div></section>
+<section id="a" class="panel"><div class="section"><h2>A · Which retained statistics support true-distribution performance?</h2><div class="equation">$$A_{{s\mid r}}(t)=\mathbb E_{{(x,y)\sim P_s}}\!\left[\mathbf 1\!\left\{{\arg\max_c p_{{\theta_r(t)}}(c\mid x)=y\right\}}\right]$$</div><p><b>Plotted object.</b> The residual-network parameters $\theta_r(t)$ are trained on distribution $P_r$ and evaluated on $P_s$. The first slice fixes $s=\mathrm{{true}}$ and varies the training distribution; the second fixes $r=\mathrm{{true}}$ and varies the evaluation distribution. Higher accuracy is better.</p><div class="guide"><b>Interpretation guide.</b> Early accuracy gains after covariance-surrogate training support early use of second-order structure. A later separation favoring true-data training supports subsequent use of unmatched structure. Earlier growth of $A_{{r\mid\mathrm{{true}}}}$ for simpler surrogates is the complementary “progressive resolution” signature.</div>{figures['a']}{figures['a_reverse']}<p><b>Caveat:</b> “mean” is a class-mean plus isotropic-nuisance proxy; “covariance” is Gaussian matching in the fitted PCA space. Neither deletes literal pixel cumulants.</p></div></section>
 <section id="b" class="panel">{criticality_section}<div class="section"><h2>B · Resolving versus tracking at each cut</h2><p>At cut $\ell$, write $f_t=\psi_t^\ell\circ\phi_t^\ell$. The finite refit protocol defines $\widehat\psi_t^{{*,\ell}}$ by freezing $\phi_t^\ell$, warm-starting from $\psi_t^\ell$, and optimizing only the suffix.</p><div class="equation">$$\begin{{aligned}}\Delta L_{{\mathrm{{resolve}},\ell}}(t_i)&=L(\phi_{{t_i}}^\ell,\psi_{{t_i}}^\ell)-L(\phi_{{t_i}}^\ell,\widehat\psi_{{t_i}}^{{*,\ell}}),\\[2pt]\Delta L_{{\mathrm{{track}},\ell}}(t_i)&=L(\phi_{{t_i}}^\ell,\widehat\psi_{{t_{{i-1}}}}^{{*,\ell}})-L(\phi_{{t_i}}^\ell,\widehat\psi_{{t_i}}^{{*,\ell}}),\\[2pt]\Delta_{{\mathrm{{rep}},\ell}}(t_i)&=\frac{{\|\phi_{{t_i}}^\ell(X)-\phi_{{t_{{i-1}}}}^\ell(X)\|_2}}{{\|\phi_{{t_{{i-1}}}}^\ell(X)\|_2}}.
 \end{{aligned}}$$</div><p><b>Plotted objects.</b> $\Delta L_{{\mathrm{{resolve}},\ell}}$ is signed held-out loss recovered by suffix refitting; $\Delta L_{{\mathrm{{track}},\ell}}$ is the penalty from using the previous checkpoint’s refitted suffix on the current representation; $\Delta_{{\mathrm{{rep}},\ell}}$ is relative representation movement. The ideal resolving gap is nonnegative, but its finite held-out estimate can be negative.</p><div class="guide"><b>Interpretation guide.</b> A larger positive resolving loss means more performance remains available at fixed representation. A larger tracking loss means more downstream adaptation is required solely because the representation moved.</div><h2>Training-loss context</h2><p>This is the ordinary true-CIFAR test loss of the same model at every checkpoint where B was measured.</p>{figures['cifar_context']}<p><b>Depth profiles.</b> These show only $t_i\in\{{1,5,20,30\}}$ to make the cross-layer comparison legible; color runs from light blue (early) to dark blue (late).</p>{figures['regret']}{figures['tracking']}{figures['drift']}<h2>Fixed-cut trajectories</h2><p>This complementary view fixes the first and last residual-stream cuts and compares resolving with tracking over all measured checkpoints.</p>{figures['demand_time']}</div><div class="section"><h2>Update-direction decomposition</h2><div class="equation">$$\begin{{aligned}}\Delta b_i&=b_i-b_{{i-1}},\\q_{{\mathrm{{track}},i}}&=\widehat b_i^*-\widehat b_{{i-1}}^*,\\q_{{\mathrm{{resolve}},i}}&=\widehat b_{{i-1}}^*-b_{{i-1}},\\A_{{k,\ell}}(t_i)&=\frac{{\langle\Delta b_i,q_{{k,i}}\rangle}}{{\|\Delta b_i\|\,\|q_{{k,i}}\|}},\qquad k\in\{{\mathrm{{track}},\mathrm{{resolve}}\}}.
 \end{{aligned}}$$</div><p><b>Notation in plain language.</b> $b_i$ is the vector of all suffix weights actually present at checkpoint $t_i$; $\widehat b_i^*$ is the suffix obtained by freezing the representation at that checkpoint and refitting the suffix. Thus $\Delta b_i$ is the update the network really made. $A_{{\mathrm{{track}},\ell}}$ is simply the cosine of the angle between that real update and the direction in which the refitted optimum moved. It is $+1$ for perfect tracking, $0$ for no directional relation, and $-1$ for movement in the opposite direction.</p><p><b>What the dot products mean.</b> Tracking alignment asks whether the actual suffix update follows movement of the refitted optimum. Resolving alignment asks whether it points toward the optimum that existed at the start of the interval. These directions are generally non-orthogonal, so the artifact also records their joint two-vector regression coefficients and explained fraction. The current plots use the Euclidean parameter metric; a Fisher-metric dot product is a useful robustness check.</p>{figures['track_align']}{figures['resolve_align']}<h2>Fixed-cut alignment trajectories</h2>{figures['alignment_time']}</div><div class="section"><h2>Empirical-Fisher compensation</h2><div class="equation">$$\begin{{aligned}}F&=\begin{{pmatrix}}F_{{aa}}&F_{{ab}}\\F_{{ba}}&F_{{bb}}\end{{pmatrix}},\\[2pt]F_{{\mathrm{{eff}},a}}&=F_{{aa}}-F_{{ab}}(F_{{bb}}+\gamma I)^{{-1}}F_{{ba}},\\[2pt]C_\ell&=1-\frac{{\operatorname{{tr}}F_{{\mathrm{{eff}},a}}}}{{\operatorname{{tr}}F_{{aa}}}}.
@@ -1118,27 +1653,44 @@ def build_report(
 <section id="spec" class="panel"><div class="section"><h2>Embedded design specification</h2>{render_spec(spec_path.read_text())}</div></section>
 <section id="provenance" class="panel"><div class="section"><h2>Run provenance</h2><p>Artifact: {html.escape(str(results_path))}<br>Device: {html.escape(str(payload['device']))}<br>Independent seeds: {len(seeds)} ({html.escape(str(seeds))})<br>Aggregate GPU runtime: {payload['runtime_seconds']:.1f} seconds</p>{criticality_provenance}<table>{config_rows}</table><p>Points are seed means; error bars are two-sided 95% Student-t intervals across independent seeds. Plotly, MathJax, the measured data, and the specification are embedded for offline use.</p></div></section>
 </main><script>document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{{document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('.panel').forEach(x=>x.classList.toggle('active',x.id===b.dataset.tab));window.dispatchEvent(new Event('resize'));if(window.MathJax?.typesetPromise) MathJax.typesetPromise();}});</script></body></html>"""
-    if criticality_section or bridge_section:
+    if c_section:
         document = document.replace(
             '<button data-tab="b">B · Tracking</button>',
-            '<button data-tab="b">B · Tracking</button><button data-tab="c">C · Critical modules</button>',
-        )
-        document = document.replace(
-            f'<section id="b" class="panel">{criticality_section}',
-            '<section id="b" class="panel">',
+            '<button data-tab="b">B · Tracking</button><button data-tab="c">C · Architecture replication</button>',
         )
         document = document.replace(
             '<section id="spec" class="panel">',
-            f'<section id="c" class="panel">{criticality_section.replace("B0 ·", "C1 ·")}{bridge_section}</section>'
+            f'<section id="c" class="panel">{c_section}</section>'
             '<section id="spec" class="panel">',
         )
+    nav_anchor = (
+        '<button data-tab="c">C · Architecture replication</button>'
+        if c_section else '<button data-tab="b">B · Tracking</button>'
+    )
+    document = document.replace(
+        nav_anchor,
+        nav_anchor
+        + '<button data-tab="d">D · Tangent response theory</button>'
+        + '<button data-tab="e">E · GPT-2 suffix replication</button>',
+    )
+    document = document.replace(
+        '<section id="spec" class="panel">',
+        f'{d_section}{e_section}<section id="spec" class="panel">',
+    )
     document = document.replace(
         "This is the ordinary true-CIFAR test loss of the same model at every checkpoint where B was measured.",
         "This is the ordinary true-CIFAR test loss of the same model at every checkpoint where B was measured. "
         "It requires no new run; a dense per-epoch curve between these checkpoints would require additional logged evaluations.",
     )
     b_start = document.index('<section id="b" class="panel">')
-    b_end_marker = '<section id="c" class="panel">' if '<section id="c" class="panel">' in document else '<section id="spec" class="panel">'
+    if '<section id="c" class="panel">' in document:
+        b_end_marker = '<section id="c" class="panel">'
+    elif '<section id="d" class="panel part-d-tangent"' in document:
+        b_end_marker = '<section id="d" class="panel part-d-tangent"'
+    elif '<section id="e" class="panel part-e-mockup"' in document:
+        b_end_marker = '<section id="e" class="panel part-e-mockup"'
+    else:
+        b_end_marker = '<section id="spec" class="panel">'
     b_end = document.index(b_end_marker)
     document = document[:b_start] + redesigned_b + document[b_end:]
     document = document.replace('<button data-tab="b">B · Tracking</button>', '<button data-tab="b">B · Suffix statistics</button>')
@@ -1148,23 +1700,30 @@ def build_report(
     )
     document = document.replace(
         r'<div class="equation">$$\Delta L_{\mathrm{resolve},\ell}(t)=L(\phi_t,\psi_t)-L(\phi_t,\psi^*[\phi_t])$$</div>',
-        r'<div class="equation">$$\Delta_{\mathrm{true}\mid r}^{(t,\ell)}=M_{\mathrm{true},r}^{(t,\ell)}-M_{\mathrm{true},\mathrm{true}}^{(t,\ell)}$$</div>',
+        r'<div class="equation">$$\Delta A_r=A_{\mathrm{true}\mid r}^{\mathrm{after}}-A^{\mathrm{before}},\qquad S_r=A_{\mathrm{true}\mid\mathrm{true}}^{\mathrm{after}}-A_{\mathrm{true}\mid r}^{\mathrm{after}}$$</div>',
     )
     document = document.replace(
         "<b>B.</b> Warm-refit each suffix at fixed residual-stream cuts, measure resolving and tracking terms, then estimate suffix-compensated prefix Fisher sensitivity.",
-        "<b>B.</b> Freeze the epoch-0, epoch-1, and epoch-5 prefixes at cut 3; relax matched suffixes on true, Gaussian, or mean-only activations; compare aligned triptychs. Update-direction dot products remain secondary; Fisher is on hold.",
+        "<b>B.</b> Freeze the small residual-CNN prefix at selected checkpoints and cuts; relax matched suffixes on true, Gaussian, or mean-only activations."
+        "</p><p><b>C.</b> Repeat the same suffix-statistics protocol across depth and training time in ResNet-18 and VGG-19; retain critical-module plots as a secondary appendix."
+        "</p><p><b>D · THEORY.</b> At one checkpoint, compare full-system and suffix-only update eigenspectra, then measure the frequency response to tangent perturbations of the activation distribution. Fisher supplies the predictive metric and its Schur complement is the static compensation limit; no Part D result is loaded."
+        + (
+            "</p><p><b>E · MEASURED DIAGNOSTIC.</b> The repaired GPT-2 suffix experiment now passes adaptive-PCA, projected-replay, leakage, and fp32 parity gates. Gradient-scale mismatch explained much of the old gap, but sequence covariance still fails to beat mean-only at cuts 0 and 5; the broad sufficiency hypothesis is weakened."
+            if part_e_measured else
+            "</p><p><b>E · MOCKUP.</b> Repeat B on GPT-2 small: freeze a residual-stream interface, relax matched suffixes on true, sequence-Gaussian, or mean-only activations, and cross-evaluate all three. No transformer result is loaded."
+        ),
     )
     formulation_start = document.index('<div class="section"><h2>Mathematical formulation</h2>')
     formulation_end = document.index('<div class="section"><h2>Decisive contrasts</h2>')
     formulation = r'''<div class="section"><h2>Mathematical formulation</h2>
 <p>Part A asks which input statistics support performance. Part B pushes the same intervention through a frozen prefix and asks what the suffix can learn from the resulting internal distribution.</p>
 <div class="equation">$$z=\phi_{t,\ell}(x),\qquad M_{s,r}^{(t,\ell)}(u)=\mathbb E_{(z,y)\sim Q_s^{(t,\ell)}}\ell(\psi_{r}^{(u)}(z),y).$$</div>
-<p>$Q_r$ is the true, class-mean, or class-conditional Gaussian activation distribution. Every $\psi_r$ has the same checkpoint warm start; only its relaxation distribution changes. The true-activation row of the cross-matrix is the primary comparison.</p></div>
+<p>$Q_r$ is the true, class-mean, or class-conditional Gaussian activation distribution. Every $\psi_r$ has the same checkpoint warm start; only its relaxation distribution changes. The true-activation row of the cross-matrix is the primary comparison. The report first shows each endpoint relative to the unrelaxed warm start, then reports surrogate shortfall relative to matched true-data relaxation.</p></div>
 '''
     document = document[:formulation_start] + formulation + document[formulation_end:]
     old_contrasts = document.index('<div class="section"><h2>Decisive contrasts</h2>')
     old_contrasts_end = document.index('</div></section>', old_contrasts) + len('</div>')
-    contrasts = '''<div class="section"><h2>Decisive contrasts</h2><p><b>Gaussian sufficiency:</b> Gaussian relaxation matches true relaxation on true held-out activations while mean-only does not. <b>Higher-order need:</b> Gaussian remains detectably worse than true. <b>Validation gate:</b> neither verdict is interpretable unless the intended held-out activation moments match and PCA coverage is reported. Update-direction dot products remain secondary; Fisher is on hold.</p></div>'''
+    contrasts = '''<div class="section"><h2>Decisive contrasts</h2><p><b>Absolute relaxation effect:</b> $\\Delta A_r&gt;0$ means relaxation improved the warm-started suffix; $\\Delta A_r&lt;0$ means it harmed held-out accuracy. <b>Gaussian sufficiency:</b> the Gaussian endpoint has near-zero shortfall $S_r$ while mean-only has positive shortfall. <b>Higher-order need:</b> Gaussian retains a positive shortfall. <b>Validation:</b> interpret this only for the declared PCA proxy, report its variance coverage, and assess moment matching in the fitted target space rather than the discarded native directions.</p></div>'''
     document = document[:old_contrasts] + contrasts + document[old_contrasts_end:]
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(document)
@@ -1178,9 +1737,14 @@ def main() -> None:
     parser.add_argument("--criticality", type=Path)
     parser.add_argument("--suffix-statistics", type=Path, nargs="+")
     parser.add_argument("--vgg-suffix-statistics", type=Path, nargs="+")
+    parser.add_argument("--resnet-criticality", type=Path)
+    parser.add_argument("--resnet-suffix-statistics", type=Path, nargs="+")
+    parser.add_argument("--part-e", type=Path)
+    parser.add_argument("--part-e-equal-lr", type=Path)
     args = parser.parse_args()
     build_report(args.results, args.output, args.spec, args.criticality, args.suffix_statistics,
-                 args.vgg_suffix_statistics)
+                 args.vgg_suffix_statistics, args.resnet_criticality, args.resnet_suffix_statistics,
+                 args.part_e, args.part_e_equal_lr)
     print(args.output)
 
 

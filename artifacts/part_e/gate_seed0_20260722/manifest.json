@@ -1,0 +1,59 @@
+{
+  "checkpoint_manifest_sha256": "03a016815800aba2e9ae3623ad5fde137585fdc6ced0841cb3f80e2e90aeac55",
+  "checkpoints_retained": true,
+  "config": {
+    "analysis_checkpoint_tokens": [
+      4000000,
+      16000000,
+      50000000
+    ],
+    "cache_batch_size": 8,
+    "checkpoint_tokens": [
+      0,
+      4000000,
+      16000000,
+      50000000
+    ],
+    "context_length": 256,
+    "covariance_shrinkage": 0.05,
+    "cuts": [
+      0,
+      5,
+      11
+    ],
+    "dataset_id": "roneneldan/TinyStories",
+    "dataset_revision": "main",
+    "dtype": "bfloat16",
+    "eval_batch_size": 8,
+    "eval_stories": 64,
+    "grad_accumulation": 1,
+    "learning_rate": 0.0003,
+    "n_embd": 768,
+    "n_head": 12,
+    "n_layer": 12,
+    "output": "artifacts/part_e/gate_seed0_20260722",
+    "pca_components": 256,
+    "pca_fit_rows": 32768,
+    "position_bins": 16,
+    "position_shrinkage": 0.1,
+    "replay_eval_stories": 128,
+    "replay_fit_stories": 512,
+    "seed": 0,
+    "suffix_batch_size": 8,
+    "suffix_learning_rate": 5e-05,
+    "suffix_updates": 64,
+    "token_groups": 256,
+    "tokenizer_id": "gpt2",
+    "tokenizer_revision": "main",
+    "train_batch_size": 32,
+    "train_loss_tokens": 50000000,
+    "validation_tokens": 2000000,
+    "warmup_steps": 200
+  },
+  "experiment": "part_e_gpt2_suffix_statistics",
+  "replay_manifest_sha256": "9a592b842285f6b159b209161dd8fccd99ceafe6b78d2616e4e2b53d1c0c3a45",
+  "schema_version": 1,
+  "status": "MEASURED",
+  "suffix_statistics_sha256": "fb9bcf978471ce89fa4a9097cb3cca844d2f846a93ef5a98fbcf4fa7ff804a6f",
+  "surrogate_diagnostics_sha256": "83d82c66ee5ade5f2b89ed9b6a22a1bcd29cb40d98153ac65cd66ed375c71471"
+}
