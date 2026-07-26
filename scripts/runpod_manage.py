@@ -43,6 +43,12 @@ parser.add_argument(
     default="runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404",
     help="RunPod container image for a new pod.",
 )
+parser.add_argument(
+    "--gpu-types",
+    nargs="+",
+    default=None,
+    help="Optional ordered GPU-type allowlist for a new pod.",
+)
 args = parser.parse_args()
 
 if args.action == "create":
@@ -51,7 +57,7 @@ if args.action == "create":
         "imageName": args.image,
         "cloudType": "COMMUNITY",
         "computeType": "GPU",
-        "gpuTypeIds": [
+        "gpuTypeIds": args.gpu_types or [
             "NVIDIA GeForce RTX 3090",
             "NVIDIA GeForce RTX 4090",
             "NVIDIA RTX A5000",
