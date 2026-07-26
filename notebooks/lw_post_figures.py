@@ -9,7 +9,10 @@ Result plots read saved JSON artifacts only.  In particular, this file never
 imports model or training code.  The canonical CNN checkpoint animation is
 rendered only when the new one-run checkpoint battery is present and passes
 provenance checks.  A legacy, explicitly watermarked fallback can be requested
-with ``--allow-legacy-cnn-checkpoints``.
+with ``--allow-legacy-cnn-checkpoints``. The revised measured-only blog panels
+are rendered without any legacy fallback via:
+
+    .venv/bin/python notebooks/lw_post_figures.py --measured-cnn-only
 """
 
 # %%
@@ -47,6 +50,7 @@ from PIL import Image
 # %% Paths and one shared visual grammar
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 FIGURE_DIR = PROJECT_ROOT / "docs" / "figures"
+MEASURED_RESULT_ROOT = PROJECT_ROOT / "artifacts" / "lw_post" / "measured"
 
 INK = "#262626"
 MUTED = "#68717a"
@@ -133,6 +137,21 @@ class Trajectory:
     steps: np.ndarray
     mean: np.ndarray
     std: np.ndarray
+
+
+@dataclass(frozen=True)
+class MeasuredControlFigureData:
+    """Values plotted in the measured three-panel CNN control figure."""
+
+    seeds: np.ndarray
+    cuts: np.ndarray
+    seed_excess_loss: dict[str, np.ndarray]
+    optimizer_regimes: tuple[str, ...]
+    optimizer_excess_loss: dict[str, np.ndarray]
+    noise_radii: np.ndarray
+    noise_endpoint_loss: np.ndarray
+    exact_gaussian_endpoint_loss: float
+    projected_endpoint_loss: float
 
 
 # %% Artifact-only data loading
@@ -245,6 +264,390 @@ def endpoint_accuracy_from_records(
         float(array.mean()),
         float(array.std(ddof=1)) if len(array) > 1 else 0.0,
     )
+
+
+# %% Staged measured CNN controls (never fall back to legacy artifacts)
+def _require_config_value(
+    path: Path,
+    config: Mapping[str, object],
+    key: str,
+    expected: object,
+) -> None:
+    if config.get(key) != expected:
+        raise FigureDataError(
+            f"{path}: config.{key}={config.get(key)!r}, expected {expected!r}."
+        )
+
+
+def _load_measured_cnn_artifact(
+    path: Path,
+    *,
+    seed: int,
+    cuts: Sequence[int],
+    ranks: Sequence[int],
+    learning_rate_regime: str,
+    relax_epochs: int,
+    result_root: Path,
+) -> dict:
+    artifact = load_json(path)
+    require_measured(artifact, path)
+    if artifact.get("schema_version") != 2:
+        raise FigureDataError(
+            f"{path}: expected CNN statistics schema 2, got "
+            f"{artifact.get('schema_version')!r}."
+        )
+    if artifact.get("experiment") != "lw_post_cnn_suffix_statistics":
+        raise FigureDataError(f"{path}: wrong experiment type.")
+    config = artifact.get("config")
+    if not isinstance(config, Mapping):
+        raise FigureDataError(f"{path}: missing config mapping.")
+    for key, expected in (
+        ("seed", seed),
+        ("cuts", list(cuts)),
+        ("pca_ranks", list(ranks)),
+        ("learning_rate_regime", learning_rate_regime),
+        ("suffix_initialization", "warm"),
+        ("relax_epochs", relax_epochs),
+        ("checkpoint_epoch", 30),
+        ("fake_data", False),
+    ):
+        _require_config_value(path, config, key, expected)
+
+    manifest_path = (
+        result_root
+        / "training_manifests"
+        / f"cnn_seed{seed}_training.json"
+    )
+    manifest = load_json(manifest_path)
+    require_measured(manifest, manifest_path)
+    if (
+        manifest.get("schema_version") != 1
+        or manifest.get("experiment")
+        != "lw_post_cnn_checkpoint_trajectory"
+    ):
+        raise FigureDataError(f"{manifest_path}: wrong training schema.")
+    manifest_config = manifest.get("config", {})
+    _require_config_value(manifest_path, manifest_config, "seed", seed)
+    checkpoint_rows = [
+        row
+        for row in manifest.get("checkpoints", [])
+        if int(row.get("epoch", -1)) == 30
+    ]
+    if len(checkpoint_rows) != 1:
+        raise FigureDataError(
+            f"{manifest_path}: expected exactly one epoch-30 checkpoint."
+        )
+    artifact_checkpoint = artifact.get("checkpoint", {})
+    if artifact_checkpoint.get("sha256") != checkpoint_rows[0].get("sha256"):
+        raise FigureDataError(
+            f"{path}: checkpoint hash does not match seed-{seed} manifest."
+        )
+    return artifact
+
+
+def _rank_result(
+    artifact: Mapping[str, object],
+    path: Path,
+    *,
+    cut: int,
+    rank: int,
+) -> Mapping[str, object]:
+    slices = [
+        row for row in artifact.get("slices", []) if int(row["cut"]) == cut
+    ]
+    if len(slices) != 1:
+        raise FigureDataError(f"{path}: expected exactly one cut-{cut} slice.")
+    matches = [
+        row
+        for row in slices[0].get("rank_results", [])
+        if int(row["pca_rank"]) == rank
+    ]
+    if len(matches) != 1:
+        raise FigureDataError(
+            f"{path}: expected exactly one cut-{cut}, rank-{rank} result."
+        )
+    rank_result = matches[0]
+    empirical_estimators = [
+        row
+        for row in rank_result.get("gaussian_covariance_estimators", [])
+        if row.get("distribution") == "gaussian_empirical"
+    ]
+    if len(empirical_estimators) != 1 or not empirical_estimators[0].get(
+        "exact_empirical_covariance"
+    ):
+        raise FigureDataError(
+            f"{path}: Gaussian reference is not certified exact empirical "
+            "covariance."
+        )
+    return rank_result
+
+
+def _held_out_true_loss_series(
+    rank_result: Mapping[str, object],
+    path: Path,
+    distribution: str,
+    *,
+    expected_final_epoch: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    selected = [
+        row
+        for row in rank_result.get("records", [])
+        if row.get("train_distribution") == distribution
+        and row.get("eval_distribution") == "true"
+        and int(row.get("draw", 0)) == 0
+    ]
+    if not selected:
+        raise FigureDataError(
+            f"{path}: missing held-out-true records for {distribution!r}."
+        )
+    selected.sort(key=lambda row: int(row["relax_epoch"]))
+    epochs = np.asarray([int(row["relax_epoch"]) for row in selected])
+    expected_epochs = np.arange(expected_final_epoch + 1)
+    if not np.array_equal(epochs, expected_epochs):
+        raise FigureDataError(
+            f"{path}: {distribution!r} epochs are {epochs.tolist()}, expected "
+            f"{expected_epochs.tolist()}."
+        )
+    losses = np.asarray([float(row["loss"]) for row in selected])
+    if not np.isfinite(losses).all() or np.any(losses < 0):
+        raise FigureDataError(
+            f"{path}: {distribution!r} contains invalid held-out loss."
+        )
+    return epochs.astype(float), losses
+
+
+def _endpoint_loss(
+    rank_result: Mapping[str, object],
+    path: Path,
+    distribution: str,
+    *,
+    expected_final_epoch: int,
+) -> float:
+    _, losses = _held_out_true_loss_series(
+        rank_result,
+        path,
+        distribution,
+        expected_final_epoch=expected_final_epoch,
+    )
+    return float(losses[-1])
+
+
+def load_measured_cnn_control_data(
+    result_root: Path | None = None,
+) -> MeasuredControlFigureData:
+    """Extract the staged, measured values for the publication control figure."""
+    root = result_root or MEASURED_RESULT_ROOT
+    matched_paths = {
+        0: {
+            1: root
+            / "cnn_matched_seed0"
+            / "cut1_r1024_2048_true_eval.json",
+            4: root
+            / "cnn_matched_seed0"
+            / "cut4_r2048_true_eval.json",
+        },
+        1: {
+            1: root
+            / "cnn_matched_seed1"
+            / "cuts1_4_r2048_full_matrix.json",
+            4: root
+            / "cnn_matched_seed1"
+            / "cuts1_4_r2048_full_matrix.json",
+        },
+        2: {
+            1: root
+            / "cnn_matched_seed2"
+            / "cuts1_4_r2048_full_matrix.json",
+            4: root
+            / "cnn_matched_seed2"
+            / "cuts1_4_r2048_full_matrix.json",
+        },
+    }
+    excess = {
+        "projected_real": np.zeros((3, 2), dtype=float),
+        "gaussian": np.empty((3, 2), dtype=float),
+        "mean_isotropic": np.empty((3, 2), dtype=float),
+    }
+    raw_names = {
+        "projected_real": "projected_true",
+        "gaussian": "gaussian_empirical",
+        "mean_isotropic": "mean_r1",
+    }
+    for seed in range(3):
+        loaded: dict[Path, Mapping[str, object]] = {}
+        for cut_index, cut in enumerate((1, 4)):
+            path = matched_paths[seed][cut]
+            if path not in loaded:
+                expected_cuts = (cut,) if seed == 0 else (1, 4)
+                expected_ranks = (1024, 2048) if seed == 0 and cut == 1 else (2048,)
+                loaded[path] = _load_measured_cnn_artifact(
+                    path,
+                    seed=seed,
+                    cuts=expected_cuts,
+                    ranks=expected_ranks,
+                    learning_rate_regime="match_true_initial_update",
+                    relax_epochs=5,
+                    result_root=root,
+                )
+            rank_result = _rank_result(
+                loaded[path], path, cut=cut, rank=2048
+            )
+            baseline = _endpoint_loss(
+                rank_result,
+                path,
+                "projected_true",
+                expected_final_epoch=5,
+            )
+            for name, raw_name in raw_names.items():
+                endpoint = _endpoint_loss(
+                    rank_result,
+                    path,
+                    raw_name,
+                    expected_final_epoch=5,
+                )
+                excess[name][seed, cut_index] = endpoint - baseline
+
+    fixed_path = (
+        root
+        / "cnn_fixed_gate_seed0"
+        / "cut1_r2048_true_eval_sensitivity.json"
+    )
+    matched_path = matched_paths[0][1]
+    fixed_artifact = _load_measured_cnn_artifact(
+        fixed_path,
+        seed=0,
+        cuts=(1,),
+        ranks=(2048,),
+        learning_rate_regime="fixed_lr",
+        relax_epochs=5,
+        result_root=root,
+    )
+    matched_artifact = _load_measured_cnn_artifact(
+        matched_path,
+        seed=0,
+        cuts=(1,),
+        ranks=(1024, 2048),
+        learning_rate_regime="match_true_initial_update",
+        relax_epochs=5,
+        result_root=root,
+    )
+    optimizer_excess = {
+        name: np.empty(2, dtype=float)
+        for name in ("projected_real", "gaussian", "mean_isotropic")
+    }
+    for regime_index, (path, artifact) in enumerate(
+        ((fixed_path, fixed_artifact), (matched_path, matched_artifact))
+    ):
+        rank_result = _rank_result(artifact, path, cut=1, rank=2048)
+        baseline = _endpoint_loss(
+            rank_result,
+            path,
+            "projected_true",
+            expected_final_epoch=5,
+        )
+        for name, raw_name in raw_names.items():
+            endpoint = _endpoint_loss(
+                rank_result,
+                path,
+                raw_name,
+                expected_final_epoch=5,
+            )
+            optimizer_excess[name][regime_index] = endpoint - baseline
+
+    noise_path = (
+        root
+        / "cnn_matched_seed0"
+        / "cuts1_4_covariance_noise_ablation.json"
+    )
+    noise_artifact = _load_measured_cnn_artifact(
+        noise_path,
+        seed=0,
+        cuts=(1, 4),
+        ranks=(2048,),
+        learning_rate_regime="match_true_initial_update",
+        relax_epochs=5,
+        result_root=root,
+    )
+    noise_rank_result = _rank_result(
+        noise_artifact, noise_path, cut=1, rank=2048
+    )
+    radii = np.asarray([0.0, 0.5, 1.0, 2.0])
+    noise_losses = np.asarray(
+        [
+            _endpoint_loss(
+                noise_rank_result,
+                noise_path,
+                f"mean_r{radius:g}",
+                expected_final_epoch=5,
+            )
+            for radius in radii
+        ]
+    )
+    return MeasuredControlFigureData(
+        seeds=np.arange(3),
+        cuts=np.asarray([1, 4]),
+        seed_excess_loss=excess,
+        optimizer_regimes=("fixed learning rate", "matched initial update"),
+        optimizer_excess_loss=optimizer_excess,
+        noise_radii=radii,
+        noise_endpoint_loss=noise_losses,
+        exact_gaussian_endpoint_loss=_endpoint_loss(
+            noise_rank_result,
+            noise_path,
+            "gaussian_empirical",
+            expected_final_epoch=5,
+        ),
+        projected_endpoint_loss=_endpoint_loss(
+            noise_rank_result,
+            noise_path,
+            "projected_true",
+            expected_final_epoch=5,
+        ),
+    )
+
+
+def load_measured_cnn_horizon(
+    result_root: Path | None = None,
+) -> dict[int, dict[str, Trajectory]]:
+    """Load seed-0 matched-update rank-2048 loss curves through epoch 20."""
+    root = result_root or MEASURED_RESULT_ROOT
+    path = (
+        root
+        / "cnn_matched_seed0"
+        / "cuts1_4_horizon20_true_eval.json"
+    )
+    artifact = _load_measured_cnn_artifact(
+        path,
+        seed=0,
+        cuts=(1, 4),
+        ranks=(2048,),
+        learning_rate_regime="match_true_initial_update",
+        relax_epochs=20,
+        result_root=root,
+    )
+    raw_names = {
+        "real": "true",
+        "projected_real": "projected_true",
+        "gaussian": "gaussian_empirical",
+        "mean_isotropic": "mean_r1",
+    }
+    result: dict[int, dict[str, Trajectory]] = {}
+    for cut in (1, 4):
+        rank_result = _rank_result(artifact, path, cut=cut, rank=2048)
+        result[cut] = {}
+        for name, raw_name in raw_names.items():
+            epochs, losses = _held_out_true_loss_series(
+                rank_result,
+                path,
+                raw_name,
+                expected_final_epoch=20,
+            )
+            result[cut][name] = Trajectory(
+                steps=epochs,
+                mean=losses,
+                std=np.zeros_like(losses),
+            )
+    return result
 
 
 def legacy_cnn_artifact(epoch: int, cut: int) -> dict:
@@ -2308,6 +2711,303 @@ def tracking_resolving_figure() -> plt.Figure:
     return fig
 
 
+# %% Measured CNN controls for the revised post
+def measured_cnn_controls_figure(
+    data: MeasuredControlFigureData | None = None,
+) -> plt.Figure:
+    """Three compact measured controls, all from staged schema-2 artifacts."""
+    data = data or load_measured_cnn_control_data()
+    fig, axes = plt.subplots(1, 3, figsize=(15.6, 6.2))
+    fig.subplots_adjust(
+        left=0.065,
+        right=0.985,
+        top=0.68,
+        bottom=0.17,
+        wspace=0.30,
+    )
+    fig.suptitle(
+        "CNN measured controls · epoch-30 prefixes · held-out real evaluation",
+        fontsize=18,
+        fontweight=720,
+        y=0.965,
+    )
+    fig.text(
+        0.5,
+        0.895,
+        "Warm suffix · PCA rank 2048 · endpoint after 5 relaxation epochs",
+        ha="center",
+        va="center",
+        fontsize=10.5,
+        color=MUTED,
+    )
+
+    # A: independent trained seeds, with projected replay as the estimand's zero.
+    ax = axes[0]
+    x = np.arange(len(data.cuts), dtype=float)
+    offsets = {
+        "projected_real": -0.22,
+        "gaussian": 0.0,
+        "mean_isotropic": 0.22,
+    }
+    seed_jitter = np.linspace(-0.045, 0.045, len(data.seeds))
+    for name in ("projected_real", "gaussian", "mean_isotropic"):
+        values = np.asarray(data.seed_excess_loss[name])
+        mean = values.mean(axis=0)
+        std = values.std(axis=0, ddof=1)
+        positions = x + offsets[name]
+        for seed_index, jitter in enumerate(seed_jitter):
+            ax.scatter(
+                positions + jitter,
+                values[seed_index],
+                s=24,
+                color=SERIES_STYLE[name]["color"],
+                alpha=0.48,
+                edgecolor="white",
+                linewidth=0.45,
+                zorder=4,
+            )
+        ax.errorbar(
+            positions,
+            mean,
+            yerr=std,
+            fmt=SERIES_STYLE[name]["marker"],
+            markersize=7.2,
+            color=SERIES_STYLE[name]["color"],
+            markeredgecolor="white",
+            markeredgewidth=0.8,
+            capsize=3.2,
+            linewidth=1.5,
+            zorder=7,
+        )
+    ax.axhline(0, color=PROJECTED_REAL, linewidth=1.0, zorder=1)
+    ax.set_xticks(x, [f"after block {cut}" for cut in data.cuts])
+    ax.set_ylabel(
+        "Endpoint excess held-out loss\nvs PCA-projected real"
+    )
+    ax.set_title(
+        "A · Three trained seeds\nmatched initial update · points = seeds",
+        loc="left",
+        fontsize=12.5,
+    )
+    style_axis(ax, grid_axis="y")
+    ax.text(
+        0.02,
+        0.03,
+        "large marker ± SD",
+        transform=ax.transAxes,
+        ha="left",
+        va="bottom",
+        fontsize=8.5,
+        color=MUTED,
+    )
+
+    # B: same seed and checkpoint, changing only the update-scale regime.
+    ax = axes[1]
+    regime_x = np.arange(len(data.optimizer_regimes), dtype=float)
+    short_regime_labels = ["fixed LR", "matched update"]
+    for name in ("projected_real", "gaussian", "mean_isotropic"):
+        values = np.asarray(data.optimizer_excess_loss[name])
+        style = SERIES_STYLE[name]
+        ax.plot(
+            regime_x,
+            values,
+            color=style["color"],
+            linestyle=style["linestyle"],
+            marker=style["marker"],
+            markersize=6.4,
+            linewidth=2.2,
+            markeredgecolor="white",
+            markeredgewidth=0.7,
+            zorder=5,
+        )
+    ax.axhline(0, color=PROJECTED_REAL, linewidth=1.0, zorder=1)
+    ax.set_xticks(regime_x, short_regime_labels)
+    ax.set_ylabel(
+        "Endpoint excess held-out loss\nvs PCA-projected real"
+    )
+    ax.set_title(
+        "B · Optimizer-scale control\nseed 0 · cut after block 1",
+        loc="left",
+        fontsize=12.5,
+    )
+    style_axis(ax, grid_axis="y")
+    ax.text(
+        0.98,
+        0.97,
+        "same checkpoint",
+        transform=ax.transAxes,
+        ha="right",
+        va="top",
+        fontsize=8.5,
+        color=MUTED,
+    )
+
+    # C: absolute endpoint loss as isotropic mean-noise radius changes.
+    ax = axes[2]
+    ax.plot(
+        data.noise_radii,
+        data.noise_endpoint_loss,
+        color=MEAN_ISOTROPIC,
+        marker=SERIES_STYLE["mean_isotropic"]["marker"],
+        markersize=6.4,
+        linewidth=2.4,
+        markeredgecolor="white",
+        markeredgewidth=0.7,
+        label="class mean + isotropic noise",
+        zorder=5,
+    )
+    ax.axhline(
+        data.exact_gaussian_endpoint_loss,
+        color=GAUSSIAN,
+        linewidth=2.0,
+        linestyle="--",
+        label="exact empirical Gaussian",
+        zorder=4,
+    )
+    ax.axhline(
+        data.projected_endpoint_loss,
+        color=PROJECTED_REAL,
+        linewidth=1.6,
+        linestyle=":",
+        label="PCA-projected real",
+        zorder=3,
+    )
+    ax.set_xticks(data.noise_radii)
+    ax.set_xlabel("Isotropic-noise radius $r$")
+    ax.set_ylabel("Endpoint held-out loss")
+    ax.set_title(
+        "C · Mean-noise sensitivity\nseed 0 · matched update · block 1",
+        loc="left",
+        fontsize=12.5,
+    )
+    style_axis(ax, grid_axis="y")
+    ax.legend(loc="upper right", fontsize=8.4)
+
+    fig.legend(
+        handles=series_legend(
+            ("projected_real", "gaussian", "mean_isotropic")
+        ),
+        loc="upper center",
+        bbox_to_anchor=(0.5, 0.815),
+        ncol=3,
+        fontsize=9.2,
+    )
+    fig.text(
+        0.985,
+        0.035,
+        "Cross-entropy loss; Gaussian covariance is exact empirical "
+        "(zero shrinkage, zero jitter).",
+        ha="right",
+        va="bottom",
+        fontsize=8.7,
+        color=MUTED,
+    )
+    return fig
+
+
+def measured_cnn_horizon_figure(
+    trajectories: Mapping[int, Mapping[str, Trajectory]] | None = None,
+) -> plt.Figure:
+    """Held-out true-loss trajectories for the measured 20-epoch control."""
+    trajectories = trajectories or load_measured_cnn_horizon()
+    fig, axes = plt.subplots(1, 2, figsize=(13.2, 5.6), sharex=True, sharey=True)
+    fig.subplots_adjust(
+        left=0.075,
+        right=0.985,
+        top=0.77,
+        bottom=0.17,
+        wspace=0.12,
+    )
+    fig.suptitle(
+        "CNN measured horizon control · held-out real-activation loss",
+        fontsize=18,
+        fontweight=720,
+        y=0.965,
+    )
+    fig.text(
+        0.5,
+        0.895,
+        "Seed 0 · epoch-30 prefix · warm suffix · PCA rank 2048 · "
+        "matched initial update",
+        ha="center",
+        va="center",
+        fontsize=10.5,
+        color=MUTED,
+    )
+    for ax, cut in zip(axes, (1, 4)):
+        cut_trajectories = trajectories[cut]
+        for name in ("real", "projected_real", "gaussian", "mean_isotropic"):
+            trajectory = cut_trajectories[name]
+            style = SERIES_STYLE[name]
+            ax.plot(
+                trajectory.steps,
+                trajectory.mean,
+                color=style["color"],
+                linestyle=style["linestyle"],
+                marker=style["marker"],
+                markevery=4,
+                markersize=4.2,
+                linewidth=2.25,
+                markeredgecolor="white",
+                markeredgewidth=0.45,
+                label=style["label"],
+                zorder=4,
+            )
+        ax.set_xlim(-0.4, 20.4)
+        ax.set_xticks(np.arange(0, 21, 5))
+        ax.set_xlabel("Suffix-relaxation epoch")
+        ax.set_title(
+            f"Cut after block {cut}\n"
+            + (
+                "shallow projected-subspace estimand"
+                if cut == 1
+                else "late/native-dimensional estimand"
+            ),
+            loc="left",
+            fontsize=12.5,
+        )
+        style_axis(ax)
+    axes[0].set_ylabel("Held-out true cross-entropy loss")
+    axes[0].legend(
+        handles=series_legend(
+            ("real", "projected_real", "gaussian", "mean_isotropic")
+        ),
+        loc="upper left",
+        fontsize=8.8,
+    )
+    fig.text(
+        0.985,
+        0.035,
+        "Shared y-axis. Curves are alternative suffix-training datasets; "
+        "all evaluations use held-out real activations.",
+        ha="right",
+        va="bottom",
+        fontsize=8.7,
+        color=MUTED,
+    )
+    return fig
+
+
+def render_measured_cnn_blog_figures(
+    result_root: Path | None = None,
+) -> list[Path]:
+    """Render the two publication PNGs from staged measured artifacts only."""
+    control_data = load_measured_cnn_control_data(result_root)
+    horizon_data = load_measured_cnn_horizon(result_root)
+    outputs: list[Path] = []
+    outputs += save_figure(
+        measured_cnn_controls_figure(control_data),
+        [FIGURE_DIR / "cnn_measured_controls.png"],
+        dpi=200,
+    )
+    outputs += save_figure(
+        measured_cnn_horizon_figure(horizon_data),
+        [FIGURE_DIR / "cnn_measured_horizon.png"],
+        dpi=200,
+    )
+    return outputs
+
+
 # %% Main suite
 def render_static_suite() -> list[Path]:
     FIGURE_DIR.mkdir(parents=True, exist_ok=True)
@@ -2399,7 +3099,22 @@ def main() -> None:
         action="store_true",
         help="Fail instead of reporting a data-blocked ablation figure.",
     )
+    parser.add_argument(
+        "--measured-cnn-only",
+        action="store_true",
+        help=(
+            "Render only cnn_measured_controls.png and "
+            "cnn_measured_horizon.png from artifacts/lw_post/measured."
+        ),
+    )
     args = parser.parse_args()
+
+    if args.measured_cnn_only:
+        outputs = render_measured_cnn_blog_figures()
+        print("Rendered measured CNN figures:")
+        for path in outputs:
+            print(f"  {path.relative_to(PROJECT_ROOT)}")
+        return
 
     outputs = render_static_suite()
     gif_reports: list[dict[str, object]] = []
