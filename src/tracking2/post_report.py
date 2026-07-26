@@ -3593,6 +3593,12 @@ def render_report(
         <div><h3>Mean + isotropic noise</h3><p>This is not epsilon jitter. At
           r = 1 its covariance trace matches the pooled average within-class
           covariance trace; radius r scales trace by r².</p></div>
+        <div><h3>Selection status</h3><p>The current PCA gate measures coverage
+          and relaxation outcomes on the canonical CIFAR-10 test population, so
+          rank selection is exploratory. A confirmatory statement requires
+          freezing the rank, margins, cells, and optimizer controls before
+          additional model-seed runs; repeated test-set retuning is not treated
+          as independent confirmation.</p></div>
       </div>
       <div class="equation-box">
         <div class="equation">Δ<sub>true|r</sub>(t, ℓ, u) =

@@ -461,20 +461,37 @@ def moment_diagnostics(
         left_centered, right_centered = left - left_mean, right - right_mean
         within_scale = np.sqrt(np.mean(np.sum(left_centered**2, axis=1)))
         mean_errors.append(np.linalg.norm(left_mean - right_mean) / max(within_scale, 1e-12))
-        # Frobenius covariance error without materialising a D x D matrix.
-        cross = left_centered @ right_centered.T
-        left_gram, right_gram = left_centered @ left_centered.T, right_centered @ right_centered.T
         n_left, n_right = max(len(left) - 1, 1), max(len(right) - 1, 1)
-        error_sq = (
-            np.sum(left_gram * left_gram, dtype=np.float64) / n_left**2
-            + np.sum(right_gram * right_gram, dtype=np.float64) / n_right**2
-            - 2
-            * np.sum(cross * cross, dtype=np.float64)
-            / (n_left * n_right)
-        )
-        baseline_sq = (
-            np.sum(left_gram * left_gram, dtype=np.float64) / n_left**2
-        )
+        feature_count = left_centered.shape[1]
+        if feature_count <= min(len(left), len(right)):
+            # In the bounded PCA controls, r is usually much smaller than the
+            # per-class held-out count. Materialising r x r covariances is then
+            # exactly equivalent to the Gram identity and far cheaper than
+            # constructing three n x n matrices.
+            left_covariance = left_centered.T @ left_centered / n_left
+            right_covariance = right_centered.T @ right_centered / n_right
+            difference = left_covariance - right_covariance
+            error_sq = np.sum(difference * difference, dtype=np.float64)
+            baseline_sq = np.sum(
+                left_covariance * left_covariance, dtype=np.float64
+            )
+        else:
+            # For a very wide native representation, use the dual Gram identity
+            # so the diagnostic never materialises a D x D covariance.
+            cross = left_centered @ right_centered.T
+            left_gram = left_centered @ left_centered.T
+            right_gram = right_centered @ right_centered.T
+            error_sq = (
+                np.sum(left_gram * left_gram, dtype=np.float64) / n_left**2
+                + np.sum(right_gram * right_gram, dtype=np.float64)
+                / n_right**2
+                - 2
+                * np.sum(cross * cross, dtype=np.float64)
+                / (n_left * n_right)
+            )
+            baseline_sq = (
+                np.sum(left_gram * left_gram, dtype=np.float64) / n_left**2
+            )
         covariance_errors.append(np.sqrt(max(error_sq, 0)) / max(np.sqrt(baseline_sq), 1e-12))
     return {
         "class_mean_relative_error": float(np.mean(mean_errors)),
