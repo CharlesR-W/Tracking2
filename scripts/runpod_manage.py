@@ -49,13 +49,19 @@ parser.add_argument(
     default=None,
     help="Optional ordered GPU-type allowlist for a new pod.",
 )
+parser.add_argument(
+    "--cloud-type",
+    choices=("COMMUNITY", "SECURE", "ALL"),
+    default="COMMUNITY",
+    help="RunPod cloud pool for a new pod.",
+)
 args = parser.parse_args()
 
 if args.action == "create":
     result = request("POST", "/pods", {
         "name": "tracking2-confirmatory",
         "imageName": args.image,
-        "cloudType": "COMMUNITY",
+        "cloudType": args.cloud_type,
         "computeType": "GPU",
         "gpuTypeIds": args.gpu_types or [
             "NVIDIA GeForce RTX 3090",
