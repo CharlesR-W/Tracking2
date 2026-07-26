@@ -1,6 +1,8 @@
 import numpy as np
 
 from tracking2.representation_surrogates import (
+    RepresentationSurrogate,
+    _factor_covariance,
     fit_representation_surrogate,
     moment_diagnostics,
     pca_coverage_diagnostics,
@@ -8,6 +10,12 @@ from tracking2.representation_surrogates import (
     sample_representation_surrogate,
     truncate_representation_surrogate,
 )
+
+
+def _coordinates(model, representations):
+    return (
+        representations.reshape(len(representations), -1) - model.pca_mean
+    ) @ model.components.T
 
 
 def test_representation_surrogates_preserve_shape_and_are_finite():
@@ -36,6 +44,197 @@ def test_gaussian_sampling_matches_fitted_class_means():
         np.testing.assert_allclose(
             sample[labels == class_id].mean(0), x[labels == class_id].mean(0), atol=0.15
         )
+
+
+def test_exact_empirical_covariance_has_no_hidden_jitter():
+    rng = np.random.default_rng(31)
+    labels = np.repeat(np.arange(2), 400)
+    mixing = np.array(
+        [[1.0, 0.8, -0.2], [0.1, 1.7, 0.4], [0.3, -0.6, 0.9]],
+        dtype=np.float32,
+    )
+    representations = (
+        rng.normal(size=(800, 3)).astype(np.float32) @ mixing
+        + labels[:, None]
+    )
+    fitted = fit_representation_surrogate(
+        representations,
+        labels,
+        3,
+        seed=0,
+        covariance_shrinkage=0.0,
+    )
+    coordinates = _coordinates(fitted, representations)
+    for class_id in range(2):
+        expected = np.cov(
+            coordinates[labels == class_id], rowvar=False
+        )
+        np.testing.assert_allclose(
+            fitted.class_covariances[class_id],
+            expected,
+            rtol=2e-6,
+            atol=2e-6,
+        )
+        np.testing.assert_allclose(
+            fitted.class_factors[class_id]
+            @ fitted.class_factors[class_id].T,
+            fitted.class_covariances[class_id],
+            rtol=2e-6,
+            atol=2e-6,
+        )
+    provenance = fitted.covariance_provenance()
+    assert provenance["covariance_target"] == "exact_empirical_covariance"
+    assert provenance["exact_empirical_covariance"] is True
+    assert provenance["requested_covariance_shrinkage"] == 0.0
+    assert provenance["per_class_factor_jitter"] == [0.0, 0.0]
+    assert provenance["per_class_clipped_negative_eigenvalue_count"] == [0, 0]
+
+
+def test_gaussian_samples_match_exact_and_five_percent_targets():
+    rng = np.random.default_rng(32)
+    labels = np.repeat(np.arange(2), 500)
+    mixing = np.array(
+        [[1.4, 0.7, 0.2], [-0.3, 0.8, 0.6], [0.5, -0.4, 1.1]],
+        dtype=np.float32,
+    )
+    representations = (
+        rng.normal(size=(1000, 3)).astype(np.float32) @ mixing
+        + 0.5 * labels[:, None]
+    )
+    exact = fit_representation_surrogate(
+        representations,
+        labels,
+        3,
+        seed=0,
+        covariance_shrinkage=0.0,
+    )
+    sensitivity = fit_representation_surrogate(
+        representations,
+        labels,
+        3,
+        seed=0,
+        covariance_shrinkage=0.05,
+    )
+    for class_id in range(2):
+        scale = np.trace(exact.class_covariances[class_id]) / 3
+        expected = (
+            0.95 * exact.class_covariances[class_id]
+            + 0.05 * scale * np.eye(3)
+        )
+        np.testing.assert_allclose(
+            sensitivity.class_covariances[class_id],
+            expected,
+            rtol=3e-6,
+            atol=3e-6,
+        )
+
+    sample_labels = np.repeat(np.arange(2), 20_000)
+    for model in (exact, sensitivity):
+        sample = sample_representation_surrogate(
+            model, sample_labels, "gaussian", seed=7
+        )
+        sample_coordinates = _coordinates(model, sample)
+        for class_id in range(2):
+            sampled_covariance = np.cov(
+                sample_coordinates[sample_labels == class_id],
+                rowvar=False,
+            )
+            relative_error = np.linalg.norm(
+                sampled_covariance - model.class_covariances[class_id]
+            ) / np.linalg.norm(model.class_covariances[class_id])
+            assert relative_error < 0.03
+    provenance = sensitivity.covariance_provenance()
+    assert provenance["covariance_target"] == "shrunk_empirical_covariance"
+    assert provenance["exact_empirical_covariance"] is False
+    assert provenance["requested_covariance_shrinkage"] == 0.05
+
+
+def test_psd_projection_is_reported_instead_of_called_exact():
+    (
+        singular_factor,
+        singular_target,
+        singular_method,
+        singular_jitter,
+        singular_clipped_count,
+        _,
+    ) = _factor_covariance(np.array([[1.0, 1.0], [1.0, 1.0]]))
+    assert singular_method == "eigh_semidefinite"
+    assert singular_jitter == 0.0
+    assert singular_clipped_count == 0
+    np.testing.assert_allclose(
+        singular_factor @ singular_factor.T,
+        singular_target,
+        atol=1e-12,
+    )
+
+    factor, target, method, jitter, clipped_count, maximum_clip = (
+        _factor_covariance(
+            np.array([[1.0, 1.000001], [1.000001, 1.0]])
+        )
+    )
+    assert method == "eigh_psd_projection"
+    assert jitter == 0.0
+    assert clipped_count == 1
+    assert maximum_clip > 0
+    np.testing.assert_allclose(factor @ factor.T, target, atol=1e-12)
+
+    model = RepresentationSurrogate(
+        pca_mean=np.zeros(2),
+        components=np.eye(2),
+        class_means=np.zeros((1, 2)),
+        class_covariances=target[None],
+        class_factors=factor[None],
+        pooled_variance=float(np.trace(target) / 2),
+        representation_shape=(2,),
+        covariance_shrinkage=0.0,
+        class_factorization_methods=(method,),
+        class_factor_jitters=np.array([jitter]),
+        class_clipped_negative_eigenvalue_counts=np.array([clipped_count]),
+        class_max_negative_eigenvalue_magnitudes=np.array([maximum_clip]),
+    )
+    provenance = model.covariance_provenance()
+    assert (
+        provenance["covariance_target"]
+        == "empirical_covariance_after_psd_projection"
+    )
+    assert provenance["exact_empirical_covariance"] is False
+    assert provenance["per_class_clipped_negative_eigenvalue_count"] == [1]
+
+    legacy_model = RepresentationSurrogate(
+        pca_mean=np.zeros(2),
+        components=np.eye(2),
+        class_means=np.zeros((1, 2)),
+        class_covariances=np.eye(2)[None],
+        class_factors=np.eye(2)[None],
+        pooled_variance=1.0,
+        representation_shape=(2,),
+        covariance_shrinkage=0.0,
+    )
+    legacy_provenance = legacy_model.covariance_provenance()
+    assert (
+        legacy_provenance["covariance_target"]
+        == "covariance_provenance_unavailable"
+    )
+    assert legacy_provenance["exact_empirical_covariance"] is False
+
+
+def test_covariance_shrinkage_must_be_a_fraction():
+    rng = np.random.default_rng(33)
+    representations = rng.normal(size=(40, 3)).astype(np.float32)
+    labels = np.repeat(np.arange(2), 20)
+    for invalid in (-0.01, 1.01):
+        try:
+            fit_representation_surrogate(
+                representations,
+                labels,
+                3,
+                seed=0,
+                covariance_shrinkage=invalid,
+            )
+        except ValueError as error:
+            assert "covariance_shrinkage" in str(error)
+        else:
+            raise AssertionError("invalid shrinkage was accepted")
 
 
 def test_mean_noise_radius_controls_within_class_spread():

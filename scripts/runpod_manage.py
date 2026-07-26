@@ -32,6 +32,12 @@ def request(method: str, path: str, payload: dict | None = None) -> dict:
 parser = argparse.ArgumentParser()
 parser.add_argument("action", choices=["create", "get", "terminate"])
 parser.add_argument("--pod-id")
+parser.add_argument(
+    "--min-ram-per-gpu",
+    type=int,
+    default=96,
+    help="Minimum host RAM in GB per GPU for a new pod.",
+)
 args = parser.parse_args()
 
 if args.action == "create":
@@ -52,6 +58,7 @@ if args.action == "create":
         ],
         "gpuTypePriority": "availability",
         "gpuCount": 1,
+        "minRAMPerGPU": args.min_ram_per_gpu,
         "containerDiskInGb": 40,
         "ports": ["22/tcp"],
         "env": {"PUBLIC_KEY": open(os.path.expanduser("~/.ssh/id_ed25519.pub")).read().strip()},
@@ -70,5 +77,6 @@ safe = {
     "gpu": (result.get("gpu") or {}).get("displayName") or (result.get("machine") or {}).get("gpuDisplayName"),
     "publicIp": result.get("publicIp"),
     "sshPort": (result.get("portMappings") or {}).get("22"),
+    "minRamPerGpu": args.min_ram_per_gpu if args.action == "create" else None,
 }
 print(json.dumps(safe, indent=2))

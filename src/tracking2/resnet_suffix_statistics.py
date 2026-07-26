@@ -27,6 +27,7 @@ from .models import InstrumentedResNet18V2
 from .provenance import runtime_provenance
 from .resnet_criticality import RESNET_ARCHITECTURE_NAME, SMOKE_STATUS
 from .representation_surrogates import (
+    RepresentationSurrogate,
     fit_representation_surrogate,
     moment_diagnostics,
     pca_coverage_diagnostics,
@@ -53,6 +54,7 @@ class ResNetSuffixStatisticsConfig:
     cuts: tuple[int, ...] = tuple(range(8))
     pca_fit_size: int = 5000
     pca_ranks: tuple[int, ...] = (512,)
+    gaussian_covariance_shrinkages: tuple[float, ...] = (0.0,)
     surrogate_draws: int = 3
     mean_noise_radii: tuple[float, ...] = (1.0,)
     include_projected_true: bool = False
@@ -61,6 +63,12 @@ class ResNetSuffixStatisticsConfig:
     relax_learning_rate: float = 0.01
     seed: int = 0
     device: str = "auto"
+
+
+def gaussian_distribution_name(shrinkage: float) -> str:
+    if shrinkage == 0:
+        return "gaussian_empirical"
+    return f"gaussian_shrunk_s{shrinkage:g}"
 
 
 def _has_reproducible_source_identity(provenance: object) -> bool:
@@ -298,6 +306,13 @@ def _relax_suffix(
         shuffle_seed,
         True,
     )
+    diagnostic_data = representation_loader(
+        train_representation,
+        train_labels,
+        batch_size,
+        shuffle_seed,
+        True,
+    )
     evaluation_loaders = {
         name: representation_loader(
             values,
@@ -308,6 +323,40 @@ def _relax_suffix(
         )
         for name, values in evaluation_sets.items()
     }
+    diagnostic_representation, diagnostic_labels = next(iter(diagnostic_data))
+    diagnostic_representation = diagnostic_representation.to(device)
+    diagnostic_labels = diagnostic_labels.to(device)
+    candidate.train()
+    diagnostic_loss = F.cross_entropy(
+        candidate.forward_from_block(diagnostic_representation, cut),
+        diagnostic_labels,
+    )
+    diagnostic_loss.backward()
+    suffix_parameters = [
+        parameter
+        for parameter in candidate.parameters_after_block(cut)
+        if parameter.requires_grad
+    ]
+    gradient_squared_norm = sum(
+        torch.sum(parameter.grad.detach() ** 2)
+        for parameter in suffix_parameters
+        if parameter.grad is not None
+    )
+    parameter_count = sum(parameter.numel() for parameter in suffix_parameters)
+    weight_squared_norm = sum(
+        torch.sum(parameter.detach() ** 2) for parameter in suffix_parameters
+    )
+    initial_gradient_norm = float(torch.sqrt(gradient_squared_norm))
+    initial_gradient_rms = float(
+        torch.sqrt(gradient_squared_norm / max(parameter_count, 1))
+    )
+    initial_weight_norm = float(torch.sqrt(weight_squared_norm))
+    initial_update_to_weight_ratio = (
+        relax_learning_rate
+        * initial_gradient_norm
+        / max(initial_weight_norm, 1e-12)
+    )
+    optimizer.zero_grad(set_to_none=True)
     records: list[dict[str, object]] = []
     for relax_epoch in range(relax_epochs + 1):
         for evaluation_distribution, evaluation_data in evaluation_loaders.items():
@@ -317,6 +366,13 @@ def _relax_suffix(
                     "train_distribution": distribution,
                     "eval_distribution": evaluation_distribution,
                     "relax_epoch": relax_epoch,
+                    "initial_training_loss": float(diagnostic_loss.detach()),
+                    "initial_gradient_norm": initial_gradient_norm,
+                    "initial_gradient_rms": initial_gradient_rms,
+                    "initial_weight_norm": initial_weight_norm,
+                    "initial_update_to_weight_ratio": (
+                        initial_update_to_weight_ratio
+                    ),
                     **evaluate_suffix(candidate, cut, evaluation_data, device),
                 }
             )
@@ -345,6 +401,16 @@ def run(config: ResNetSuffixStatisticsConfig) -> Path:
         raise ValueError("pca_ranks must contain positive ranks")
     if any(radius < 0 for radius in config.mean_noise_radii):
         raise ValueError("mean_noise_radii must be non-negative")
+    if (
+        not config.gaussian_covariance_shrinkages
+        or any(
+            not 0 <= shrinkage <= 1
+            for shrinkage in config.gaussian_covariance_shrinkages
+        )
+    ):
+        raise ValueError(
+            "gaussian_covariance_shrinkages must contain values in [0, 1]"
+        )
     if not config.fake_data and config.data_backend != "torchvision":
         raise ValueError(
             "Measured ResNet suffix analysis requires data_backend='torchvision'"
@@ -438,6 +504,7 @@ def run(config: ResNetSuffixStatisticsConfig) -> Path:
             train_labels[:fit_count],
             ranks[-1],
             config.seed + cut,
+            covariance_shrinkage=0.0,
         )
         maximal_pca_basis_sha256 = _pca_basis_sha256(
             maximal_surrogate.pca_mean,
@@ -445,28 +512,6 @@ def run(config: ResNetSuffixStatisticsConfig) -> Path:
         )
 
         reference_records: list[dict[str, object]] = []
-        for draw in range(config.surrogate_draws):
-            condition_shuffle_seed = (
-                config.seed + 100_000 * draw + 1_000 * cut
-            )
-            reference_records.extend(
-                _relax_suffix(
-                    model,
-                    cut,
-                    train_rep,
-                    train_labels,
-                    {"true": test_rep},
-                    test_labels,
-                    distribution="true",
-                    draw=draw,
-                    batch_size=config.batch_size,
-                    relax_epochs=config.relax_epochs,
-                    relax_learning_rate=config.relax_learning_rate,
-                    shuffle_seed=condition_shuffle_seed,
-                    device=device,
-                )
-            )
-
         rank_results: list[dict[str, object]] = []
         for rank in ranks:
             surrogate = truncate_representation_surrogate(
@@ -474,17 +519,44 @@ def run(config: ResNetSuffixStatisticsConfig) -> Path:
                 train_rep,
                 train_labels,
                 rank,
+                covariance_shrinkage=0.0,
             )
             coverage = pca_coverage_diagnostics(
                 surrogate, test_rep, test_labels
             )
             records: list[dict[str, object]] = []
             diagnostics: list[dict[str, object]] = []
+            gaussian_provenance: list[dict[str, object]] = []
+            gaussian_surrogates: list[
+                tuple[str, RepresentationSurrogate]
+            ] = []
+            for shrinkage in config.gaussian_covariance_shrinkages:
+                gaussian_surrogate = (
+                    surrogate
+                    if shrinkage == 0
+                    else truncate_representation_surrogate(
+                        maximal_surrogate,
+                        train_rep,
+                        train_labels,
+                        rank,
+                        covariance_shrinkage=shrinkage,
+                    )
+                )
+                gaussian_name = gaussian_distribution_name(shrinkage)
+                gaussian_surrogates.append(
+                    (gaussian_name, gaussian_surrogate)
+                )
+                gaussian_provenance.append(
+                    {
+                        "distribution": gaussian_name,
+                        **gaussian_surrogate.covariance_provenance(),
+                    }
+                )
             for draw in range(config.surrogate_draws):
                 condition_shuffle_seed = (
                     config.seed + 100_000 * draw + 1_000 * cut
                 )
-                train_sets: dict[str, np.ndarray] = {}
+                train_sets: dict[str, np.ndarray] = {"true": train_rep}
                 test_sets: dict[str, np.ndarray] = {"true": test_rep}
 
                 noise_seed = (
@@ -500,30 +572,36 @@ def run(config: ResNetSuffixStatisticsConfig) -> Path:
                     if not config.true_eval_only:
                         test_sets["projected_true"] = projected_test
 
-                gaussian_train = sample_representation_surrogate(
-                    surrogate,
-                    train_labels,
-                    "gaussian",
-                    noise_seed + 1,
-                    paired_noise_rank=ranks[-1],
-                )
-                gaussian_test = sample_representation_surrogate(
-                    surrogate,
-                    test_labels,
-                    "gaussian",
-                    noise_seed + 2,
-                    paired_noise_rank=ranks[-1],
-                )
-                train_sets["gaussian"] = gaussian_train
-                if not config.true_eval_only:
-                    test_sets["gaussian"] = gaussian_test
-                diagnostics.append({
-                    "draw": draw,
-                    "distribution": "gaussian",
-                    **moment_diagnostics(
-                        test_rep, gaussian_test, test_labels, surrogate
-                    ),
-                })
+                gaussian_names: list[str] = []
+                for gaussian_name, gaussian_surrogate in gaussian_surrogates:
+                    gaussian_names.append(gaussian_name)
+                    gaussian_train = sample_representation_surrogate(
+                        gaussian_surrogate,
+                        train_labels,
+                        "gaussian",
+                        noise_seed + 1,
+                        paired_noise_rank=ranks[-1],
+                    )
+                    gaussian_test = sample_representation_surrogate(
+                        gaussian_surrogate,
+                        test_labels,
+                        "gaussian",
+                        noise_seed + 2,
+                        paired_noise_rank=ranks[-1],
+                    )
+                    train_sets[gaussian_name] = gaussian_train
+                    if not config.true_eval_only:
+                        test_sets[gaussian_name] = gaussian_test
+                    diagnostics.append({
+                        "draw": draw,
+                        "distribution": gaussian_name,
+                        **moment_diagnostics(
+                            test_rep,
+                            gaussian_test,
+                            test_labels,
+                            gaussian_surrogate,
+                        ),
+                    })
 
                 mean_names: list[str] = []
                 for radius_index, radius in enumerate(config.mean_noise_radii):
@@ -537,7 +615,7 @@ def run(config: ResNetSuffixStatisticsConfig) -> Path:
                         surrogate,
                         train_labels,
                         "mean",
-                        noise_seed + 10,
+                        noise_seed + 1,
                         mean_noise_radius=radius,
                         paired_noise_rank=ranks[-1],
                     )
@@ -545,7 +623,7 @@ def run(config: ResNetSuffixStatisticsConfig) -> Path:
                         surrogate,
                         test_labels,
                         "mean",
-                        noise_seed + 100,
+                        noise_seed + 2,
                         mean_noise_radius=radius,
                         paired_noise_rank=ranks[-1],
                     )
@@ -563,8 +641,9 @@ def run(config: ResNetSuffixStatisticsConfig) -> Path:
                     })
 
                 train_distributions = [
+                    "true",
                     *mean_names,
-                    "gaussian",
+                    *gaussian_names,
                     *(
                         ["projected_true"]
                         if config.include_projected_true
@@ -590,6 +669,13 @@ def run(config: ResNetSuffixStatisticsConfig) -> Path:
                         )
                     )
 
+            if not reference_records:
+                reference_records = [
+                    dict(row)
+                    for row in records
+                    if row["train_distribution"] == "true"
+                    and row["eval_distribution"] == "true"
+                ]
             rank_results.append({
                 "pca_rank": rank,
                 "maximal_pca_basis_sha256": maximal_pca_basis_sha256,
@@ -607,7 +693,7 @@ def run(config: ResNetSuffixStatisticsConfig) -> Path:
                 "rank_exceeds_empirical_class_covariance_ceiling": (
                     rank > empirical_covariance_rank_ceiling
                 ),
-                "covariance_shrinkage": 0.05,
+                "gaussian_covariance_estimators": gaussian_provenance,
                 "pooled_within_class_variance_per_pca_coordinate": (
                     surrogate.pooled_variance
                 ),
@@ -639,7 +725,7 @@ def run(config: ResNetSuffixStatisticsConfig) -> Path:
             "rank_results": rank_results,
         })
     artifact = {
-        "schema_version": 3,
+        "schema_version": 4,
         "experiment": "resnet18_suffix_statistics_sweep",
         "status": SMOKE_STATUS if config.fake_data else "MEASURED",
         "mean_noise_definition": (
@@ -650,9 +736,13 @@ def run(config: ResNetSuffixStatisticsConfig) -> Path:
             "Each cut fits one maximal PCA basis on the configured prefix of the "
             "fixed analysis bank. Lower ranks truncate leading coordinates of "
             "that basis. Class means and covariances are re-estimated from all "
-            "training activations after projection. The true suffix reference is "
-            "trained once per draw and shared across ranks. Nested ranks use "
-            "leading coordinates from the same maximal standard-normal banks."
+            "training activations after projection. Each rank contains its own "
+            "true-trained row so it can be evaluated against that rank's held-out "
+            "surrogate banks. Nested ranks use "
+            "leading coordinates from the same maximal standard-normal banks. "
+            "Gaussian covariance targets and numerical factorization adjustments "
+            "are recorded per rank; empirical, shrunk, and isotropic controls "
+            "reuse the same standard-normal bank within each rank and draw."
         ),
         "checkpoint": lineage["checkpoint"],
         "lineage": lineage,
@@ -692,6 +782,12 @@ def parse_args() -> ResNetSuffixStatisticsConfig:
     parser.add_argument("--cuts", type=int, nargs="+", default=list(range(8)))
     parser.add_argument("--pca-fit-size", type=int, default=5000)
     parser.add_argument("--pca-ranks", type=int, nargs="+", default=[512])
+    parser.add_argument(
+        "--gaussian-covariance-shrinkages",
+        type=float,
+        nargs="+",
+        default=[0.0],
+    )
     parser.add_argument("--surrogate-draws", type=int, default=3)
     parser.add_argument(
         "--mean-noise-radii", type=float, nargs="+", default=[1.0]
@@ -712,6 +808,9 @@ def parse_args() -> ResNetSuffixStatisticsConfig:
         train_size=args.train_size, test_size=args.test_size,
         batch_size=args.batch_size, width=args.width, cuts=tuple(args.cuts),
         pca_fit_size=args.pca_fit_size, pca_ranks=tuple(args.pca_ranks),
+        gaussian_covariance_shrinkages=tuple(
+            args.gaussian_covariance_shrinkages
+        ),
         surrogate_draws=args.surrogate_draws,
         mean_noise_radii=tuple(args.mean_noise_radii),
         include_projected_true=args.include_projected_true,

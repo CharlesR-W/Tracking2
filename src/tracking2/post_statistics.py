@@ -2,14 +2,17 @@ from __future__ import annotations
 
 import argparse
 import copy
+import hashlib
 import json
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Mapping
 
 import numpy as np
 import torch
 from torch.nn import functional as F
+from torch.utils.data import DataLoader, RandomSampler, TensorDataset
 
 from .cnn_checkpoints import sha256
 from .experiment import (
@@ -24,6 +27,7 @@ from .experiment import (
 from .models import ArchitectureSpec, SplitConvNet
 from .provenance import runtime_provenance
 from .representation_surrogates import (
+    RepresentationSurrogate,
     fit_representation_surrogate,
     moment_diagnostics,
     pca_coverage_diagnostics,
@@ -51,12 +55,20 @@ class PostStatisticsConfig:
     batch_size: int = 256
     pca_fit_size: int = 10000
     pca_ranks: tuple[int, ...] = (512,)
+    gaussian_covariance_shrinkages: tuple[float, ...] = (0.0,)
     mean_noise_radii: tuple[float, ...] = (1.0,)
     surrogate_draws: int = 1
+    true_eval_only: bool = False
     relax_epochs: int = 10
     relax_learning_rate: float = 0.01
     seed: int = 0
     device: str = "auto"
+
+
+def gaussian_distribution_name(shrinkage: float) -> str:
+    if shrinkage == 0:
+        return "gaussian_empirical"
+    return f"gaussian_shrunk_s{shrinkage:g}"
 
 
 def condition_shuffle_seed(seed: int, cut: int, draw: int) -> int:
@@ -65,12 +77,177 @@ def condition_shuffle_seed(seed: int, cut: int, draw: int) -> int:
     return seed + 100_000 * draw + 1_000 * cut
 
 
+def _shuffle_indices(count: int, seed: int) -> np.ndarray:
+    """Return the exact first-epoch order used by the relaxation loader."""
+
+    generator = torch.Generator().manual_seed(seed)
+    return torch.randperm(count, generator=generator).numpy()
+
+
+def _shuffled_representation_loader(
+    representations: np.ndarray,
+    labels: np.ndarray,
+    batch_size: int,
+    seed: int,
+) -> DataLoader:
+    """Shuffle from a sampler-owned RNG so its first permutation is auditable."""
+
+    dataset = TensorDataset(
+        torch.from_numpy(representations),
+        torch.from_numpy(labels.astype(np.int64)),
+    )
+    sampler = RandomSampler(
+        dataset,
+        generator=torch.Generator().manual_seed(seed),
+    )
+    return DataLoader(dataset, batch_size=batch_size, sampler=sampler)
+
+
+def _index_sha256(indices: np.ndarray) -> str:
+    values = np.ascontiguousarray(indices, dtype=np.int64)
+    return hashlib.sha256(memoryview(values)).hexdigest()
+
+
+def _initial_step_diagnostics(
+    candidate: SplitConvNet,
+    optimizer: torch.optim.Optimizer,
+    cut: int,
+    train_representation: np.ndarray,
+    train_labels: np.ndarray,
+    *,
+    batch_size: int,
+    shuffle_seed: int,
+    device: torch.device,
+) -> dict[str, object]:
+    """Measure the actual first SGD step, then restore the unrelaxed suffix."""
+
+    indices = _shuffle_indices(len(train_representation), shuffle_seed)[:batch_size]
+    representation = torch.from_numpy(train_representation[indices]).to(device)
+    labels = torch.from_numpy(
+        train_labels[indices].astype(np.int64)
+    ).to(device)
+    suffix_parameters = [
+        parameter
+        for parameter in candidate.suffix_parameters(cut)
+        if parameter.requires_grad
+    ]
+    parameter_count = sum(parameter.numel() for parameter in suffix_parameters)
+    if parameter_count == 0:
+        raise RuntimeError("suffix has no trainable parameters")
+
+    candidate.train()
+    optimizer.zero_grad(set_to_none=True)
+    loss = F.cross_entropy(candidate.forward_from(representation, cut), labels)
+    loss.backward()
+    squared_gradient = sum(
+        torch.sum(parameter.grad.detach() ** 2)
+        for parameter in suffix_parameters
+        if parameter.grad is not None
+    )
+    total_gradient_norm = float(torch.sqrt(squared_gradient))
+    rms_gradient = total_gradient_norm / parameter_count**0.5
+    squared_weight = sum(
+        torch.sum(parameter.detach() ** 2)
+        for parameter in suffix_parameters
+    )
+    weight_norm = float(torch.sqrt(squared_weight))
+    if weight_norm == 0:
+        raise RuntimeError("suffix has zero total weight norm")
+
+    initial_parameters = [
+        parameter.detach().clone() for parameter in suffix_parameters
+    ]
+    optimizer.step()
+    squared_update = sum(
+        torch.sum((parameter.detach() - initial) ** 2)
+        for parameter, initial in zip(suffix_parameters, initial_parameters)
+    )
+    update_norm = float(torch.sqrt(squared_update))
+    with torch.no_grad():
+        for parameter, initial in zip(suffix_parameters, initial_parameters):
+            parameter.copy_(initial)
+    optimizer.state.clear()
+    optimizer.zero_grad(set_to_none=True)
+
+    return {
+        "initial_training_loss": float(loss.detach()),
+        # Compatibility alias retained for existing verifiers and reports.
+        "initial_gradient_norm": total_gradient_norm,
+        "initial_gradient_total_norm": total_gradient_norm,
+        "initial_gradient_rms": rms_gradient,
+        "initial_suffix_parameter_count": parameter_count,
+        "initial_suffix_weight_norm": weight_norm,
+        "first_step_update_norm": update_norm,
+        "first_step_update_to_weight_ratio": update_norm / weight_norm,
+        "initial_batch_shuffle_seed": shuffle_seed,
+        "initial_batch_size": len(indices),
+        "initial_batch_index_sha256": _index_sha256(indices),
+    }
+
+
+@torch.no_grad()
+def _step_zero_projection_diagnostics(
+    model: SplitConvNet,
+    cut: int,
+    true_representation: np.ndarray,
+    projected_representation: np.ndarray,
+    labels: np.ndarray,
+    *,
+    batch_size: int,
+    device: torch.device,
+) -> dict[str, float]:
+    """Quantify the suffix's update-0 functional change under PCA projection."""
+
+    model.eval()
+    true_loss = projected_loss = 0.0
+    true_correct = projected_correct = count = 0
+    predictive_kl = 0.0
+    for start in range(0, len(labels), batch_size):
+        stop = min(start + batch_size, len(labels))
+        batch_labels = torch.from_numpy(
+            labels[start:stop].astype(np.int64)
+        ).to(device)
+        true_values = torch.from_numpy(
+            true_representation[start:stop]
+        ).to(device)
+        projected_values = torch.from_numpy(
+            projected_representation[start:stop]
+        ).to(device)
+        true_logits = model.forward_from(true_values, cut)
+        projected_logits = model.forward_from(projected_values, cut)
+        true_loss += float(
+            F.cross_entropy(true_logits, batch_labels, reduction="sum")
+        )
+        projected_loss += float(
+            F.cross_entropy(projected_logits, batch_labels, reduction="sum")
+        )
+        true_correct += int((true_logits.argmax(1) == batch_labels).sum())
+        projected_correct += int(
+            (projected_logits.argmax(1) == batch_labels).sum()
+        )
+        predictive_kl += float(
+            F.kl_div(
+                F.log_softmax(projected_logits, dim=1),
+                F.softmax(true_logits, dim=1),
+                reduction="sum",
+            )
+        )
+        count += len(batch_labels)
+    return {
+        "true_loss": true_loss / count,
+        "true_accuracy": true_correct / count,
+        "projected_true_loss": projected_loss / count,
+        "projected_true_accuracy": projected_correct / count,
+        "true_to_projected_predictive_kl": max(0.0, predictive_kl / count),
+    }
+
+
 def _relax_suffix(
     model: SplitConvNet,
     cut: int,
     train_rep: np.ndarray,
     train_labels: np.ndarray,
-    test_rep: np.ndarray,
+    evaluation_sets: Mapping[str, np.ndarray],
     test_labels: np.ndarray,
     *,
     distribution: str,
@@ -89,45 +266,38 @@ def _relax_suffix(
         lr=relax_learning_rate,
         momentum=0.9,
     )
-    train_data = representation_loader(
-        train_rep, train_labels, batch_size, shuffle_seed, True
+    train_data = _shuffled_representation_loader(
+        train_rep, train_labels, batch_size, shuffle_seed
     )
-    test_data = representation_loader(
-        test_rep, test_labels, batch_size, shuffle_seed, False
-    )
-    diagnostic_representation = torch.from_numpy(train_rep[:batch_size]).to(device)
-    diagnostic_labels = torch.from_numpy(
-        train_labels[:batch_size].astype(np.int64)
-    ).to(device)
-    candidate.train()
-    diagnostic_loss = F.cross_entropy(
-        candidate.forward_from(diagnostic_representation, cut),
-        diagnostic_labels,
-    )
-    diagnostic_loss.backward()
-    initial_gradient_norm = float(
-        torch.sqrt(
-            sum(
-                torch.sum(parameter.grad.detach() ** 2)
-                for parameter in candidate.suffix_parameters(cut)
-                if parameter.grad is not None
-            )
+    evaluation_loaders = {
+        name: representation_loader(
+            values, test_labels, batch_size, shuffle_seed, False
         )
+        for name, values in evaluation_sets.items()
+    }
+    initial_diagnostics = _initial_step_diagnostics(
+        candidate,
+        optimizer,
+        cut,
+        train_rep,
+        train_labels,
+        batch_size=batch_size,
+        shuffle_seed=shuffle_seed,
+        device=device,
     )
-    optimizer.zero_grad(set_to_none=True)
     records: list[dict[str, object]] = []
     for relax_epoch in range(relax_epochs + 1):
-        records.append(
-            {
-                "draw": draw,
-                "train_distribution": distribution,
-                "eval_distribution": "true",
-                "relax_epoch": relax_epoch,
-                "initial_training_loss": float(diagnostic_loss.detach()),
-                "initial_gradient_norm": initial_gradient_norm,
-                **evaluate_suffix(candidate, cut, test_data, device),
-            }
-        )
+        for evaluation_distribution, evaluation_data in evaluation_loaders.items():
+            records.append(
+                {
+                    "draw": draw,
+                    "train_distribution": distribution,
+                    "eval_distribution": evaluation_distribution,
+                    "relax_epoch": relax_epoch,
+                    **initial_diagnostics,
+                    **evaluate_suffix(candidate, cut, evaluation_data, device),
+                }
+            )
         if relax_epoch == relax_epochs:
             break
         candidate.train()
@@ -148,6 +318,16 @@ def run(config: PostStatisticsConfig) -> Path:
         raise ValueError("surrogate_draws must be positive")
     if any(radius < 0 for radius in config.mean_noise_radii):
         raise ValueError("mean_noise_radii must be non-negative")
+    if (
+        not config.gaussian_covariance_shrinkages
+        or any(
+            not 0 <= shrinkage <= 1
+            for shrinkage in config.gaussian_covariance_shrinkages
+        )
+    ):
+        raise ValueError(
+            "gaussian_covariance_shrinkages must contain values in [0, 1]"
+        )
 
     checkpoint = Path(config.checkpoint)
     output = Path(config.output)
@@ -182,28 +362,6 @@ def run(config: PostStatisticsConfig) -> Path:
         print(f"[cut] {cut}/{len(config.widths)}", flush=True)
         train_rep, train_labels = encode_dataset(model, train_data, cut, device)
         test_rep, test_labels = encode_dataset(model, test_data, cut, device)
-        reference_records: list[dict[str, object]] = []
-        for draw in range(config.surrogate_draws):
-            reference_records.extend(
-                _relax_suffix(
-                    model,
-                    cut,
-                    train_rep,
-                    train_labels,
-                    test_rep,
-                    test_labels,
-                    distribution="true",
-                    draw=draw,
-                    batch_size=config.batch_size,
-                    relax_epochs=config.relax_epochs,
-                    relax_learning_rate=config.relax_learning_rate,
-                    shuffle_seed=condition_shuffle_seed(
-                        config.seed, cut, draw
-                    ),
-                    device=device,
-                )
-            )
-
         fit_count = min(config.pca_fit_size, len(train_rep))
         max_rank = min(fit_count - 1, train_rep[0].size)
         ranks = sorted({min(rank, max_rank) for rank in config.pca_ranks})
@@ -223,7 +381,9 @@ def run(config: PostStatisticsConfig) -> Path:
             train_labels[:fit_count],
             ranks[-1],
             config.seed + 10_000 * cut,
+            covariance_shrinkage=0.0,
         )
+        reference_records: list[dict[str, object]] = []
         rank_results: list[dict[str, object]] = []
         for rank in ranks:
             print(f"[cut={cut}] truncate maximal PCA to rank={rank}", flush=True)
@@ -232,99 +392,84 @@ def run(config: PostStatisticsConfig) -> Path:
                 train_rep,
                 train_labels,
                 rank,
+                covariance_shrinkage=0.0,
             )
             coverage = pca_coverage_diagnostics(
                 surrogate, test_rep, test_labels
             )
             records: list[dict[str, object]] = []
             diagnostics: list[dict[str, object]] = []
-
-            projected_train = project_representation(surrogate, train_rep)
-            for draw in range(config.surrogate_draws):
-                common_shuffle_seed = condition_shuffle_seed(
-                    config.seed, cut, draw
-                )
-                records.extend(
-                    _relax_suffix(
-                        model,
-                        cut,
-                        projected_train,
+            gaussian_surrogates: list[
+                tuple[str, RepresentationSurrogate]
+            ] = []
+            gaussian_provenance: list[dict[str, object]] = []
+            for shrinkage in config.gaussian_covariance_shrinkages:
+                gaussian_surrogate = (
+                    surrogate
+                    if shrinkage == 0
+                    else truncate_representation_surrogate(
+                        maximal_surrogate,
+                        train_rep,
                         train_labels,
-                        test_rep,
-                        test_labels,
-                        distribution="projected_true",
-                        draw=draw,
-                        batch_size=config.batch_size,
-                        relax_epochs=config.relax_epochs,
-                        relax_learning_rate=config.relax_learning_rate,
-                        shuffle_seed=common_shuffle_seed,
-                        device=device,
+                        rank,
+                        covariance_shrinkage=shrinkage,
                     )
                 )
-            # Shallow-cut banks are several gigabytes. Release each replay bank
-            # before materialising the next one so the measured grid fits on a
-            # normal high-memory GPU host.
-            del projected_train
-
-            for draw in range(config.surrogate_draws):
-                common_shuffle_seed = condition_shuffle_seed(
-                    config.seed, cut, draw
+                gaussian_name = gaussian_distribution_name(shrinkage)
+                gaussian_surrogates.append(
+                    (gaussian_name, gaussian_surrogate)
                 )
-                gaussian_train = sample_representation_surrogate(
-                    surrogate,
-                    train_labels,
-                    "gaussian",
-                    config.seed + 100_000 * draw + 1_000 * cut + 2,
-                    paired_noise_rank=ranks[-1],
-                )
-                gaussian_test = sample_representation_surrogate(
-                    surrogate,
-                    test_labels,
-                    "gaussian",
-                    config.seed + 100_000 * draw + 1_000 * cut + 3,
-                    paired_noise_rank=ranks[-1],
-                )
-                diagnostics.append(
+                gaussian_provenance.append(
                     {
-                        "draw": draw,
-                        "distribution": "gaussian",
-                        **moment_diagnostics(
-                            test_rep, gaussian_test, test_labels, surrogate
-                        ),
+                        "distribution": gaussian_name,
+                        **gaussian_surrogate.covariance_provenance(),
                     }
                 )
-                records.extend(
-                    _relax_suffix(
-                        model,
-                        cut,
-                        gaussian_train,
-                        train_labels,
-                        test_rep,
-                        test_labels,
-                        distribution="gaussian",
-                        draw=draw,
-                        batch_size=config.batch_size,
-                        relax_epochs=config.relax_epochs,
-                        relax_learning_rate=config.relax_learning_rate,
-                        shuffle_seed=common_shuffle_seed,
-                        device=device,
-                    )
+            projected_test = project_representation(surrogate, test_rep)
+            step_zero_projection = _step_zero_projection_diagnostics(
+                model,
+                cut,
+                test_rep,
+                projected_test,
+                test_labels,
+                batch_size=config.batch_size,
+                device=device,
+            )
+            for draw in range(config.surrogate_draws):
+                common_shuffle_seed = condition_shuffle_seed(
+                    config.seed, cut, draw
                 )
-                del gaussian_train, gaussian_test
+                evaluation_sets: dict[str, np.ndarray] = {"true": test_rep}
+                if not config.true_eval_only:
+                    evaluation_sets["projected_true"] = projected_test
 
-                for radius in config.mean_noise_radii:
-                    name = f"mean_r{radius:g}"
-                    mean_train = sample_representation_surrogate(
-                        surrogate,
-                        train_labels,
-                        "mean",
-                        config.seed
-                        + 100_000 * draw
-                        + 1_000 * cut
-                        + 10,
-                        mean_noise_radius=radius,
+                for gaussian_name, gaussian_surrogate in gaussian_surrogates:
+                    gaussian_test = sample_representation_surrogate(
+                        gaussian_surrogate,
+                        test_labels,
+                        "gaussian",
+                        config.seed + 100_000 * draw + 1_000 * cut + 3,
                         paired_noise_rank=ranks[-1],
                     )
+                    diagnostics.append(
+                        {
+                            "draw": draw,
+                            "distribution": gaussian_name,
+                            **moment_diagnostics(
+                                test_rep,
+                                gaussian_test,
+                                test_labels,
+                                gaussian_surrogate,
+                            ),
+                        }
+                    )
+                    if not config.true_eval_only:
+                        evaluation_sets[gaussian_name] = gaussian_test
+
+                mean_names: list[tuple[str, float]] = []
+                for radius in config.mean_noise_radii:
+                    name = f"mean_r{radius:g}"
+                    mean_names.append((name, radius))
                     mean_test = sample_representation_surrogate(
                         surrogate,
                         test_labels,
@@ -332,7 +477,7 @@ def run(config: PostStatisticsConfig) -> Path:
                         config.seed
                         + 100_000 * draw
                         + 1_000 * cut
-                        + 100,
+                        + 3,
                         mean_noise_radius=radius,
                         paired_noise_rank=ranks[-1],
                     )
@@ -347,13 +492,98 @@ def run(config: PostStatisticsConfig) -> Path:
                             ),
                         }
                     )
+                    if not config.true_eval_only:
+                        evaluation_sets[name] = mean_test
+
+                # The true-trained row belongs to each rank because its
+                # deployment evaluations are rank- and draw-specific.
+                records.extend(
+                    _relax_suffix(
+                        model,
+                        cut,
+                        train_rep,
+                        train_labels,
+                        evaluation_sets,
+                        test_labels,
+                        distribution="true",
+                        draw=draw,
+                        batch_size=config.batch_size,
+                        relax_epochs=config.relax_epochs,
+                        relax_learning_rate=config.relax_learning_rate,
+                        shuffle_seed=common_shuffle_seed,
+                        device=device,
+                    )
+                )
+
+                # Shallow-cut banks are several gigabytes. Materialise and
+                # release one training distribution at a time while retaining
+                # the smaller evaluation banks needed for the cross-evaluation.
+                projected_train = project_representation(surrogate, train_rep)
+                records.extend(
+                    _relax_suffix(
+                        model,
+                        cut,
+                        projected_train,
+                        train_labels,
+                        evaluation_sets,
+                        test_labels,
+                        distribution="projected_true",
+                        draw=draw,
+                        batch_size=config.batch_size,
+                        relax_epochs=config.relax_epochs,
+                        relax_learning_rate=config.relax_learning_rate,
+                        shuffle_seed=common_shuffle_seed,
+                        device=device,
+                    )
+                )
+                del projected_train
+
+                for gaussian_name, gaussian_surrogate in gaussian_surrogates:
+                    gaussian_train = sample_representation_surrogate(
+                        gaussian_surrogate,
+                        train_labels,
+                        "gaussian",
+                        config.seed + 100_000 * draw + 1_000 * cut + 2,
+                        paired_noise_rank=ranks[-1],
+                    )
+                    records.extend(
+                        _relax_suffix(
+                            model,
+                            cut,
+                            gaussian_train,
+                            train_labels,
+                            evaluation_sets,
+                            test_labels,
+                            distribution=gaussian_name,
+                            draw=draw,
+                            batch_size=config.batch_size,
+                            relax_epochs=config.relax_epochs,
+                            relax_learning_rate=config.relax_learning_rate,
+                            shuffle_seed=common_shuffle_seed,
+                            device=device,
+                        )
+                    )
+                    del gaussian_train
+
+                for name, radius in mean_names:
+                    mean_train = sample_representation_surrogate(
+                        surrogate,
+                        train_labels,
+                        "mean",
+                        config.seed
+                        + 100_000 * draw
+                        + 1_000 * cut
+                        + 2,
+                        mean_noise_radius=radius,
+                        paired_noise_rank=ranks[-1],
+                    )
                     records.extend(
                         _relax_suffix(
                             model,
                             cut,
                             mean_train,
                             train_labels,
-                            test_rep,
+                            evaluation_sets,
                             test_labels,
                             distribution=name,
                             draw=draw,
@@ -364,7 +594,15 @@ def run(config: PostStatisticsConfig) -> Path:
                             device=device,
                         )
                     )
-                    del mean_train, mean_test
+                    del mean_train
+
+            if not reference_records:
+                reference_records = [
+                    dict(row)
+                    for row in records
+                    if row["train_distribution"] == "true"
+                    and row["eval_distribution"] == "true"
+                ]
 
             rank_results.append(
                 {
@@ -379,17 +617,24 @@ def run(config: PostStatisticsConfig) -> Path:
                     "trace_matched_isotropic_covariance_trace": (
                         rank * surrogate.pooled_variance
                     ),
-                    "covariance_shrinkage": 0.05,
+                    "gaussian_covariance_estimators": gaussian_provenance,
                     "empirical_class_covariance_rank_ceiling": (
                         covariance_rank_ceiling
                     ),
                     "rank_exceeds_empirical_class_covariance_ceiling": (
                         rank > covariance_rank_ceiling
                     ),
+                    "evaluation_protocol": (
+                        "true-eval-only targeted sensitivity"
+                        if config.true_eval_only
+                        else "full train-by-evaluation distribution matrix"
+                    ),
+                    "step_zero_true_vs_projected": step_zero_projection,
                     "records": records,
                     "moment_diagnostics": diagnostics,
                 }
             )
+            del projected_test
         slices.append(
             {
                 "cut": cut,
@@ -405,7 +650,7 @@ def run(config: PostStatisticsConfig) -> Path:
         )
 
     artifact = {
-        "schema_version": 1,
+        "schema_version": 2,
         "experiment": "lw_post_cnn_suffix_statistics",
         "status": "MOCKUP / PIPELINE SMOKE TEST" if config.fake_data else "MEASURED",
         "architecture": "four-block residual CNN with GroupNorm",
@@ -420,21 +665,36 @@ def run(config: PostStatisticsConfig) -> Path:
             "Radius 0 is exact class-centroid replay; radius r multiplies the "
             "reference RMS radius by r and its covariance trace by r^2."
         ),
+        "cross_evaluation_definition": (
+            "The primary records form a rank- and draw-matched Cartesian matrix: "
+            "each suffix trained on true, projected-true, Gaussian, or "
+            "mean-plus-noise activations is evaluated with cross-entropy and "
+            "accuracy on every corresponding held-out activation bank. The "
+            "true-eval-only switch is a targeted sensitivity shortcut."
+        ),
         "pca_protocol": (
             "Each cell fits one maximal PCA basis and lower-rank controls use "
             "nested leading-coordinate truncations of that same basis. "
             "Within a cut and draw, every training distribution uses the same "
-            "minibatch-label order; every mean-noise radius scales the same "
-            "sampled standard-normal cloud. Nested PCA ranks also use leading "
-            "coordinates from the same maximal standard-normal banks. "
-            "Projected-true replay isolates reconstruction loss. Gaussian replay "
-            "then replaces the retained empirical distribution by a "
-            "class-conditional Gaussian with 5% spherical covariance shrinkage. "
+            "explicit minibatch-label permutation, and the recorded gradient "
+            "diagnostic uses exactly the first optimizer batch from that "
+            "permutation. Every mean-noise radius scales the same sampled "
+            "standard-normal cloud. Nested PCA ranks also use leading coordinates "
+            "from the same maximal standard-normal banks. Projected-true is a "
+            "matched in-subspace train/deploy control: it measures the combined "
+            "effect of projection on the representation presented to the fixed "
+            "suffix, rather than a pure reconstruction-loss quantity. Exact "
+            "empirical-covariance Gaussian replay is primary; declared spherical "
+            "shrinkage values are separate sensitivity conditions. Covariance "
+            "factorization and any numerical PSD adjustment are recorded. "
             "The PCA basis is fitted on the declared PCA-fit subset, but class "
             "means and covariances are estimated from the entire training "
             "activation bank after projection into that fixed basis. "
             "Variance coverage is evaluated on the held-out CIFAR-10 test "
-            "activations, not on the rows used to fit PCA."
+            "activations, not on the rows used to fit PCA. By default every "
+            "trained suffix is evaluated on every rank- and draw-matched test "
+            "distribution; true-eval-only is reserved for targeted sensitivity "
+            "runs."
         ),
         "config": asdict(config),
         "dataset": dataset_fingerprints,
@@ -473,9 +733,23 @@ def parse_args() -> PostStatisticsConfig:
     parser.add_argument("--pca-fit-size", type=int, default=10000)
     parser.add_argument("--pca-ranks", type=int, nargs="+", default=[512])
     parser.add_argument(
+        "--gaussian-covariance-shrinkages",
+        type=float,
+        nargs="+",
+        default=[0.0],
+    )
+    parser.add_argument(
         "--mean-noise-radii", type=float, nargs="+", default=[1.0]
     )
     parser.add_argument("--surrogate-draws", type=int, default=1)
+    parser.add_argument(
+        "--true-eval-only",
+        action="store_true",
+        help=(
+            "Evaluate only on true activations; intended for targeted "
+            "sensitivity runs, not the primary cross-evaluation matrix."
+        ),
+    )
     parser.add_argument("--relax-epochs", type=int, default=10)
     parser.add_argument("--relax-learning-rate", type=float, default=0.01)
     parser.add_argument("--seed", type=int, default=0)
@@ -495,8 +769,12 @@ def parse_args() -> PostStatisticsConfig:
         batch_size=args.batch_size,
         pca_fit_size=args.pca_fit_size,
         pca_ranks=tuple(args.pca_ranks),
+        gaussian_covariance_shrinkages=tuple(
+            args.gaussian_covariance_shrinkages
+        ),
         mean_noise_radii=tuple(args.mean_noise_radii),
         surrogate_draws=args.surrogate_draws,
+        true_eval_only=args.true_eval_only,
         relax_epochs=args.relax_epochs,
         relax_learning_rate=args.relax_learning_rate,
         seed=args.seed,

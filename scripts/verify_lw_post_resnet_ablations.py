@@ -58,7 +58,8 @@ def require_sha256(value: object, context: str) -> str:
 def verify_distribution_grid(
     records: object,
     *,
-    distributions: set[str],
+    train_distributions: set[str],
+    eval_distributions: set[str],
     draws: set[int],
     epochs: set[int],
     context: str,
@@ -74,7 +75,9 @@ def verify_distribution_grid(
         )
         for row in records
     ]
-    expected = set(product(draws, distributions, {"true"}, epochs))
+    expected = set(
+        product(draws, train_distributions, eval_distributions, epochs)
+    )
     if len(actual) != len(set(actual)):
         raise RuntimeError(f"{context} contains duplicate trajectory cells")
     if set(actual) != expected:
@@ -84,6 +87,100 @@ def verify_distribution_grid(
             f"{context} trajectory grid mismatch; missing={list(missing)!r}, "
             f"unexpected={list(unexpected)!r}"
         )
+
+
+def finite_number(
+    value: object,
+    *,
+    context: str,
+    minimum: float | None = None,
+    maximum: float | None = None,
+) -> float:
+    if (
+        not isinstance(value, (int, float))
+        or isinstance(value, bool)
+        or not math.isfinite(value)
+    ):
+        raise RuntimeError(f"{context} is not a finite number: {value!r}")
+    numeric = float(value)
+    if minimum is not None and numeric < minimum:
+        raise RuntimeError(f"{context}={numeric} is below {minimum}")
+    if maximum is not None and numeric > maximum:
+        raise RuntimeError(f"{context}={numeric} is above {maximum}")
+    return numeric
+
+
+def verify_numeric_records(records: object, *, context: str) -> None:
+    if not isinstance(records, list):
+        raise RuntimeError(f"{context} records must be an array")
+    initial_by_trajectory: dict[tuple[object, object], tuple[float, ...]] = {}
+    update_zero_by_eval: dict[tuple[object, object], tuple[float, float]] = {}
+    for row in records:
+        loss = finite_number(
+            row.get("loss"), context=f"{context}.loss", minimum=0
+        )
+        accuracy = finite_number(
+            row.get("accuracy"),
+            context=f"{context}.accuracy",
+            minimum=0,
+            maximum=1,
+        )
+        initial = (
+            finite_number(
+                row.get("initial_training_loss"),
+                context=f"{context}.initial_training_loss",
+                minimum=0,
+            ),
+            finite_number(
+                row.get("initial_gradient_norm"),
+                context=f"{context}.initial_gradient_norm",
+                minimum=0,
+            ),
+            finite_number(
+                row.get("initial_gradient_rms"),
+                context=f"{context}.initial_gradient_rms",
+                minimum=0,
+            ),
+            finite_number(
+                row.get("initial_weight_norm"),
+                context=f"{context}.initial_weight_norm",
+                minimum=0,
+            ),
+            finite_number(
+                row.get("initial_update_to_weight_ratio"),
+                context=f"{context}.initial_update_to_weight_ratio",
+                minimum=0,
+            ),
+        )
+        trajectory = (row.get("draw"), row.get("train_distribution"))
+        if initial_by_trajectory.setdefault(trajectory, initial) != initial:
+            raise RuntimeError(
+                f"{context} changes initial diagnostics within {trajectory}"
+            )
+        if row.get("relax_epoch") == 0:
+            endpoint = (loss, accuracy)
+            eval_key = (row.get("draw"), row.get("eval_distribution"))
+            if update_zero_by_eval.setdefault(eval_key, endpoint) != endpoint:
+                raise RuntimeError(
+                    f"{context} lacks a common update-0 endpoint for {eval_key}"
+                )
+
+
+def verify_moment_diagnostics(records: object, *, context: str) -> None:
+    if not isinstance(records, list):
+        raise RuntimeError(f"{context} must be an array")
+    for row in records:
+        if row.get("diagnostic_space") != "fitted PCA subspace":
+            raise RuntimeError(f"{context} uses the wrong diagnostic space")
+        for field in (
+            "class_mean_relative_error",
+            "class_covariance_relative_error",
+        ):
+            finite_number(
+                row.get(field),
+                context=f"{context}.{field}",
+                minimum=0,
+            )
 
 
 def main() -> None:
@@ -144,7 +241,7 @@ def main() -> None:
         raise RuntimeError(f"{artifact_path} is not measured")
     if artifact.get("experiment") != "resnet18_suffix_statistics_sweep":
         raise RuntimeError(f"{artifact_path} has the wrong experiment")
-    if artifact.get("schema_version") != 3:
+    if artifact.get("schema_version") != 4:
         raise RuntimeError(f"{artifact_path} has the wrong schema")
     if artifact.get("architecture") != expected_architecture:
         raise RuntimeError(f"{artifact_path} architecture mismatch")
@@ -162,10 +259,11 @@ def main() -> None:
         "cuts": list(CUTS),
         "pca_fit_size": 5000,
         "pca_ranks": list(RANKS),
+        "gaussian_covariance_shrinkages": [0.0, 0.05],
         "surrogate_draws": 3,
         "mean_noise_radii": [1.0],
         "include_projected_true": True,
-        "true_eval_only": True,
+        "true_eval_only": False,
         "relax_epochs": 5,
         "relax_learning_rate": 0.01,
         "seed": args.seed,
@@ -251,9 +349,14 @@ def main() -> None:
         )
         verify_distribution_grid(
             slice_result.get("reference_records"),
-            distributions={"true"},
+            train_distributions={"true"},
+            eval_distributions={"true"},
             draws=draws,
             epochs=epochs,
+            context=f"{context} true reference",
+        )
+        verify_numeric_records(
+            slice_result.get("reference_records"),
             context=f"{context} true reference",
         )
 
@@ -286,8 +389,34 @@ def main() -> None:
                 or rank > ceiling
             ):
                 raise RuntimeError(f"{rank_context} violates covariance rank ceiling")
-            if rank_result.get("covariance_shrinkage") != 0.05:
-                raise RuntimeError(f"{rank_context} covariance shrinkage mismatch")
+            covariance_estimators = rank_result.get(
+                "gaussian_covariance_estimators"
+            )
+            if (
+                not isinstance(covariance_estimators, list)
+                or [
+                    row.get("distribution") for row in covariance_estimators
+                ]
+                != ["gaussian_empirical", "gaussian_shrunk_s0.05"]
+            ):
+                raise RuntimeError(
+                    f"{rank_context} covariance estimator grid mismatch"
+                )
+            empirical, shrunk = covariance_estimators
+            if (
+                empirical.get("requested_covariance_shrinkage") != 0.0
+                or empirical.get("exact_empirical_covariance") is not True
+                or empirical.get("maximum_factor_jitter") != 0.0
+                or empirical.get(
+                    "total_clipped_negative_eigenvalue_count"
+                )
+                != 0
+                or shrunk.get("requested_covariance_shrinkage") != 0.05
+                or shrunk.get("exact_empirical_covariance") is not False
+            ):
+                raise RuntimeError(
+                    f"{rank_context} covariance estimator provenance mismatch"
+                )
             pooled = rank_result.get(
                 "pooled_within_class_variance_per_pca_coordinate"
             )
@@ -315,13 +444,50 @@ def main() -> None:
                     raise RuntimeError(
                         f"{rank_context} has invalid held-out {name}={value!r}"
                     )
+            verify_moment_diagnostics(
+                rank_result.get("moment_diagnostics"),
+                context=f"{rank_context} moment diagnostics",
+            )
             verify_distribution_grid(
                 rank_result.get("records"),
-                distributions={"projected_true", "gaussian", "mean"},
+                train_distributions={
+                    "true",
+                    "projected_true",
+                    "gaussian_empirical",
+                    "gaussian_shrunk_s0.05",
+                    "mean",
+                },
+                eval_distributions={
+                    "true",
+                    "projected_true",
+                    "gaussian_empirical",
+                    "gaussian_shrunk_s0.05",
+                    "mean",
+                },
                 draws=draws,
                 epochs=epochs,
                 context=rank_context,
             )
+            verify_numeric_records(
+                rank_result.get("records"), context=rank_context
+            )
+
+        for coverage_name in (
+            "total_variance_fraction",
+            "within_class_variance_fraction",
+            "between_class_mean_variance_fraction",
+        ):
+            values = [
+                row["held_out_coverage"][coverage_name]
+                for row in rank_results
+            ]
+            if any(
+                right + 1e-8 < left
+                for left, right in zip(values, values[1:])
+            ):
+                raise RuntimeError(
+                    f"{context} held-out {coverage_name} is not monotone by rank"
+                )
 
     print("LW post nested ResNet controls verified.")
 

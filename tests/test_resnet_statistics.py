@@ -79,7 +79,7 @@ def test_resnet_criticality_and_suffix_smokes(tmp_path):
     ))
     suffix = json.loads(suffix_path.read_text())
     assert suffix["status"] == "MOCKUP / PIPELINE SMOKE TEST"
-    assert suffix["schema_version"] == 3
+    assert suffix["schema_version"] == 4
     assert suffix["checkpoint"]["epoch"] == 0
     assert len(suffix["checkpoint"]["sha256"]) == 64
     assert suffix["lineage"]["model_seed"] == 0
@@ -96,7 +96,7 @@ def test_resnet_criticality_and_suffix_smokes(tmp_path):
     rank_result = suffix["slices"][0]["rank_results"][0]
     assert rank_result["pca_rank"] == 3
     assert "held_out_explained_variance_fraction" in rank_result
-    assert len(rank_result["records"]) == 12
+    assert len(rank_result["records"]) == 18
 
 
 def test_resnet_suffix_smoke_supports_projected_and_noise_controls(tmp_path):
@@ -115,15 +115,26 @@ def test_resnet_suffix_smoke_supports_projected_and_noise_controls(tmp_path):
     assert [row["pca_rank"] for row in slice_result["rank_results"]] == [2, 3]
     for rank_result in slice_result["rank_results"]:
         records = rank_result["records"]
-        assert len(records) == 8
+        assert len(records) == 10
         assert {row["train_distribution"] for row in records} == {
-            "mean_r0", "mean_r1", "gaussian", "projected_true",
+            "true",
+            "mean_r0",
+            "mean_r1",
+            "gaussian_empirical",
+            "projected_true",
         }
         assert rank_result["pca_basis_fit_count"] == 6
         assert rank_result["moment_fit_count"] == 8
         assert sum(rank_result["pca_basis_fit_class_counts"].values()) == 6
         assert sum(rank_result["moment_fit_class_counts"].values()) == 8
-        assert rank_result["covariance_shrinkage"] == 0.05
+        covariance_estimators = rank_result[
+            "gaussian_covariance_estimators"
+        ]
+        assert len(covariance_estimators) == 1
+        assert covariance_estimators[0]["distribution"] == "gaussian_empirical"
+        assert covariance_estimators[0][
+            "requested_covariance_shrinkage"
+        ] == 0.0
         assert rank_result[
             "trace_matched_isotropic_covariance_trace"
         ] == pytest.approx(
@@ -282,7 +293,7 @@ def test_nested_sweep_pairs_shuffle_and_mean_noise_seeds(
     assert sum(
         distribution == "true"
         for _, distribution, _, _ in relax_calls
-    ) == 2
+    ) == 4
     for cut in (2, 3):
         assert {
             shuffle_seed
@@ -335,7 +346,8 @@ def test_resnet_verifier_rejects_duplicate_cartesian_cells():
     ]
     verify_distribution_grid(
         records,
-        distributions={"true", "gaussian"},
+        train_distributions={"true", "gaussian"},
+        eval_distributions={"true"},
         draws={0, 1},
         epochs={0, 1},
         context="fixture",
@@ -344,7 +356,8 @@ def test_resnet_verifier_rejects_duplicate_cartesian_cells():
     with pytest.raises(RuntimeError, match="duplicate"):
         verify_distribution_grid(
             duplicate,
-            distributions={"true", "gaussian"},
+            train_distributions={"true", "gaussian"},
+            eval_distributions={"true"},
             draws={0, 1},
             epochs={0, 1},
             context="fixture",

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 from sklearn.decomposition import PCA
@@ -17,6 +17,126 @@ class RepresentationSurrogate:
     class_factors: np.ndarray
     pooled_variance: float
     representation_shape: tuple[int, ...]
+    covariance_shrinkage: float = 0.05
+    class_factorization_methods: tuple[str, ...] = ()
+    class_factor_jitters: np.ndarray = field(
+        default_factory=lambda: np.empty(0, dtype=np.float64)
+    )
+    class_clipped_negative_eigenvalue_counts: np.ndarray = field(
+        default_factory=lambda: np.empty(0, dtype=np.int64)
+    )
+    class_max_negative_eigenvalue_magnitudes: np.ndarray = field(
+        default_factory=lambda: np.empty(0, dtype=np.float64)
+    )
+
+    def covariance_provenance(self) -> dict[str, object]:
+        """Describe the covariance target actually used by Gaussian replay."""
+        class_count = len(self.class_covariances)
+        metadata_complete = (
+            len(self.class_factorization_methods) == class_count
+            and len(self.class_factor_jitters) == class_count
+            and len(
+                self.class_clipped_negative_eigenvalue_counts
+            ) == class_count
+            and len(
+                self.class_max_negative_eigenvalue_magnitudes
+            ) == class_count
+        )
+        clipped_count = int(
+            np.sum(
+                self.class_clipped_negative_eigenvalue_counts,
+                dtype=np.int64,
+            )
+        )
+        maximum_jitter = float(
+            np.max(self.class_factor_jitters, initial=0.0)
+        )
+        maximum_clip = float(
+            np.max(
+                self.class_max_negative_eigenvalue_magnitudes,
+                initial=0.0,
+            )
+        )
+        exact_empirical = (
+            metadata_complete
+            and self.covariance_shrinkage == 0.0
+            and maximum_jitter == 0.0
+            and clipped_count == 0
+        )
+        numerical_adjustment = maximum_jitter > 0 or clipped_count > 0
+        if not metadata_complete:
+            target = "covariance_provenance_unavailable"
+        elif self.covariance_shrinkage > 0 and numerical_adjustment:
+            target = "shrunk_empirical_covariance_with_numerical_adjustment"
+        elif self.covariance_shrinkage > 0:
+            target = "shrunk_empirical_covariance"
+        elif maximum_jitter > 0:
+            target = "empirical_covariance_with_diagonal_jitter"
+        elif clipped_count:
+            target = "empirical_covariance_after_psd_projection"
+        else:
+            target = "exact_empirical_covariance"
+        return {
+            "covariance_target": target,
+            "requested_covariance_shrinkage": self.covariance_shrinkage,
+            "exact_empirical_covariance": exact_empirical,
+            "covariance_metadata_complete": metadata_complete,
+            "factorization_methods": list(
+                self.class_factorization_methods
+            ),
+            "per_class_factor_jitter": self.class_factor_jitters.tolist(),
+            "maximum_factor_jitter": maximum_jitter,
+            "per_class_clipped_negative_eigenvalue_count": (
+                self.class_clipped_negative_eigenvalue_counts.tolist()
+            ),
+            "total_clipped_negative_eigenvalue_count": clipped_count,
+            "maximum_clipped_negative_eigenvalue_magnitude": maximum_clip,
+        }
+
+
+def _factor_covariance(
+    covariance: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, str, float, int, float]:
+    """Factor a covariance without silently changing its sampling target.
+
+    Positive-definite matrices use a zero-jitter Cholesky factor. Empirical
+    covariances can be positive semidefinite (for example when rank exceeds
+    the per-class sample count), so those use an eigendecomposition. Any
+    negative eigenvalues introduced by finite-precision arithmetic are
+    explicitly clipped and reported instead of being hidden behind an
+    unconditional diagonal jitter.
+    """
+    symmetric = np.asarray(
+        (covariance + covariance.T) / 2, dtype=np.float64
+    )
+    try:
+        factor = np.linalg.cholesky(symmetric)
+        return factor, symmetric, "cholesky", 0.0, 0, 0.0
+    except np.linalg.LinAlgError:
+        eigenvalues, eigenvectors = np.linalg.eigh(symmetric)
+        negative = eigenvalues < 0
+        clipped_count = int(np.count_nonzero(negative))
+        maximum_clip = (
+            float(-np.min(eigenvalues[negative]))
+            if clipped_count
+            else 0.0
+        )
+        clipped = np.maximum(eigenvalues, 0.0)
+        factor = eigenvectors * np.sqrt(clipped)[None, :]
+        if clipped_count:
+            actual_covariance = factor @ factor.T
+            method = "eigh_psd_projection"
+        else:
+            actual_covariance = symmetric
+            method = "eigh_semidefinite"
+        return (
+            factor,
+            actual_covariance,
+            method,
+            0.0,
+            clipped_count,
+            maximum_clip,
+        )
 
 
 def _surrogate_from_coordinates(
@@ -28,50 +148,78 @@ def _surrogate_from_coordinates(
     covariance_shrinkage: float,
     representation_shape: tuple[int, ...],
 ) -> RepresentationSurrogate:
+    if not 0 <= covariance_shrinkage <= 1:
+        raise ValueError("covariance_shrinkage must be in [0, 1]")
     classes = np.arange(int(labels.max()) + 1)
     global_mean = z.mean(0)
-    global_covariance = np.atleast_2d(np.cov(z, rowvar=False)).astype(np.float32)
-    means, covariances, within_class_variances = [], [], []
+    global_covariance = np.atleast_2d(
+        np.cov(z, rowvar=False)
+    ).astype(np.float64)
+    means, covariances, factors, within_class_variances = [], [], [], []
+    factorization_methods: list[str] = []
+    factor_jitters: list[float] = []
+    clipped_eigenvalue_counts: list[int] = []
+    maximum_clip_magnitudes: list[float] = []
     for class_id in classes:
         z_class = z[labels == class_id]
         means.append(z_class.mean(0) if len(z_class) else global_mean)
         covariance = (
-            np.atleast_2d(np.cov(z_class, rowvar=False)).astype(np.float32)
+            np.atleast_2d(np.cov(z_class, rowvar=False)).astype(np.float64)
             if len(z_class) >= 2
             else global_covariance.copy()
         )
         scale = float(np.trace(covariance) / covariance.shape[0])
-        if len(z_class):
-            # np.cov uses the unbiased n-1 denominator. Reusing its per-coordinate
-            # trace makes radius-1 isotropic replay exactly trace-matched to the
-            # average fitted within-class covariance (shrinkage preserves trace).
-            within_class_variances.append(scale)
         covariance = (1 - covariance_shrinkage) * covariance
         covariance += (
             covariance_shrinkage
             * scale
-            * np.eye(covariance.shape[0], dtype=np.float32)
+            * np.eye(covariance.shape[0], dtype=np.float64)
         )
-        covariances.append(covariance)
-    covariance_array = np.asarray(covariances, dtype=np.float32)
-    factors = np.asarray(
-        [
-            np.linalg.cholesky(
-                covariance
-                + 1e-6 * np.eye(covariance.shape[0], dtype=np.float32)
+        (
+            factor,
+            actual_covariance,
+            factorization_method,
+            factor_jitter,
+            clipped_eigenvalue_count,
+            maximum_clip_magnitude,
+        ) = _factor_covariance(covariance)
+        if len(z_class):
+            # np.cov uses the unbiased n-1 denominator. Reusing the trace of
+            # the actual Gaussian sampling target makes radius-1 isotropic
+            # replay trace-matched even if a PSD projection was required.
+            within_class_variances.append(
+                float(
+                    np.trace(actual_covariance)
+                    / actual_covariance.shape[0]
+                )
             )
-            for covariance in covariance_array
-        ],
-        dtype=np.float32,
-    )
+        covariances.append(actual_covariance)
+        factors.append(factor)
+        factorization_methods.append(factorization_method)
+        factor_jitters.append(factor_jitter)
+        clipped_eigenvalue_counts.append(clipped_eigenvalue_count)
+        maximum_clip_magnitudes.append(maximum_clip_magnitude)
+    covariance_array = np.asarray(covariances, dtype=np.float32)
+    factor_array = np.asarray(factors, dtype=np.float32)
     return RepresentationSurrogate(
         pca_mean=pca_mean.astype(np.float32),
         components=components.astype(np.float32),
         class_means=np.asarray(means, dtype=np.float32),
         class_covariances=covariance_array,
-        class_factors=factors,
+        class_factors=factor_array,
         pooled_variance=float(np.mean(within_class_variances)),
         representation_shape=representation_shape,
+        covariance_shrinkage=float(covariance_shrinkage),
+        class_factorization_methods=tuple(factorization_methods),
+        class_factor_jitters=np.asarray(
+            factor_jitters, dtype=np.float64
+        ),
+        class_clipped_negative_eigenvalue_counts=np.asarray(
+            clipped_eigenvalue_counts, dtype=np.int64
+        ),
+        class_max_negative_eigenvalue_magnitudes=np.asarray(
+            maximum_clip_magnitudes, dtype=np.float64
+        )
     )
 
 

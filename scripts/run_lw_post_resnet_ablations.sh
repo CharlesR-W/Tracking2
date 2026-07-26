@@ -44,8 +44,9 @@ else
     --data-backend torchvision \
     --cuts 3 7 --train-size 10000 --test-size 2000 --batch-size 128 \
     --pca-fit-size 5000 --pca-ranks 128 256 512 \
+    --gaussian-covariance-shrinkages 0 0.05 \
     --surrogate-draws 3 --mean-noise-radii 1 \
-    --include-projected-true --true-eval-only --relax-epochs 5 \
+    --include-projected-true --relax-epochs 5 \
     --seed "$SEED" --device "$DEVICE"
 fi
 
