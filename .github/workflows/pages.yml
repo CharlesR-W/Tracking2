@@ -22,10 +22,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Prepare static site
+      - name: Build measured-only data appendix
         run: |
           mkdir _site
-          cp report.html _site/index.html
+          PYTHONPATH=src python -m tracking2.post_report \
+            artifacts/lw_post/dashboard_manifest.json \
+            --output _site/index.html
+          cmp _site/index.html free-body-diagrams-for-neural-networks.html
+          cp report.html _site/omnibus-report.html
       - uses: actions/configure-pages@v5
         with:
           enablement: true

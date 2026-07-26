@@ -1,8 +1,43 @@
 # Tracking2
 
 Fresh CIFAR experiments on selected-statistics surrogates and layerwise tracking.
-The research design is in `SPEC.md`; the current interactive result viewer is
-`report.html`.
+The research design is in `SPEC.md`.
+
+## LessWrong research-note companion
+
+The current public-facing thread of the project is
+[*Free-body diagrams for neural networks*](docs/lw_wip_post.md), an explicitly
+work-in-progress note about applying distributional-simplicity probes at
+internal network cuts.
+
+- [`docs/lw_post_reproduction.md`](docs/lw_post_reproduction.md) gives the
+  bounded protocol, controls, smoke test, measured run commands, and evidence
+  gate.
+- [`free-body-diagrams-for-neural-networks.html`](free-body-diagrams-for-neural-networks.html)
+  is the canonical interactive data appendix, built from
+  `artifacts/lw_post/dashboard_manifest.json`.
+- `report.html` is the older omnibus research dashboard. It includes planned
+  and unrelated surfaces and should not be used as the note's evidence index.
+
+The post-facing dashboard deliberately includes only measured CNN and ResNet
+results. Smoke data, unrun experiments, and mockups fail its evidence gate
+rather than appearing as faded or provisional panels.
+
+Rebuild the current legacy-evidence appendix with:
+
+```bash
+python scripts/make_lw_post_manifest.py \
+  --source-commit 4371d3c --cnn-source legacy
+PYTHONPATH=src python -m tracking2.post_report \
+  artifacts/lw_post/dashboard_manifest.json \
+  --output free-body-diagrams-for-neural-networks.html
+```
+
+After the uninterrupted CNN battery passes
+`scripts/verify_lw_post_artifacts.py`, regenerate with `--cnn-source post` to
+replace the separately scheduled pilot cells and add the completed PCA/noise
+controls. GitHub Pages rebuilds the canonical file from the committed manifest
+and checks it against the tracked HTML before deployment.
 
 ## Implemented
 
@@ -113,8 +148,10 @@ python scripts/aggregate_results.py artifacts/confirmatory/seed*/results.json \
 python -m tracking2.report artifacts/confirmatory/results.json --output report.html
 ```
 
-GitHub Pages publishes `report.html` as the repository landing report on every
-push to `main`.
+GitHub Pages publishes the measured-only
+`free-body-diagrams-for-neural-networks.html` as the landing report on every
+push to `main`. The older `report.html` is retained at
+`omnibus-report.html`.
 
 ## Critical-module Panel B
 

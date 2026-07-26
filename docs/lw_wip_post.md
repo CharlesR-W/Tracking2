@@ -1,379 +1,351 @@
-# Free Body Diagrams for Neural Networks: Analysing training dynamics through the lens of internal distributional simplicity bias
-
-*Work in progress. This is an exploratory CIFAR-10 analysis. I see a consistent
-difference across depth, but I do not yet know what causes it, and several
-controls and replications are still missing.[^ai]*
-
-## Summary
-
-- Previous work on **distributional simplicity bias** finds that neural
-  networks tend to use simple statistics of their input data before using more
-  complicated ones.
-- I apply the same question inside a network. Pick a layer, hold everything
-  before it fixed, and treat its outputs as the training data for everything
-  after it.
-- I replace those internal activations with simplified versions that preserve
-  either differences between class averages or a fitted Gaussian for each
-  class. I then continue training copies of the later part of the network and
-  test them on real activations.
-- In both a four-block CNN and a ResNet-18, extra training on simplified
-  activations falls much further behind extra training on real activations
-  after early blocks than after late blocks. Near the end of either network,
-  the final classification accuracies are close.
-- I do not yet know how much of this comes from changes in the internal data,
-  how much comes from the later part of the network becoming smaller and
-  simpler, and how much comes from details of the measurement.
-
-## Looking at one part of a network at a time
-
-Training curves tell us how the whole network improves, but not how learning is
-divided among its parts.
-
-Draw a line after one layer. Everything before the line turns images into
-activation vectors. For everything after it, those vectors are data. As the
-first part learns, that data changes.
-
-A free-body diagram makes a similar move in mechanics: isolate one piece of a
-system and describe what crosses its boundary. Repeating this across small
-pieces is one route from Newtonian mechanics to continuum mechanics. Here I
-move a cut through the network and ask what the layers after each cut can learn
-from the data crossing it.
-
-There is no force balance or conservation law in this experiment. During
-ordinary training both sides of the cut change at once. I hold the earlier side
-fixed so I can study further learning on the later side.
-
-![A comparison between using free-body diagrams to build a local description
-of a material and moving an internal cut through a neural
-network.](figures/fbd_materials_nn_analogy.svg)
-
-*Figure 1. The shared move is to isolate one boundary, measure what crosses it,
-and repeat at different positions. This is a guide for organizing the
-experiment, not a claim that neural networks obey continuum mechanics.*
-
-## Distributional simplicity bias
-
-The question I ask at each cut comes from work on
-[distributional simplicity bias](https://proceedings.mlr.press/v202/refinetti23a.html).
-
-A data distribution can be described by statistics of increasing order. Its
-first cumulant is its mean. Its second cumulant is its covariance, which records
-how pairs of variables vary together. Higher-order cumulants describe
-dependencies that are not fixed by the mean and covariance.[^cumulants]
-
-A Gaussian distribution is fully determined by its mean and covariance. If we
-replace a dataset with a Gaussian that has the same class averages and
-covariances, we keep those low-order statistics but remove its non-Gaussian
-structure. Comparing learning on the real and Gaussian data gives us a way to
-ask when the missing structure matters.
-
-[Refinetti, Ingrosso, and Goldt](https://proceedings.mlr.press/v202/refinetti23a.html)
-compared real CIFAR with several generated training sets. A
-class-conditional Gaussian matching each class's mean and covariance reproduced
-the early part of the real-data learning curve. More realistic generated data
-matched it for longer. [Belrose et
-al.](https://proceedings.mlr.press/v235/belrose24a.html) turned this around:
-they trained on real data, then tested checkpoints on maximum-entropy datasets
-that preserved selected low-order statistics. Early checkpoints worked
-relatively well on these replacements. As training continued, performance on
-real data improved while performance on the low-order replacements fell.
-
-There is also a practical reason to care about the order. In simple
-high-dimensional models, a useful direction encoded only in higher-order
-statistics can take much more data to find than one encoded in the mean or
-covariance. [Székely et
-al.](https://proceedings.neurips.cc/paper_files/paper/2024/hash/8f8af4eebc4e50994e0490898d891c96-Abstract-Conference.html)
-study this gap directly.
-
-[Bardone and Goldt's *Sliding Down the
-Stairs*](https://proceedings.mlr.press/v235/bardone24a.html) studies why a
-higher-order direction can be slow to learn and what can speed it up. In the
-basic version of their model, class information is placed in a mean direction,
-a covariance direction, and a direction available only through higher-order
-statistics. Networks tend to learn these in stages, with plateaus between them.
-When the covariance signal and higher-order signal come from correlated latent
-variables, the covariance gives an early clue to the higher-order direction and
-the long plateau largely disappears.
-
-This line of work studies statistics at the input to the network. My question
-is what happens if we carry the same analysis through the network, one cut at a
-time. I am not yet testing Bardone and Goldt's explanation. I am asking whether
-the same mean $\rightarrow$ covariance $\rightarrow$ higher-order breakdown is
-useful inside a trained network.
-
-## The experiment
-
-I trained two image classifiers on CIFAR-10: a small four-block residual CNN and
-a ResNet-18.[^protocol]
-
-![Schematic architectures of the four-block residual CNN and normalization-free
-pre-activation ResNet-18, with every measured cut
-marked.](figures/cnn_resnet_architectures.svg)
-
-*Figure 2. The small CNN has four residual blocks. The ResNet has eight
-residual blocks arranged in four stages. I save activations after each marked
-block and treat the rest of the network as the part to be trained.*
-
-At several points during training, I repeated the following procedure after
-different blocks. I first made three versions of the activation dataset:
-
-1. Hold the earlier part of the network fixed.
-2. Run labelled training images through it and save the resulting activations.
-3. Use those activations to make three labelled datasets:
-
-   - **Real:** the saved activations themselves.
-   - **Gaussian:** samples from a fitted distribution using each class's mean
-     and a regularized estimate of its covariance in PCA space.
-   - **Mean + shared noise:** independent samples centred on each class mean.
-     The added noise has the same variance in every direction and for every
-     class. This keeps differences between class means but removes
-     class-specific covariance.
-
-![Labelled images pass through fixed earlier layers, then saved activations at
-one cut become real, Gaussian, or mean-plus-shared-noise training
-datasets.](figures/method_make_datasets.svg)
-
-*Figure 3. The cut turns one internal layer into a labelled dataset. The real
-version keeps the saved examples. The other two keep progressively less of
-their class-conditional structure.*
-
-I then compared what further learning each dataset supported:
-
-1. Make three copies of the later part from the current checkpoint.
-2. Give each copy a short period of additional training on one of the three
-   activation datasets.
-3. Test every copy on held-out real activations from the fixed earlier part.
-
-![Three activation datasets train identical copies of the remaining layers,
-which are all evaluated on the same held-out real
-activations.](figures/method_train_compare.svg)
-
-*Figure 4. The three copies start with the same weights and receive the same
-training budget. Only the activation dataset used for further training
-changes.*
-
-I do not feed synthetic activations through the original network once and
-measure the immediate damage. I use them for a short burst of further training,
-then test on held-out real activations. This asks what further learning each
-simplified dataset can support from the network's current state.
-
-The real-activation copy is the reference. A small gap from the
-Gaussian-trained copy means that the fitted class means and covariances
-supported similar short-term change within this training budget. If the
-mean-plus-noise copy does worse than the Gaussian copy, then class-specific
-covariance helped under this setup.
-
-The Gaussian is fitted in a lower-dimensional PCA representation of the
-activations.[^pca] This makes the calculation possible, but it weakens the
-interpretation. A gap between the real and Gaussian datasets could come from
-non-Gaussian structure, or it could come from useful directions discarded by
-PCA. I return to this below.
-
-## What happens across depth
-
-### Four-block CNN
-
-The table compares two CNN runs after 30 epochs of ordinary training. One was
-analysed after block 1 and the other after block 4. Each cell reports top-1
-accuracy followed by cross-entropy loss after ten extra epochs of training the
-later part. Higher accuracy and lower loss are better.
-
-| Cut | Real activations | Gaussian | Mean + shared noise |
-|---|---:|---:|---:|
-| After block 1 | $77.0\%$ / $1.04$ | $62.8\%$ / $2.20$ | $43.2\%$ / $3.64$ |
-| After block 4 | $76.7\%$ / $1.01$ | $76.6\%$ / $1.02$ | $76.8\%$ / $0.99$ |
-
-![CNN accuracy during further training on real, Gaussian, or mean-plus-noise
-activations after block 3, starting from six ordinary-training
-checkpoints.](figures/cnn_relaxation_trajectories.png)
-
-*Figure 5. At the cut after block 3, the three copies separate during further
-training. Each panel starts from a different ordinary-training checkpoint.
-These CNN checkpoints come from separate runs.*
-
-After the first block, the choice of activation data makes a large difference.
-After the final block, the three copies finish in almost the same place.
-
-Other CNN runs show a similar early-to-late difference. But they came from
-separate models with different training schedules, rather than snapshots of one
-model along a single training trajectory.[^runs] I use them as a first pass
-across depth, not as evidence about change over time.
-
-### ResNet-18
-
-For ResNet-18, all eight cuts come from one training run, measured at epochs 0,
-1, 5, 20, and 100. I repeated each analysis three times with new generated
-activations and minibatch orders. This measures variation in data generation
-and short-term training, not variation across independently trained ResNets.
-
-At epoch 100:
-
-| Cut | Real activations | Gaussian | Mean + shared noise |
-|---|---:|---:|---:|
-| After block 2 | $91.0\%$ / $0.71$ | $81.0\%$ / $1.73$ | $70.9\%$ / $1.94$ |
-| After block 8 | $91.3\%$ / $0.69$ | $90.7\%$ / $0.73$ | $89.7\%$ / $0.91$ |
-
-The early cut again shows a large difference. After the final block, further
-training on either simplified dataset leaves top-1 accuracy close to the
-real-activation result. Cross-entropy still detects a cost for the
-mean-plus-noise data, so "close" here refers mainly to classification accuracy.
-
-Across all five saved training times, the gap between real and simplified
-activations is larger at early cuts than late ones. For example, after one
-epoch of ordinary training, the Gaussian result trails the real result by
-$17.1$ accuracy points after the first block and $1.5$ points after the last.
-The mean-plus-noise gaps are $20.6$ and $4.7$ points.
-
-The early-to-late contrast is already present at random initialization under
-this five-epoch downstream-training protocol. It changes non-monotonically
-after that. The current results map a difference across depth, but do not yet
-show when, or whether, each part acquires dependence on higher-order
-statistics.
-
-![Two ResNet heatmaps showing the accuracy gap between further training on real
-and simplified activations across eight cuts and five training
-times.](figures/resnet_shortfall_heatmaps.png)
-
-*Figure 3. Extra training on simplified activations falls further behind extra
-training on real activations at early cuts than late cuts. The change over
-ordinary training is not monotonic. Each cell summarizes three analysis runs
-from one trained ResNet.*
-
-## What could cause the difference across depth?
-
-For now the observation is descriptive: after late cuts, the three copies end
-much closer together than they do after early cuts. The experiment does not yet
-tell us why.
-
-There are several possible reasons.
-
-One possibility is that the early blocks have made the classes easier to
-separate. Near the output, differences between class means may already contain
-most of what the remaining layers use.
-
-But moving the cut also changes how much network remains. An early cut leaves
-several nonlinear blocks; a late cut may leave little more than the classifier.
-I should therefore repeat the comparison with the same small classifier
-attached at every cut.
-
-Each later part also begins from the current checkpoint rather than from
-scratch. The experiment measures what it retains and how it changes over a
-short period. It does not measure every piece of information present in the
-activations, or everything a newly initialized network could eventually learn
-from them.
-
-The comparison uses a fixed training budget: ten extra epochs for the small CNN
-and five for the ResNet. Some early-cut curves are still moving at the end, and
-some copies trained on simplified data are getting worse on real activations.
-The endpoint mixes adaptation speed, mismatch between real and generated data,
-and forgetting during the extra training.
-
-Finally, PCA removes part of the activation space before the synthetic data is
-made. It retains between $78\%$ and $96\%$ of activation variance in the ResNet
-measurements, and between $48\%$ and $99\%$ in the CNN measurements. Until I
-separate PCA loss from non-Gaussian structure, I should not call the
-real-versus-Gaussian difference a measurement of higher-order cumulants alone.
-
-## From static cuts to training dynamics
-
-During ordinary training, the earlier part of the network is not fixed. It
-continually changes the activation distribution seen by the later part. This
-suggests two different jobs:
-
-- **Resolving:** learning more of the useful structure in the current
-  activation distribution.
-- **Tracking:** staying adapted while that distribution moves.
-
-This suggests two measurements at each cut: how quickly the activations move,
-and how long the remaining layers take to adjust. Comparing those times across
-depth is the longer-term goal. The current experiment takes a first step by
-stopping the activations from moving and measuring further learning on that
-fixed distribution.
-
-![A proposed comparison between movement of the activation distribution and
-the time the remaining layers need to adjust.](figures/tracking_resolving.svg)
-
-*Figure 4. In normal training, the data crossing a cut moves while the later
-layers learn. The proposed analysis compares the speed of that movement with
-the time the later layers need to adjust.*
-
-## Next steps
-
-The first priority is to make the statistical comparison cleaner.
-
-1. Add real activations passed through the same PCA projection as a fourth
-   dataset. This gives the sequence
-
-   $$
-   \text{real}
-   \longrightarrow
-   \text{PCA-projected real}
-   \longrightarrow
-   \text{Gaussian}
-   \longrightarrow
-   \text{mean + shared noise}.
-   $$
-
-   The first gap isolates the effect of the PCA projection. The second compares
-   empirical non-Gaussian data with a matched Gaussian inside the same PCA
-   space. The third isolates the effect of class-specific covariance.
-
-2. Vary the number of PCA components and check whether the difference across
-   depth survives.
-
-3. Follow each additional-training curve for long enough to separate adaptation
-   speed from its plateau. One simple summary is the number of minibatches
-   needed to complete $90\%$ of the total change from its starting point.
-
-4. Compare the existing later part with a newly initialized copy, and attach a
-   small classifier of the same size at every cut. This should help separate the
-   properties of the internal data from the capacity and training history of
-   the network that receives it.
-
-5. Repeat the measurements across independently trained networks. The current
-   ResNet result uses one training run, and the current CNN runs need shared
-   checkpoints and a shared training schedule.
-
-6. Measure how quickly representations move on a fixed set of examples, then
-   compare that movement with adaptation time. I also want to compare this with
-   how much performance is lost when a layer is reset, how sensitive each layer
-   is to added noise, and its Fisher spectrum, which summarizes parameter
-   directions to which the model's predictions are most sensitive. Those may
-   be useful comparisons, but the connection is still speculative.
-
-My next goal is to measure reliably which statistics support learning after
-each cut, then ask whether movement of the internal data helps explain the
-differences across depth. I would especially welcome suggestions for a
-capacity-matched comparison across depth, or for a measure of representation
-movement that is meaningful to the later layers.
-
-[^ai]: Drafting and data checks were assisted by Codex. The experimental
-    choices, interpretation, and final text are the author's responsibility.
-
-[^cumulants]: For a Gaussian distribution, all cumulants above order two are
-    zero. Real image and activation distributions are not Gaussian, so matching
-    their mean and covariance does not generally match the full distribution.
-
-[^protocol]: The ResNet is a normalization-free pre-activation CIFAR ResNet-18,
-    not the standard torchvision BatchNorm model. It was trained on all 50,000
-    CIFAR-10 training images. Each later-part analysis used 10,000 training
-    activations, fitted PCA on 5,000, and evaluated on 2,000 held-out examples.
-    The CNN analyses used 50,000 training and 10,000 held-out activations, with
-    PCA fitted on 10,000. The CNN used raw images; the ResNet used normalized
-    images with random crops and flips. ResNet activations were re-encoded with
-    fresh augmentation at each cut, so the cuts did not see identical crop and
-    flip draws.
-
-[^pca]: Flattened activation tensors can have tens of thousands of coordinates.
-    A dense covariance at that size is expensive to store and poorly estimated
-    from the available examples. PCA provides a lower-dimensional space in
-    which the covariance can be fitted and sampled. The Gaussian uses a
-    covariance estimate shrunk $5\%$ toward a spherical covariance, so it only
-    approximately matches the fitted covariance. A finite generated dataset
-    adds further sampling error.
-
-[^runs]: Each CNN row shown here comes from one trained model and one generated
-    activation dataset of each type. The ResNet uses one trained network and
-    three analysis runs per cut. Those runs vary the generated activations and
-    minibatch order. These are exploratory measurements, not an estimate across
-    independently trained networks.
+# Free-body diagrams for neural networks
+
+*Research note; work in progress.* This is an exploratory CIFAR-10 experiment,
+not a settled result. The current evidence comes from several small residual
+CNN runs and one ResNet-18 training trajectory. A cleaner uninterrupted CNN
+run, plus PCA and noise ablations, is being incorporated. I am publishing the
+note now partly to make the work easier to criticize while it is still
+changeable.[^ai]
+
+## The result in one paragraph
+
+[Distributional simplicity
+bias](https://proceedings.mlr.press/v202/refinetti23a.html) is a whole-network
+regularity: neural networks often learn what can be read from low-order
+statistics before they use more detailed structure in the data. I make an
+internal cut in a network and treat the activations crossing it as a new
+labelled dataset. I replace that dataset with simpler, class-conditional
+surrogates, train identical copies of the remaining layers for a short fixed
+budget, and evaluate every copy on held-out real activations. In the completed
+runs, training on simplified activations falls farther behind training on real
+activations after early cuts than after late cuts. The bounded claim is:
+
+> Under warm-started, finite-budget, suffix-only training, low-order
+> surrogates support less of the useful update after early cuts than after late
+> cuts.
+
+This does **not** yet show that representations become simpler with depth, that
+training creates the depth pattern, or that non-Gaussian structure is the sole
+cause of the gaps.
+
+## Why look at this scale?
+
+Most accounts of neural networks start either from small parts—weights,
+neurons, heads—or from large outcomes such as loss, capability, and behaviour.
+I am interested in the level between them: distributions of activations,
+adaptation times, and other collective variables that might remain useful when
+individual units change.
+
+This is my tentative “middle-out” idea. The aim is not to declare a new
+ontology in advance. A useful intermediate variable should earn its place by
+making predictions and supporting interventions across changes of seed,
+architecture, task, or scale. The activation distribution at a cut is one
+candidate, and this experiment is a small test of how to work with it.
+
+Two results helped push me in this direction. [*Are All Layers Created
+Equal?*](https://jmlr.org/papers/v23/20-069.html) finds striking differences in
+how much performance suffers when different trained layers are reinitialized
+or rerandomized. [*Transformer Layers as
+Painters*](https://doi.org/10.1609/aaai.v39i24.34708) finds that
+lower and final transformer layers are special, while some tasks tolerate
+surprising changes to middle layers, including skipping or reordering them.
+Neither result supplies a general theory, but both make a simple
+layer-by-layer story feel incomplete.
+
+My hunch is that representations will often be better explained by the
+optimization pressures that form and maintain them—especially the timescales
+on which different parts must adapt—than by the static geometry of a final
+activation cloud alone. This experiment does not establish that hunch. It
+freezes one side of the dynamics so that one adaptation timescale can be
+measured cleanly.
+
+There is also a possible alignment connection. Steering vectors intervene
+directly on intermediate activations, but their effects can vary substantially
+across inputs and can be brittle to reasonable prompt changes ([Tan et al.,
+2024](https://papers.nips.cc/paper_files/paper/2024/hash/fb3ad59a84799bfb8d700e56d19c231b-Abstract-Conference.html)).
+My colleague Brianna is considering a related unpublished question: how does
+the region in which an activation-space intervention is approximately linear
+change during training? If the relevant representation or its local geometry
+moves, a direction found at one time or context may not remain the same
+intervention elsewhere. That is a motivation, not a result of this study.
+
+Representation drift makes the same point more starkly. In mice performing a
+stable virtual-navigation task, the individual posterior-parietal neurons most
+informative about maze features changed over days, even while useful
+population-level information remained ([Driscoll et al.,
+2017](https://doi.org/10.1016/j.cell.2017.07.021)). Related work studies the
+geometry of drift in mouse visual cortex and in artificial networks ([Aitken et
+al., 2022](https://journals.plos.org/ploscompbiol/article?id=10.1371%2Fjournal.pcbi.1010716)).
+This is evidence against identifying a representation too quickly with a fixed
+list of units. I do **not** have evidence that representation drift causes the
+known failures of steering vectors. The weaker lesson is that alignment tools
+which act on representations may need an account of how those representations
+are maintained and changed.
+
+## From a macroscopic regularity to an internal cut
+
+[Refinetti, Ingrosso, and
+Goldt](https://proceedings.mlr.press/v202/refinetti23a.html) compare learning on
+real images with learning on synthetic datasets that preserve progressively
+more statistics. A class-conditional Gaussian, which preserves each class mean
+and covariance but removes non-Gaussian structure, can reproduce the early
+part of learning better than it reproduces the later part. [Belrose et
+al.](https://proceedings.mlr.press/v235/belrose24a.html) approach the question
+from the other direction: train on real data, then evaluate checkpoints on
+maximum-entropy replacements that preserve chosen statistics. Their results
+also support a broad progression from simple distributional structure to
+richer structure.
+
+I treat this as a macroscopic law-like regularity about networks. The analogy
+to mechanics is organizational, not mathematical. Newton's \(F=ma\) describes
+a whole body; a free-body diagram lets us isolate one part and apply the same
+law at its boundary. Here, distributional simplicity bias is the whole-network
+regularity. I cut the network after a block, call what crosses the cut “data,”
+and ask the same question of the suffix.
+
+![Distributional simplicity bias at the input, followed by an internal cut
+that turns the same question onto a network suffix.](figures/conceptual_internal_cut.svg)
+
+*Figure 1. A macroscopic regularity, then the internal-cut move. The free-body
+analogy says where to draw the boundary; it does not imply a force law for
+networks.*
+
+## The measurement
+
+The two testbeds are a small four-block residual CNN and a normalization-free,
+pre-activation CIFAR ResNet-18—not the standard torchvision BatchNorm
+model.[^protocol]
+
+![Standard block diagrams of the CNN and ResNet-18, with the measured
+interfaces marked as possible cuts.](figures/cnn_resnet_architectures.svg)
+
+*Figure 2. The same operation is applied to two conventional residual
+architectures. Later plots repeat a small version of the relevant network and
+cut inside the axes.*
+
+Write the checkpointed network as a prefix followed by a suffix. At training
+time \(t\), a cut after block \(\ell\) gives a prefix
+\(\phi_{t,\ell}\). For class \(c\), the distribution crossing the cut is the
+pushforward
+
+\[
+P_{t,\ell}(z\mid y=c)
+=
+(\phi_{t,\ell})_{\#}P(x\mid y=c).
+\]
+
+In plain language: take, for example, all images from one CIFAR-10 class, run
+them through the checkpointed prefix, and collect the activations at the cut.
+Repeat for every class. The diagram below follows one class through this
+process and shows where the fitted mean, PCA coordinates, and covariance come
+from.
+
+![One class-conditional image distribution pushed through a fixed prefix,
+then summarized in one shared PCA space.](figures/class_conditioned_pushforward_pca.svg)
+
+*Figure 3. The fit is made from activations, not pixels. PCA is fitted once to
+the pooled activation set. Class means and covariances are then estimated in
+that same coordinate system.*
+
+The order matters. I do **not** fit a different PCA basis for each class. I
+flatten the saved activations, fit one global PCA basis using examples pooled
+across classes, and express every example in that basis. With the basis fixed,
+I use the full training activation bank—not only the rows used to fit
+PCA—to estimate a mean \(\mu_c\) and covariance \(\Sigma_c\) for each class.
+
+From this fit I make four possible training datasets:
+
+1. **Real:** the saved activations.
+2. **PCA-projected real:** the same examples after projection into, and
+   reconstruction from, the fitted PCA space.
+3. **Gaussian:** new points drawn from
+   \(\mathcal N(\mu_c,\Sigma_c)\) in PCA space, then reconstructed.
+4. **Mean + isotropic noise:** new points
+   \(u=\mu_c+\sqrt{v_{\mathrm{pool}}}\,\epsilon\), where
+   \(\epsilon\sim\mathcal N(0,I)\).
+
+The projected-real condition is an important control. Real versus
+projected-real measures the cost of discarding PCA directions.
+Projected-real versus Gaussian compares an empirical activation distribution
+with a mean-and-covariance match inside the *same* retained subspace. Gaussian
+versus mean-plus-noise asks whether class-specific covariance helps.
+The fitted Gaussian covariance is slightly regularized toward a spherical
+covariance, with a separate tiny jitter used only for numerical stability.
+
+The noise in the final condition is not a tiny numerical epsilon. Its default
+scale is trace-matched: \(v_{\mathrm{pool}}\) is the average retained
+within-class variance per PCA coordinate. The isotropic cloud therefore has
+roughly the same average total within-class variance as the fitted class
+clouds, but no class-specific shape or direction. Adding it avoids replacing
+each class by many identical copies of one point. More importantly, it changes
+the question from “do ten exact centroids train well?” to “do class means plus
+a generic cloud of comparable size train well?”
+
+That choice could affect the result, so the confirmatory battery varies the
+noise radius from zero through smaller, trace-matched, and larger values. It
+also varies PCA rank. Using every native activation coordinate is not a clean
+default: shallow activations can have tens of thousands of coordinates, while
+the fitted covariance is sample-rank limited and a dense per-class estimate is
+both expensive and poorly determined. Instead I fit one PCA basis at the
+largest rank requested in the sweep, use nested prefixes of that basis for
+lower-rank controls, and report held-out coverage of total, within-class, and
+between-class variance.
+
+For each dataset, I copy the suffix weights from the same end-to-end-training
+checkpoint. I freeze the prefix, train each suffix copy for the same short
+budget, and evaluate all copies on held-out **real** activations. Cross-entropy
+and accuracy are both recorded. The figures use accuracy because it is easier
+to scan; the loss values remain in the downloadable artifacts, since accuracy
+can hide changes in confidence.
+
+![Identical warm-started suffixes trained on alternative activation datasets
+and evaluated on the same held-out real activations.](figures/method_train_compare.svg)
+
+*Figure 4. This is a relaxation experiment. It asks what update each fixed
+activation distribution supports from the current checkpoint; it is not a
+one-pass corruption test.*
+
+## What the current runs show
+
+The focal CNN plot shows how to read the experiment. It uses one legacy
+epoch-1 model from the separately scheduled pilot grid; its title names the
+architecture, checkpoint epoch, and cut. The curves begin at the same
+checkpointed suffix, then separate during suffix-only training.
+
+![CNN suffix-relaxation trajectories from the prefix at one checkpoint, with
+the cut drawn inside the plot.](figures/cnn_relaxation_time.gif)
+
+*Figure 5. Legacy CNN pilot · prefix from a separately scheduled model at
+epoch 1 · cut after block 3. Each curve is evaluated on held-out real
+activations; only its training distribution differs.*
+
+The endpoint summaries are just compressed versions of these curves. They show
+the change from the common starting checkpoint, or the shortfall from the real
+condition. The coloured marks are alternative runs, never additive parts of
+one quantity.
+
+![The final relaxation frame connected by an arrow to a common-baseline
+summary of the same endpoints.](figures/curve_to_endpoint_bridge.png)
+
+*Figure 6. How the trajectories become a common-baseline endpoint summary.
+This bridge is included before the first compact endpoint plot so that the
+summary does not look like a new measurement.*
+
+![CNN endpoint changes drawn from a common baseline, ordered by their measured
+values.](figures/cnn_relaxation_endpoint_bands.png)
+
+*Figure 7. A compact view of the legacy CNN relaxation endpoints. The
+conditions share a baseline but are not additive pieces of one bar, and their
+vertical ordering follows the measured values. The nominal checkpoint epochs
+came from separately scheduled runs; do not read the horizontal sequence as
+one training trajectory.*
+
+Across the completed CNN grid, the separation between real and simplified
+training is generally larger after early blocks and smaller after late blocks.
+The earlier CNN figures mixed checkpoints from separately scheduled runs, so I
+do not use them to infer change over training. Those pilots also estimated
+class moments from the PCA-fitting subset; the replacement protocol estimates
+them from the full training bank after fixing the PCA basis. The replacement
+battery takes prefixes from checkpoints of one uninterrupted end-to-end CNN
+run. Its PCA-rank, projected-real, and noise-radius controls are in progress at
+the time of this WIP. I will add the resulting across-checkpoint animation and
+ablation panel only after those artifacts pass verification.
+
+The ResNet-18 evidence is older but cleaner in one respect: its cuts and saved
+times come from one uninterrupted training trajectory. It shows the same broad
+early-cut/late-cut contrast. Repeated surrogate draws measure variation from
+generated activations and minibatch order; they are not independent ResNet
+seeds.
+
+![ResNet-18 endpoint changes across cuts and checkpoints, with the active cut
+shown inside each frame.](figures/resnet_over_training_time.gif)
+
+*Figure 8. ResNet-18, one training trajectory. The depth contrast is visible,
+but the change across checkpoint time is not monotonic.*
+
+An important warning is that the depth pattern is already visible at random
+initialization under this protocol. Moving the cut also shrinks the suffix.
+Late cuts may look easier because little network remains, because the
+checkpoint is already well adapted, or because the representation has changed.
+The current experiment does not separate these explanations.
+
+## Tracking versus resolving: a proposal
+
+The frozen-prefix measurement isolates one job of the suffix:
+
+- **Resolving:** learn more from the activation distribution currently at the
+  cut.
+
+During normal end-to-end training, that distribution moves because the prefix
+also changes. The suffix has a second job:
+
+- **Tracking:** remain adapted while its input distribution moves.
+
+![A simple comparison between a fixed distribution that only needs resolving
+and a moving distribution that also needs tracking.](figures/tracking_resolving.svg)
+
+*Figure 9. Proposed decomposition, not a result. The present experiment studies
+the fixed-distribution case. A fuller account would compare
+representation-movement time with suffix-adaptation time at each cut.*
+
+This is where the optimization view becomes useful. A static representation
+plot says where points ended up. A tracking measurement asks how quickly the
+input to a block changes, how quickly that block can adapt, and whether those
+timescales predict failures or stable collective structure. I suspect those
+dynamics may reveal better intermediate variables than a fixed inventory of
+units. That remains the larger research programme, not a conclusion licensed
+by these CIFAR runs.
+
+## What would change my mind?
+
+The main threats are straightforward:
+
+- **PCA loss:** discarded directions can masquerade as a non-Gaussianity gap.
+- **Receiver size:** later cuts leave a smaller and less expressive suffix.
+- **Warm starts:** the result mixes retention, new learning, and forgetting.
+- **Finite budget:** an endpoint mixes adaptation speed with final capability.
+- **Synthetic mismatch:** a moment-matched sample can still lie in places the
+  suffix never saw during ordinary training.
+- **Statistics:** repeated surrogate draws are not variation across trained
+  networks.
+
+The immediate tests are therefore the projected-real control, nested PCA-rank
+sweep, isotropic-noise-radius sweep, longer relaxation curves, independent
+training seeds, and a capacity-matched receiver attached at every cut. Initial
+gradient norms may also reveal whether a condition merely changes the scale of
+the first update.
+
+The cleaned [interactive data
+appendix](../free-body-diagrams-for-neural-networks.html) is available now as
+the canonical view of the completed pilot evidence. Its confirmatory CNN
+update is still in progress.
+The [repository README](../README.md) contains the replication commands and
+artifact conventions. The public dashboard will include completed measurements
+only; planned or unrun experiments will stay out of the result surface.
+
+Questions I would especially value feedback on:
+
+1. What is the cleanest capacity-matched receiver for comparing cuts?
+2. Which notion of representation movement is most relevant to the suffix,
+   rather than merely easy to compute?
+3. What result would distinguish an optimization-timescale account from a
+   static data-geometry account?
+4. Is there a useful alignment intervention whose stability over training
+   could serve as an external test of this framework?
+
+[^ai]: Written with Claude (via Codex). Claude assisted with drafting, figure
+    generation, and data checks. The experimental choices, interpretation, and
+    final text are the author's responsibility.
+
+[^protocol]: The confirmatory protocol records dataset splits, augmentation,
+    ordered image/label hashes, checkpoint hashes, fit sizes, PCA ranks,
+    covariance regularization, random seeds, and suffix-training budgets.
+    Synthetic-data draws and held-out real evaluation use disjoint examples.
+    The legacy artifacts do not contain the
+    same source/checkpoint lineage; the dashboard labels that limitation and
+    hashes the exact files used. The small CNN uses unnormalized \([0,1]\)
+    CIFAR tensors without augmentation. The ResNet uses normalized images with
+    random crops and horizontal flips for its training bank; its legacy
+    analysis re-encoded fresh augmentation draws at each cut. I treat the two
+    architectures as separate replications, not as a direct numerical
+    comparison.
