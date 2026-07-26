@@ -1,196 +1,139 @@
-# Handoff: Tracking2 LessWrong post
+# Current handoff: Tracking2 LessWrong note
 
 Date: 2026-07-26
 
-## Current status
+## Current state
 
-The user asked the previous agent to stop, revert the blog-post rewrite, and
-leave a handoff for a different agent.
+- Working branch: `codex/lw-post-revision`.
+- Canonical source checkout: `/home/crw/Programming/Experiments/Tracking2`.
+- Measured JSON inputs: `artifacts/lw_post/measured/`.
+- Dashboard manifest: `artifacts/lw_post/dashboard_manifest.json`.
+- Self-contained dashboard: `free-body-diagrams-for-neural-networks.html`.
+- Revised WIP post: `docs/lw_wip_post.md`.
+- Reproduction methodology: `docs/lw_post_reproduction.md`.
 
-- `docs/lw_wip_post.md` has been restored exactly to commit `4371d3c`, the
-  version from before this revision attempt.
-- No new measured experiment completed. Do not describe the PCA/noise controls
-  as results.
-- All RunPod instances have been terminated. A final status query returned an
-  empty pod list, so nothing should still be billing.
-- Work happened in the isolated worktree
-  `/home/crw/Documents/Vault/.worktrees/tracking2-lw`, on branch
-  `codex/lw-post-revision`.
-- The user's original checkout at
-  `/home/crw/Programming/Experiments/Tracking2` was deliberately left
-  untouched because it already contained substantial unrelated changes.
+The public dashboard is measured-only. The older rank gates under
+`artifacts/lw_post/prior_diagnostic_different_checkpoint/` use another
+checkpoint hash and are excluded.
 
-Important scope warning: only the prose file was restored in response to
-"revert all changes to the blog post." Experimental code, dashboard work, and
-new figure assets remain on the isolated branch for inspection. They should
-not be treated as approved. Ask whether the user also wants the post-facing
-figures/dashboard reverted before doing anything further.
+The final secure RunPod L4 was terminated after all JSON artifacts and training
+manifests were downloaded. A subsequent API lookup returned HTTP 404.
 
-## What was changed before the stop request
+## What was implemented
 
-Three local commits were created:
+- uninterrupted four-block CNN trajectories;
+- three independently initialized model seeds;
+- exact empirical PCA-space covariance with explicit factorization provenance;
+- optional 5% covariance shrinkage as a separate sensitivity;
+- PCA-projected-real replay and the full train × evaluation matrix;
+- held-out PCA total/within/between coverage;
+- streamed update-0 true/projected CE, accuracy, and predictive KL;
+- a covariance-free PCA adequacy runner through rank 4,096;
+- paired first-batch gradient/update diagnostics;
+- fixed-LR and matched-first-update optimizer regimes;
+- mean-noise radii `0, 0.5, 1, 2`;
+- warm and reinitialized suffix conditions;
+- 5- and 20-epoch relaxation horizons;
+- strict artifact/dashboard validation; and
+- a measured-only interactive report with artifact-driven failure warnings.
 
-1. `46ad955` — `Add reproducible internal-cut control battery`
+The CPU test suite passes 95 tests in the current branch before the final
+figure/blog integration changes.
 
-   This adds an uninterrupted CNN checkpoint runner, PCA-projected-real
-   controls, nested PCA-rank and mean-noise-radius sweeps, provenance and
-   checkpoint-lineage recording, artifact verifiers, ResNet control code, and
-   tests.
+## Claim-changing findings
 
-2. `0d0cf06` — `Rewrite LW note and publish measured-only appendix`
+### 1. Fixed LR was a large shallow optimizer confound
 
-   This contained the now-reverted prose rewrite, redesigned figures/GIFs, a
-   post-named measured-only dashboard, a reproduction note, and the exact
-   legacy JSON files used by the dashboard.
+At the current seed-0 checkpoint, cut 1/rank 2,048, first updates were about:
 
-3. `88db907` — `Support verified ResNet controls in data appendix`
+- projected-real: 2.5× true;
+- Gaussian: 184× true; and
+- mean-$r1$: 287× true.
 
-   This lets the dashboard ingest the new nested schema-v3 ResNet artifact
-   while retaining legacy schema support.
+Matching first-update norm changed Gaussian endpoint CE from 1.805 to 1.045
+and mean-$r1$ from 3.313 to 1.193. The ordering survived; most of the magnitude
+did not.
 
-Before the prose restoration, the settled local suite reported 69 passing
-tests. The fake-data end-to-end CNN smoke test passed. The dashboard rebuilt
-byte-for-byte from its manifest, and the generated GIF metadata and selected
-frames were inspected. These checks validate plumbing, not scientific claims.
+### 2. The Gaussian/mean ordering depends on the mean-noise radius
 
-## Most important findings
+At seed 0, cut 1/rank 2,048, matched-update CE is:
 
-### Existing evidence is weaker than the original plots suggest
+- Gaussian: 1.045;
+- mean-$r0$: 0.991;
+- mean-$r0.5$: 1.324;
+- mean-$r1$: 1.193; and
+- mean-$r2$: 1.041.
 
-- The existing CNN points labelled by nominal epoch came from separately
-  scheduled/trained models. They are useful as a depth pilot, but they are not
-  checkpoints from one continuous trajectory and should not be used to infer
-  change over training.
-- The legacy ResNet artifacts do come from one training trajectory, but they
-  lack the source/checkpoint lineage of the new protocol. They also re-encoded
-  stochastic crop/flip augmentations at each cut, so depth is partly confounded
-  with the realized input bank.
-- Repeated surrogate draws vary generated activations and minibatch order.
-  They are not independent trained-model seeds.
+Exact centroids beat the Gaussian while radius-1 mean replay loses to it.
+Therefore “covariance helps” is not a radius-robust conclusion.
 
-### Mean-plus-noise needs a precise definition
+### 3. PCA rank 2,048 is not adequate for a full shallow estimand
 
-The implemented default is not optimizer epsilon and not the tiny Cholesky
-jitter. At radius 1, the isotropic covariance trace equals the pooled average
-within-class covariance trace in retained PCA space. Radius 0 gives exact class
-centroids; covariance trace scales as radius squared. The proposed CNN sweep is
-`0, 0.1, 1, 2`. The numerical Cholesky jitter is separately `1e-6 I`.
+For current seed 0/cut 1:
 
-This ablation is methodologically useful, but it has not been run.
+- rank 2,048 predictive KL = 0.0373 (fails);
+- rank 3,072 KL = 0.0211 (narrowly fails);
+- rank 4,096 KL = 0.0146 (passes the declared 0.02 threshold).
 
-### PCA needs controls rather than "all components"
+Rank 4,096 retains 93.0% total and 92.8% within-class variance. Its selection
+used the test population, so it is exploratory.
 
-At shallow cuts, native activations have tens of thousands of coordinates.
-Full dense per-class covariance is sample-rank limited and expensive to
-factorize. The implemented alternative is:
+The three-seed rank-2,048 results are projected-subspace results. Only the
+seed-0 rank-4,096 cell supports the declared practical-equivalence treatment
+of shallow projection.
 
-- one maximal PCA basis per cut;
-- nested leading-coordinate ranks;
-- class moments estimated from the full training activation bank after the
-  basis is fixed;
-- held-out total, within-class, and between-class coverage;
-- a PCA-projected-real condition to separate discarded-direction loss from the
-  Gaussian approximation.
+### 4. The three-seed depth contrast replicates under matched updates
 
-The intended CNN ranks are `128, 512, 1024`; the ResNet control uses
-`128, 256, 512`.
+At rank 2,048 after five epochs, mean ± sample SD in held-out CE:
 
-### The main unresolved confounds remain
+| Cut | Gaussian − projected | Mean-$r1$ − Gaussian |
+|---|---:|---:|
+| After block 1 | +0.183 ± 0.055 | +0.144 ± 0.019 |
+| After block 4 | −0.012 ± 0.002 | +0.023 ± 0.011 |
 
-- Moving the cut changes suffix capacity.
-- Warm-started suffix training mixes retention, relearning, and forgetting.
-- A fixed relaxation budget mixes adaptation speed with eventual capability.
-- Synthetic samples may fall off the normal activation manifold even when
-  moments match.
-- Independent model seeds and a capacity-matched receiver are still missing.
+The late native suffix is insensitive under this finite protocol. This is not
+evidence that “higher moments appear later.”
 
-These are more important than polishing the prose into a paper-like claim.
+### 5. Rank 4,096 preserves the shallow seed-0 ordering
 
-## RunPod attempt and why it stopped
+At cut 1/rank 4,096, matched-update endpoint CE:
 
-The approved source-only archive was:
+- projected-real: 0.938;
+- exact Gaussian: 1.065; and
+- mean-$r1$: 1.233.
 
-- path: `/tmp/tracking2-lw-source.tgz`
-- source commit: `46ad955e6b49695f4ba0b629685c90210cc063f4`
-- SHA-256:
-  `c67f502375ea24e763d5623183469e0cd77b1f55cfa8fb8a36e315429649ca84`
+The projection gate passes at this rank.
 
-No measured battery was launched.
+### 6. Shrinkage is not driving the seed-0 result
 
-Two secure A40 pods advertised large host RAM but exposed only a 50 GB cgroup
-limit. The 90 GiB protocol guard rejected both, and both were terminated.
+Five-percent covariance shrinkage changes CE by:
 
-A third request used RunPod's `minRAMPerGPU=96` option and obtained:
+- cut 1: −0.0084;
+- cut 4: +0.0005.
 
-- 125 GB cgroup allocation (116.4 GiB visible);
-- 16 vCPUs;
-- RTX 4090;
-- `$0.69/hour`.
+### 7. Reinitialization strengthens the capacity/trainability warning
 
-That pod passed the RAM and CUDA checks. It was also terminated when the user
-asked the agent to stop.
+With fresh suffixes, cut-1 true/projected/Gaussian/mean accuracies are
+68.7/64.5/43.4/37.8%; after cut 4 all are about 77.9%.
 
-Environment lesson: the base image had PyTorch 2.1/CUDA 11.8. Running a full
-`uv sync` would replace that stack with much newer CUDA packages, so a
-system-site-packages venv was used instead. The battery dependencies imported
-successfully. Installing the lock's `transformers==4.57.6` then made full test
-collection incompatible with PyTorch 2.1:
+Inherited suffix knowledge is not required for the qualitative contrast, but
+the fresh shallow true suffix itself is far from the late one after five
+epochs. Reinitialization does not capacity-match cuts.
 
-`torch.utils._pytree` lacked `register_pytree_node`.
+### 8. A longer horizon does not close the shallow gap
 
-This occurred before the smoke test or measured run. A future agent should
-either use a compatible Transformers version for the PyTorch 2.1 image, choose
-a newer base image matching the lock, or run only the battery-relevant tests
-after documenting that choice. Do not silently skip the incompatibility.
+At cut 1, Gaussian-minus-projected CE grows from 0.120 at epoch 5 to 0.147 at
+epoch 20; mean-minus-Gaussian grows from 0.148 to 0.462. Late accuracies remain
+within 0.08 percentage points.
 
-## Post/dashboard/figure state
+## Remaining blockers to a stronger claim
 
-Useful files left for inspection:
+- capacity-matched receivers across cuts;
+- independent model seeds for the rank-4,096 adequacy-passing cell;
+- validation of PCA rank on a fresh held-out population;
+- optimizer controls beyond the first update; and
+- a less arbitrary mean-only nuisance distribution.
 
-- `docs/lw_wip_post.md` — restored original post.
-- `docs/lw_post_reproduction.md` — proposed bounded protocol.
-- `free-body-diagrams-for-neural-networks.html` — measured-only dashboard built
-  from hashed legacy evidence.
-- `artifacts/lw_post/dashboard_manifest.json` — exact dashboard inputs.
-- `notebooks/lw_post_figures.py` — redesigned figure/GIF source.
-- `scripts/run_lw_post_battery.sh` — proposed uninterrupted CNN battery.
-- `scripts/verify_lw_post_artifacts.py` — evidence gate.
-
-One known integration trap: `cnn_endpoint_bands_figure()` in
-`notebooks/lw_post_figures.py` is still hard-wired to legacy CNN artifacts.
-If new CNN results are ever generated, that panel must be changed or removed
-before claiming the figures use the uninterrupted trajectory.
-
-The slideshow containing the middle-out framing was found at:
-
-`/home/crw/Programming/Experiments/Tracking2/Tracking2-talk-slides.html`
-
-There are many unrelated or copied untracked artifacts in the isolated
-worktree. They were intentionally not deleted or committed.
-
-## Questions for the user before another agent proceeds
-
-1. Does "revert all changes to the blog post" mean only the Markdown prose, as
-   assumed here, or also every new figure, dashboard, reproduction note, and
-   post-facing commit?
-2. Should the next pass be editorial only, with no experiment engineering?
-3. Which two or three figure changes matter most? It would be safer to agree on
-   a storyboard before regenerating the full suite.
-4. How prominent should the middle-out/alignment framing be relative to the
-   narrow experimental result?
-5. What evidence threshold is desired for this WIP: cleaned pilot disclosure,
-   the CNN controls, independent model seeds, or something else?
-6. Should commit `46ad955` be kept as useful future experiment infrastructure
-   or reverted with the presentation work?
-
-## Recommended next-agent approach
-
-Start by reading the restored post and the user's original request, then ask
-the scope questions above. Make a small, reviewable editorial diff first.
-Avoid another full rewrite, dashboard rebuild, or GPU run until the user has
-seen and approved that direction.
-
-If experiments are requested again, begin with a battery-relevant smoke test
-on a compatible environment, then run one bounded artifact and inspect it
-before launching the full grid. Never put an unrun control into the public
-evidence surface.
+The older ResNet pilot remains useful historical context but is not canonical
+evidence: it has one trained model, incomplete source lineage, and different
+stochastic augmentation draws across cuts.
