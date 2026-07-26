@@ -38,12 +38,17 @@ parser.add_argument(
     default=96,
     help="Minimum host RAM in GB per GPU for a new pod.",
 )
+parser.add_argument(
+    "--image",
+    default="runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404",
+    help="RunPod container image for a new pod.",
+)
 args = parser.parse_args()
 
 if args.action == "create":
     result = request("POST", "/pods", {
         "name": "tracking2-confirmatory",
-        "imageName": "runpod/pytorch:2.1.0-py3.10-cuda11.8.0-devel-ubuntu22.04",
+        "imageName": args.image,
         "cloudType": "COMMUNITY",
         "computeType": "GPU",
         "gpuTypeIds": [
