@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import io
 import json
 import random
@@ -33,6 +34,7 @@ from .surrogates import ArrayDataset, fit_pca_surrogate, sample_surrogate
 class Config:
     output: str = "artifacts/pilot"
     data_root: str = "data"
+    data_backend: str = "auto"
     fake_data: bool = False
     train_size: int = 50000
     test_size: int = 10000
@@ -89,21 +91,77 @@ def parquet_arrays(path: Path, limit: int) -> tuple[np.ndarray, np.ndarray]:
     return images, labels
 
 
-def prepare_true_datasets(config: Config) -> dict[str, Dataset]:
+def resolve_data_backend(config: Config) -> str:
     if config.fake_data:
+        return "fake_data"
+    if config.data_backend not in {"auto", "torchvision", "parquet"}:
+        raise ValueError("data_backend must be auto, torchvision, or parquet")
+    if config.data_backend != "auto":
+        return config.data_backend
+    root = Path(config.data_root)
+    if (
+        (root / "cifar10-train.parquet").exists()
+        and (root / "cifar10-test.parquet").exists()
+    ):
+        return "parquet"
+    return "torchvision"
+
+
+def prepare_true_datasets(config: Config) -> dict[str, Dataset]:
+    backend = resolve_data_backend(config)
+    if backend == "fake_data":
         train_base = FakeData(max(config.train_size, 200), image_size=(3, 32, 32), num_classes=10, transform=ToTensor(), random_offset=0)
         test_base = FakeData(max(config.test_size, 100), image_size=(3, 32, 32), num_classes=10, transform=ToTensor(), random_offset=10000)
         train_images, train_labels = dataset_arrays(train_base, config.train_size)
         test_images, test_labels = dataset_arrays(test_base, config.test_size)
-    elif (Path(config.data_root) / "cifar10-train.parquet").exists() and (Path(config.data_root) / "cifar10-test.parquet").exists():
-        train_images, train_labels = parquet_arrays(Path(config.data_root) / "cifar10-train.parquet", config.train_size)
-        test_images, test_labels = parquet_arrays(Path(config.data_root) / "cifar10-test.parquet", config.test_size)
+    elif backend == "parquet":
+        train_path = Path(config.data_root) / "cifar10-train.parquet"
+        test_path = Path(config.data_root) / "cifar10-test.parquet"
+        if not train_path.exists() or not test_path.exists():
+            raise FileNotFoundError(
+                "The parquet backend requires cifar10-train.parquet and "
+                "cifar10-test.parquet under data_root"
+            )
+        train_images, train_labels = parquet_arrays(
+            train_path, config.train_size
+        )
+        test_images, test_labels = parquet_arrays(test_path, config.test_size)
     else:
         train_base = CIFAR10(config.data_root, train=True, download=True, transform=ToTensor())
         test_base = CIFAR10(config.data_root, train=False, download=True, transform=ToTensor())
         train_images, train_labels = dataset_arrays(train_base, config.train_size)
         test_images, test_labels = dataset_arrays(test_base, config.test_size)
     return {"train": ArrayDataset(train_images, train_labels), "test": ArrayDataset(test_images, test_labels)}
+
+
+def ordered_dataset_fingerprints(
+    datasets: dict[str, Dataset], backend: str
+) -> dict[str, object]:
+    """Hash the exact ordered image and label tensors consumed by a run."""
+
+    result: dict[str, object] = {"backend": backend, "splits": {}}
+    splits: dict[str, object] = {}
+    for split in ("train", "test"):
+        dataset = datasets[split]
+        if not isinstance(dataset, ArrayDataset):
+            raise TypeError("fingerprinting expects materialized ArrayDataset splits")
+        images = np.ascontiguousarray(dataset.images.numpy())
+        labels = np.ascontiguousarray(dataset.labels.numpy())
+
+        def digest(array: np.ndarray) -> str:
+            value = hashlib.sha256()
+            value.update(str(array.dtype).encode())
+            value.update(np.asarray(array.shape, dtype=np.int64).tobytes())
+            value.update(memoryview(array).cast("B"))
+            return value.hexdigest()
+
+        splits[split] = {
+            "count": len(dataset),
+            "ordered_images_sha256": digest(images),
+            "ordered_labels_sha256": digest(labels),
+        }
+    result["splits"] = splits
+    return result
 
 
 def prepare_datasets(config: Config) -> dict[str, dict[str, Dataset]]:

@@ -222,3 +222,90 @@ class InstrumentedVGG19(nn.Module):
     def parameters_through(self, module_index: int) -> list[nn.Parameter]:
         modules = self.intervention_modules()
         return [parameter for _, module in modules[: module_index + 1] for parameter in module.parameters()]
+
+
+class PreActResidualBlock(nn.Module):
+    """Normalization-free ResNet-V2 basic block used by the paper on CIFAR-10."""
+
+    def __init__(self, in_channels: int, out_channels: int, stride: int) -> None:
+        super().__init__()
+        self.conv1 = nn.Conv2d(in_channels, out_channels, 3, stride=stride, padding=1, bias=True)
+        self.conv2 = nn.Conv2d(out_channels, out_channels, 3, padding=1, bias=True)
+        self.skip = (
+            nn.Identity() if stride == 1 and in_channels == out_channels
+            else nn.Conv2d(in_channels, out_channels, 1, stride=stride, bias=True)
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        residual = self.conv1(F.relu(x, inplace=False))
+        residual = self.conv2(F.relu(residual, inplace=False))
+        return self.skip(x) + residual
+
+
+class InstrumentedResNet18V2(nn.Module):
+    """Paper-matched CIFAR ResNet-18 V2 with addressable residual blocks."""
+
+    def __init__(self, num_classes: int = 10, width: int = 64) -> None:
+        super().__init__()
+        self.stage0 = nn.Conv2d(3, width, 3, stride=1, padding=1, bias=True)
+        blocks: list[nn.Module] = []
+        names: list[str] = []
+        in_channels = width
+        for stage_index, out_channels in enumerate((width, 2 * width, 4 * width, 8 * width), start=1):
+            for block_index in range(1, 3):
+                stride = 2 if stage_index > 1 and block_index == 1 else 1
+                blocks.append(PreActResidualBlock(in_channels, out_channels, stride))
+                names.append(f"stage{stage_index}.resblk{block_index}")
+                in_channels = out_channels
+        self.blocks = nn.ModuleList(blocks)
+        self.block_names = tuple(names)
+        self.final_linear = nn.Linear(8 * width, num_classes)
+        self.reset_parameters()
+
+    def reset_parameters(self) -> None:
+        for module in self.modules():
+            if isinstance(module, nn.Conv2d):
+                nn.init.kaiming_normal_(module.weight, mode="fan_out", nonlinearity="relu")
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+            elif isinstance(module, nn.Linear):
+                nn.init.normal_(module.weight, 0, 0.01)
+                nn.init.zeros_(module.bias)
+
+    def intervention_modules(self) -> list[tuple[str, nn.Module]]:
+        return [("stage0", self.stage0), *zip(self.block_names, self.blocks),
+                ("final_linear", self.final_linear)]
+
+    def encode_to_block(self, x: torch.Tensor, block_index: int) -> torch.Tensor:
+        if not 0 <= block_index < len(self.blocks):
+            raise ValueError("block_index must be in [0, 7]")
+        x = self.stage0(x)
+        for index, block in enumerate(self.blocks):
+            x = block(x)
+            if index == block_index:
+                return x
+        raise AssertionError("block index not reached")
+
+    def forward_from_block(self, representation: torch.Tensor, block_index: int) -> torch.Tensor:
+        x = representation
+        for block in self.blocks[block_index + 1:]:
+            x = block(x)
+        x = F.relu(x, inplace=False)
+        x = F.adaptive_avg_pool2d(x, 1).flatten(1)
+        return self.final_linear(x)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.stage0(x)
+        for block in self.blocks:
+            x = block(x)
+        x = F.relu(x, inplace=False)
+        x = F.adaptive_avg_pool2d(x, 1).flatten(1)
+        return self.final_linear(x)
+
+    def parameters_through_block(self, block_index: int) -> list[nn.Parameter]:
+        modules = [self.stage0, *self.blocks[:block_index + 1]]
+        return [parameter for module in modules for parameter in module.parameters()]
+
+    def parameters_after_block(self, block_index: int) -> list[nn.Parameter]:
+        modules = [*self.blocks[block_index + 1:], self.final_linear]
+        return [parameter for module in modules for parameter in module.parameters()]

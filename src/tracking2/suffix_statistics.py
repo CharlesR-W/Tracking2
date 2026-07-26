@@ -141,7 +141,7 @@ def run(config: SuffixStatisticsConfig) -> Path:
     for offset, kind in enumerate(("mean", "gaussian"), start=1):
         train_sets[kind] = sample_representation_surrogate(surrogate, train_labels, kind, config.seed + offset)
         test_sets[kind] = sample_representation_surrogate(surrogate, test_labels, kind, config.seed + 100 + offset)
-        diagnostics[kind] = moment_diagnostics(test_rep, test_sets[kind], test_labels)
+        diagnostics[kind] = moment_diagnostics(test_rep, test_sets[kind], test_labels, surrogate)
 
     eval_loaders = {
         name: representation_loader(values, test_labels, config.batch_size, config.seed, False)

@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import argparse
 import copy
+import hashlib
 import io
 import json
 import random
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 import numpy as np
 import pyarrow.parquet as pq
@@ -30,6 +31,7 @@ CIFAR_STD = (0.2470, 0.2435, 0.2616)
 class CriticalityConfig:
     output: str = "artifacts/criticality/seed0"
     data_root: str = "data"
+    data_backend: str = "auto"
     fake_data: bool = False
     train_size: int = 50000
     test_size: int = 10000
@@ -75,6 +77,22 @@ def _parquet_tensors(path: Path, limit: int) -> tuple[torch.Tensor, torch.Tensor
     return torch.from_numpy(images), torch.from_numpy(labels)
 
 
+def resolved_data_backend(config: CriticalityConfig) -> str:
+    if config.fake_data:
+        return "fake"
+    if config.data_backend not in {"auto", "torchvision", "parquet"}:
+        raise ValueError("data_backend must be one of: auto, torchvision, parquet")
+    if config.data_backend != "auto":
+        return config.data_backend
+    root = Path(config.data_root)
+    if (
+        (root / "cifar10-train.parquet").exists()
+        and (root / "cifar10-test.parquet").exists()
+    ):
+        return "parquet"
+    return "torchvision"
+
+
 def datasets(config: CriticalityConfig) -> tuple[Dataset, Dataset]:
     train_transform = Compose([RandomCrop(32, padding=4), RandomHorizontalFlip(), Normalize(CIFAR_MEAN, CIFAR_STD)])
     test_transform = Normalize(CIFAR_MEAN, CIFAR_STD)
@@ -85,14 +103,96 @@ def datasets(config: CriticalityConfig) -> tuple[Dataset, Dataset]:
         train = Subset(base_train, range(min(config.train_size, len(base_train))))
         test = Subset(base_test, range(min(config.test_size, len(base_test))))
         return train, test
-    train_parquet, test_parquet = root / "cifar10-train.parquet", root / "cifar10-test.parquet"
-    if train_parquet.exists() and test_parquet.exists():
+    backend = resolved_data_backend(config)
+    train_parquet, test_parquet = (
+        root / "cifar10-train.parquet",
+        root / "cifar10-test.parquet",
+    )
+    if backend == "parquet":
+        if not train_parquet.exists() or not test_parquet.exists():
+            raise FileNotFoundError(
+                "data_backend='parquet' requires cifar10-train.parquet and "
+                "cifar10-test.parquet under data_root"
+            )
         train_x, train_y = _parquet_tensors(train_parquet, config.train_size)
         test_x, test_y = _parquet_tensors(test_parquet, config.test_size)
         return TensorTransformDataset(train_x, train_y, train_transform), TensorTransformDataset(test_x, test_y, test_transform)
     train = CIFAR10(root, train=True, download=True, transform=Compose([ToTensor(), train_transform]))
     test = CIFAR10(root, train=False, download=True, transform=Compose([ToTensor(), test_transform]))
     return Subset(train, range(min(config.train_size, len(train)))), Subset(test, range(min(config.test_size, len(test))))
+
+
+def _fingerprint_values(images: np.ndarray, labels: np.ndarray) -> str:
+    images = np.ascontiguousarray(images)
+    labels = np.ascontiguousarray(labels, dtype=np.int64)
+    digest = hashlib.sha256()
+    digest.update(str(images.shape).encode())
+    digest.update(str(images.dtype).encode())
+    digest.update(memoryview(images))
+    digest.update(str(labels.shape).encode())
+    digest.update(memoryview(labels))
+    return digest.hexdigest()
+
+
+def _raw_dataset_values(data: Dataset, *, selected: bool) -> tuple[np.ndarray, np.ndarray]:
+    base = data
+    indices: Sequence[int] | None = None
+    if isinstance(data, Subset):
+        base = data.dataset
+        indices = list(data.indices)
+
+    if isinstance(base, CIFAR10):
+        images = np.asarray(base.data)
+        labels = np.asarray(base.targets, dtype=np.int64)
+    elif isinstance(base, TensorTransformDataset):
+        images = base.images.detach().cpu().numpy()
+        labels = base.labels.detach().cpu().numpy().astype(np.int64)
+    else:
+        count = len(base)
+        tensors, labels_list = [], []
+        for index in range(count):
+            image, label = base[index]
+            tensors.append(torch.as_tensor(image).detach().cpu().numpy())
+            labels_list.append(int(label))
+        images = np.asarray(tensors)
+        labels = np.asarray(labels_list, dtype=np.int64)
+
+    if selected and indices is not None:
+        images = images[indices]
+        labels = labels[indices]
+    return images, labels
+
+
+def ordered_dataset_fingerprints(
+    train: Dataset,
+    test: Dataset,
+    *,
+    backend: str,
+) -> dict[str, object]:
+    """Hash ordered raw examples before stochastic training augmentation."""
+
+    result: dict[str, object] = {
+        "backend": backend,
+        "algorithm": "sha256",
+        "definition": "ordered raw examples and labels before augmentation",
+    }
+    for split, data in (("train", train), ("test", test)):
+        source_images, source_labels = _raw_dataset_values(data, selected=False)
+        if isinstance(data, Subset):
+            indices = list(data.indices)
+            selected_images = source_images[indices]
+            selected_labels = source_labels[indices]
+        else:
+            selected_images, selected_labels = source_images, source_labels
+        result[split] = {
+            "source_count": len(source_labels),
+            "source_sha256": _fingerprint_values(source_images, source_labels),
+            "selected_count": len(selected_labels),
+            "selected_sha256": _fingerprint_values(
+                selected_images, selected_labels
+            ),
+        }
+    return result
 
 
 def make_loader(data: Dataset, config: CriticalityConfig, shuffle: bool) -> DataLoader:
@@ -281,6 +381,11 @@ def parse_args() -> CriticalityConfig:
     parser = argparse.ArgumentParser(description="VGG-19 critical-module checkpoint transplant experiment")
     parser.add_argument("--output", default="artifacts/criticality/seed0")
     parser.add_argument("--data-root", default="data")
+    parser.add_argument(
+        "--data-backend",
+        choices=("auto", "torchvision", "parquet"),
+        default="auto",
+    )
     parser.add_argument("--fake-data", action="store_true")
     parser.add_argument("--train-size", type=int, default=50000)
     parser.add_argument("--test-size", type=int, default=10000)
@@ -304,7 +409,8 @@ def parse_args() -> CriticalityConfig:
     parser.add_argument("--training-only", action="store_true")
     args = parser.parse_args()
     return CriticalityConfig(
-        output=args.output, data_root=args.data_root, fake_data=args.fake_data,
+        output=args.output, data_root=args.data_root, data_backend=args.data_backend,
+        fake_data=args.fake_data,
         train_size=args.train_size, test_size=args.test_size, epochs=args.epochs,
         batch_size=args.batch_size, learning_rate=args.learning_rate, weight_decay=args.weight_decay,
         checkpoint_epochs=tuple(args.checkpoints), lr_milestones=tuple(args.lr_milestones),
