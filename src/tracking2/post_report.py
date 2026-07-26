@@ -55,8 +55,8 @@ GAUSSIAN = "#0072B2"
 MEAN = "#D55E00"
 
 _EXPECTED_EXPERIMENTS = {
-    "cnn": ("lw_post_cnn_suffix_statistics", {1}),
-    "resnet": ("resnet18_suffix_statistics_sweep", {1, 2, 3}),
+    "cnn": ("lw_post_cnn_suffix_statistics", {1, 2}),
+    "resnet": ("resnet18_suffix_statistics_sweep", {1, 2, 3, 4}),
 }
 _EXPECTED_FORMATS = {
     ("cnn", "post_statistics"),
@@ -66,6 +66,9 @@ _EXPECTED_FORMATS = {
 _COMMIT_RE = re.compile(r"^[0-9a-fA-F]{7,64}$")
 _DIGEST_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 _SOURCE_REVISION_RE = re.compile(r"^(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$")
+_GAUSSIAN_SHRINKAGE_RE = re.compile(
+    r"^gaussian_shrunk_s(?P<amount>(?:\d+(?:\.\d*)?|\.\d+))$"
+)
 
 
 class ReportInputError(ValueError):
@@ -163,7 +166,7 @@ def _artifact_epoch(
     epoch = _require_int(config, "checkpoint_epoch", f"{context}.config")
     has_structured_checkpoint = (
         kind == "cnn" and artifact_format == "post_statistics"
-    ) or (kind == "resnet" and payload.get("schema_version") == 3)
+    ) or (kind == "resnet" and payload.get("schema_version") in {3, 4})
     if has_structured_checkpoint:
         checkpoint = payload.get("checkpoint")
         if not isinstance(checkpoint, dict):
@@ -199,20 +202,21 @@ def _source_identity(
     return None
 
 
-def _validate_resnet_v3(
+def _validate_resnet_canonical(
     payload: Mapping[str, Any],
     *,
     context: str,
     epoch: int,
     seed: int,
 ) -> None:
-    """Validate the lineage and controls promised by the canonical v3 artifact."""
+    """Validate the lineage and controls promised by canonical ResNet artifacts."""
 
     config = payload["config"]
+    schema = payload.get("schema_version")
     expected_flags = {
         "data_backend": "torchvision",
         "include_projected_true": True,
-        "true_eval_only": True,
+        "true_eval_only": schema == 3,
     }
     for key, expected in expected_flags.items():
         if config.get(key) != expected:
@@ -252,6 +256,23 @@ def _validate_resnet_v3(
             raise ReportInputError(
                 f"{context}.config.mean_noise_radii[{index}] must be non-negative"
             )
+    shrinkages = config.get("gaussian_covariance_shrinkages")
+    if schema == 4:
+        if not isinstance(shrinkages, list) or not shrinkages:
+            raise ReportInputError(
+                f"{context}.config.gaussian_covariance_shrinkages must be "
+                "a non-empty array"
+            )
+        for index, shrinkage in enumerate(shrinkages):
+            value = _number(
+                shrinkage,
+                f"{context}.config.gaussian_covariance_shrinkages[{index}]",
+            )
+            if not 0 <= value <= 1:
+                raise ReportInputError(
+                    f"{context}.config.gaussian_covariance_shrinkages[{index}] "
+                    "must be in [0, 1]"
+                )
 
     _require_string(payload, "mean_noise_definition", context)
     _require_string(payload, "pca_protocol", context)
@@ -496,14 +517,33 @@ def _validate_resnet_v3(
                 raise ReportInputError(
                     f"{rank_context} covariance-rank flag is inconsistent"
                 )
-            shrinkage = _number(
-                result.get("covariance_shrinkage"),
-                f"{rank_context}.covariance_shrinkage",
-            )
-            if not 0 <= shrinkage <= 1:
-                raise ReportInputError(
-                    f"{rank_context}.covariance_shrinkage must be in [0, 1]"
+            if schema == 3:
+                shrinkage = _number(
+                    result.get("covariance_shrinkage"),
+                    f"{rank_context}.covariance_shrinkage",
                 )
+                if not 0 <= shrinkage <= 1:
+                    raise ReportInputError(
+                        f"{rank_context}.covariance_shrinkage must be in [0, 1]"
+                    )
+            else:
+                estimators = _objects(
+                    result.get("gaussian_covariance_estimators"),
+                    f"{rank_context}.gaussian_covariance_estimators",
+                )
+                names = [
+                    _require_string(
+                        estimator,
+                        "distribution",
+                        f"{rank_context}.gaussian_covariance_estimators[{index}]",
+                    )
+                    for index, estimator in enumerate(estimators)
+                ]
+                if any(_distribution_family(name) != "gaussian" for name in names):
+                    raise ReportInputError(
+                        f"{rank_context}.gaussian_covariance_estimators must "
+                        "contain only registered Gaussian distributions"
+                    )
             pooled_variance = _number(
                 result.get(
                     "pooled_within_class_variance_per_pca_coordinate"
@@ -634,12 +674,18 @@ def load_manifest(manifest_path: str | Path) -> tuple[dict[str, Any], list[Loade
                 f"Model seed mismatch for {input_id!r}: manifest says "
                 f"{expected_seed}, artifact says {actual_seed}"
             )
-        if kind == "resnet" and payload.get("schema_version") == 3:
-            _validate_resnet_v3(
+        if kind == "resnet" and payload.get("schema_version") in {3, 4}:
+            _validate_resnet_canonical(
                 payload,
                 context=f"artifact {input_id!r}",
                 epoch=actual_epoch,
                 seed=actual_seed,
+            )
+        if kind == "cnn" and payload.get("schema_version") == 2:
+            _source_identity(
+                payload.get("provenance"),
+                f"artifact {input_id!r}.provenance",
+                required=True,
             )
 
         loaded.append(
@@ -656,13 +702,8 @@ def load_manifest(manifest_path: str | Path) -> tuple[dict[str, Any], list[Loade
             )
         )
 
-    kinds = {item.kind for item in loaded}
-    missing_kinds = {"cnn", "resnet"} - kinds
-    if missing_kinds:
-        raise ReportInputError(
-            "Canonical report requires measured inputs for both CNN and ResNet; "
-            f"missing {', '.join(sorted(missing_kinds))}"
-        )
+    if not loaded:
+        raise ReportInputError("manifest.inputs must contain measured evidence")
     return manifest, loaded
 
 
@@ -684,46 +725,110 @@ def _mean_radius(distribution: str) -> float | None:
     return radius
 
 
+def _gaussian_shrinkage(distribution: str) -> float | None:
+    """Return the declared spherical-shrinkage fraction for a Gaussian variant."""
+
+    if distribution == "gaussian":
+        return None
+    if distribution == "gaussian_empirical":
+        return 0.0
+    match = _GAUSSIAN_SHRINKAGE_RE.fullmatch(distribution)
+    if match is None:
+        return None
+    amount = float(match.group("amount"))
+    # ``s05`` is the concise artifact spelling for 5%, while decimal spellings
+    # such as ``s0.05`` remain unambiguous.
+    if "." not in match.group("amount") and amount > 1:
+        amount /= 100
+    if not 0 <= amount <= 1:
+        raise ReportInputError(
+            f"Gaussian shrinkage in {distribution!r} must lie in [0, 1]"
+        )
+    return amount
+
+
+def _distribution_family(distribution: str) -> str | None:
+    if distribution == "true":
+        return "true"
+    if distribution == "projected_true":
+        return "projected_true"
+    if distribution in {"gaussian", "gaussian_empirical"}:
+        return "gaussian"
+    if _GAUSSIAN_SHRINKAGE_RE.fullmatch(distribution):
+        _gaussian_shrinkage(distribution)
+        return "gaussian"
+    if distribution == "mean" or _mean_radius(distribution) is not None:
+        return "mean"
+    return None
+
+
 def _validate_distribution(distribution: Any, context: str) -> str:
     if not isinstance(distribution, str):
         raise ReportInputError(f"{context}.train_distribution must be a string")
-    if distribution in {"true", "projected_true", "gaussian"}:
-        return distribution
-    if _mean_radius(distribution) is not None:
+    if _distribution_family(distribution) is not None:
         return distribution
     raise ReportInputError(
         f"{context} has unsupported train_distribution {distribution!r}"
     )
 
 
-def _coverage(source: Mapping[str, Any], context: str) -> tuple[float | None, str]:
+def _coverage_details(source: Mapping[str, Any], context: str) -> dict[str, Any]:
+    details: dict[str, Any] = {
+        "total": None,
+        "within_class": None,
+        "between_class": None,
+        "basis": "not recorded",
+    }
     direct = source.get("held_out_explained_variance_fraction")
     if direct is not None:
         value = _number(direct, f"{context}.held_out_explained_variance_fraction")
         if not 0 <= value <= 1:
             raise ReportInputError(f"{context} held-out PCA coverage must be in [0, 1]")
-        return value, "held-out activations"
+        details["total"] = value
+        details["basis"] = "held-out activations"
 
     held_out = source.get("held_out_coverage")
     if held_out is not None:
         if not isinstance(held_out, dict):
             raise ReportInputError(f"{context}.held_out_coverage must be an object")
-        for key in ("total_variance_fraction", "explained_variance_fraction"):
-            if held_out.get(key) is not None:
-                value = _number(held_out[key], f"{context}.held_out_coverage.{key}")
-                if not 0 <= value <= 1:
-                    raise ReportInputError(
-                        f"{context} held-out PCA coverage must be in [0, 1]"
-                    )
-                return value, "held-out activations"
+        for source_key, target_key in (
+            ("total_variance_fraction", "total"),
+            ("explained_variance_fraction", "total"),
+            ("within_class_variance_fraction", "within_class"),
+            ("between_class_mean_variance_fraction", "between_class"),
+        ):
+            if held_out.get(source_key) is None:
+                continue
+            value = _number(
+                held_out[source_key], f"{context}.held_out_coverage.{source_key}"
+            )
+            if not 0 <= value <= 1.0001:
+                raise ReportInputError(
+                    f"{context} held-out PCA coverage must be in [0, 1]"
+                )
+            if details[target_key] is None:
+                details[target_key] = min(value, 1.0)
+        details["basis"] = "held-out activations"
+        return details
+
+    if details["total"] is not None:
+        return details
 
     legacy = source.get("explained_variance_fraction")
     if legacy is not None:
         value = _number(legacy, f"{context}.explained_variance_fraction")
         if not 0 <= value <= 1:
             raise ReportInputError(f"{context} PCA coverage must be in [0, 1]")
-        return value, "legacy reported value; evaluation population unspecified"
-    return None, "not recorded"
+        details["total"] = value
+        details["basis"] = "legacy reported value; evaluation population unspecified"
+    return details
+
+
+def _coverage(source: Mapping[str, Any], context: str) -> tuple[float | None, str]:
+    """Backward-compatible total-coverage accessor."""
+
+    details = _coverage_details(source, context)
+    return details["total"], str(details["basis"])
 
 
 def _normalise_records(
@@ -736,16 +841,16 @@ def _normalise_records(
 ) -> list[dict[str, Any]]:
     rows = _objects(records, context)
     normalised: list[dict[str, Any]] = []
-    seen: set[tuple[str, int, int]] = set()
+    seen: set[tuple[str, str, int, int, str]] = set()
     for index, row in enumerate(rows):
         row_context = f"{context}[{index}]"
-        evaluation = row.get("eval_distribution")
-        if evaluation != "true":
-            if reject_nontrue_evaluation:
-                raise ReportInputError(
-                    f"{row_context}.eval_distribution must be 'true'"
-                )
-            continue
+        evaluation = _validate_distribution(
+            row.get("eval_distribution"), f"{row_context}.eval_distribution"
+        )
+        if evaluation != "true" and reject_nontrue_evaluation:
+            raise ReportInputError(
+                f"{row_context}.eval_distribution must be 'true'"
+            )
         if forced_distribution is not None:
             if row.get("train_distribution") != forced_distribution:
                 raise ReportInputError(
@@ -769,22 +874,109 @@ def _normalise_records(
         accuracy = _number(row.get("accuracy"), f"{row_context}.accuracy")
         if not 0 <= accuracy <= 1:
             raise ReportInputError(f"{row_context}.accuracy must be in [0, 1]")
-        key = (distribution, draw, relax_epoch)
+        loss = row.get("loss")
+        if loss is not None:
+            loss = _number(loss, f"{row_context}.loss")
+            if loss < 0:
+                raise ReportInputError(f"{row_context}.loss must be non-negative")
+        initial_training_loss = row.get("initial_training_loss")
+        if initial_training_loss is not None:
+            initial_training_loss = _number(
+                initial_training_loss, f"{row_context}.initial_training_loss"
+            )
+            if initial_training_loss < 0:
+                raise ReportInputError(
+                    f"{row_context}.initial_training_loss must be non-negative"
+                )
+        initial_gradient_norm = row.get("initial_gradient_norm")
+        if initial_gradient_norm is not None:
+            initial_gradient_norm = _number(
+                initial_gradient_norm, f"{row_context}.initial_gradient_norm"
+            )
+            if initial_gradient_norm < 0:
+                raise ReportInputError(
+                    f"{row_context}.initial_gradient_norm must be non-negative"
+                )
+        initial_gradient_rms = row.get("initial_gradient_rms")
+        if initial_gradient_rms is not None:
+            initial_gradient_rms = _number(
+                initial_gradient_rms, f"{row_context}.initial_gradient_rms"
+            )
+            if initial_gradient_rms < 0:
+                raise ReportInputError(
+                    f"{row_context}.initial_gradient_rms must be non-negative"
+                )
+        suffix_parameter_count = row.get("initial_suffix_parameter_count")
+        if suffix_parameter_count is not None:
+            suffix_parameter_count = _integral_number(
+                suffix_parameter_count,
+                f"{row_context}.initial_suffix_parameter_count",
+            )
+            if suffix_parameter_count < 1:
+                raise ReportInputError(
+                    f"{row_context}.initial_suffix_parameter_count must be positive"
+                )
+        suffix_weight_norm = row.get(
+            "initial_suffix_weight_norm", row.get("initial_weight_norm")
+        )
+        if suffix_weight_norm is not None:
+            suffix_weight_norm = _number(
+                suffix_weight_norm, f"{row_context}.initial_suffix_weight_norm"
+            )
+            if suffix_weight_norm < 0:
+                raise ReportInputError(
+                    f"{row_context}.initial_suffix_weight_norm must be non-negative"
+                )
+        update_to_weight_ratio = row.get(
+            "first_step_update_to_weight_ratio",
+            row.get("initial_update_to_weight_ratio"),
+        )
+        if update_to_weight_ratio is not None:
+            update_to_weight_ratio = _number(
+                update_to_weight_ratio,
+                f"{row_context}.initial_update_to_weight_ratio",
+            )
+            if update_to_weight_ratio < 0:
+                raise ReportInputError(
+                    f"{row_context}.initial_update_to_weight_ratio must be non-negative"
+                )
+        lr_regime = next(
+            (
+                row[key]
+                for key in (
+                    "learning_rate_regime",
+                    "lr_regime",
+                    "gradient_scale_regime",
+                )
+                if isinstance(row.get(key), str) and row[key].strip()
+            ),
+            "fixed_lr",
+        )
+        key = (distribution, evaluation, draw, relax_epoch, lr_regime)
         if key in seen:
             raise ReportInputError(
-                f"{context} contains duplicate true-evaluation record {key}"
+                f"{context} contains duplicate evaluation record {key}"
             )
         seen.add(key)
         normalised.append(
             {
                 "distribution": distribution,
+                "eval_distribution": evaluation,
                 "draw": draw,
                 "relax_epoch": relax_epoch,
                 "accuracy": accuracy,
+                "loss": loss,
+                "initial_training_loss": initial_training_loss,
+                "initial_gradient_norm": initial_gradient_norm,
+                "initial_gradient_rms": initial_gradient_rms,
+                "initial_suffix_parameter_count": suffix_parameter_count,
+                "initial_suffix_weight_norm": suffix_weight_norm,
+                "initial_update_to_weight_ratio": update_to_weight_ratio,
+                "lr_regime": lr_regime,
             }
         )
     if not normalised:
-        raise ReportInputError(f"{context} has no true-evaluation records")
+        raise ReportInputError(f"{context} has no evaluation records")
     return normalised
 
 
@@ -888,7 +1080,7 @@ def _cell_rows(
         slice_context = f"artifact {artifact.id!r}.slices[{slice_index}]"
         cut = _require_int(slice_, "cut", slice_context)
         nested_rank_schema = artifact.kind == "cnn" or (
-            artifact.kind == "resnet" and payload.get("schema_version") == 3
+            artifact.kind == "resnet" and payload.get("schema_version") in {3, 4}
         )
         if nested_rank_schema:
             if artifact.kind == "cnn":
@@ -929,14 +1121,30 @@ def _cell_rows(
                         and payload.get("schema_version") == 3
                     ),
                 )
-                if any(
+                schema = payload.get("schema_version")
+                rank_local_reference = (
+                    artifact.kind == "resnet" and schema == 4
+                ) or (
+                    artifact.kind == "cnn" and schema == 2
+                )
+                if not rank_local_reference and any(
                     row["distribution"] == "true" for row in result_records
                 ):
                     raise ReportInputError(
                         f"{rank_context}.records must not repeat the shared true "
                         "reference"
                     )
-                records = [*reference, *result_records]
+                records = result_records if rank_local_reference else [
+                    *reference,
+                    *result_records,
+                ]
+                if rank_local_reference and any(
+                    row.get("loss") is None for row in records
+                ):
+                    raise ReportInputError(
+                        f"{rank_context}.records must record cross-entropy loss "
+                        "for every canonical evaluation cell"
+                    )
                 _validate_cell_series(
                     records, f"artifact {artifact.id!r}, cut {cut}, PCA rank {rank}",
                     require_projected=True,
@@ -946,8 +1154,11 @@ def _cell_rows(
                             "surrogate_draws",
                             f"artifact {artifact.id!r}.config",
                         )
-                        if artifact.kind == "resnet"
-                        and payload.get("schema_version") == 3
+                        if (
+                            artifact.kind == "resnet"
+                            and payload.get("schema_version") in {3, 4}
+                        )
+                        or (artifact.kind == "cnn" and schema == 2)
                         else None
                     ),
                     expected_relax_epochs=(
@@ -956,11 +1167,25 @@ def _cell_rows(
                             "relax_epochs",
                             f"artifact {artifact.id!r}.config",
                         )
-                        if artifact.kind == "resnet"
-                        and payload.get("schema_version") == 3
+                        if (
+                            artifact.kind == "resnet"
+                            and payload.get("schema_version") in {3, 4}
+                        )
+                        or (artifact.kind == "cnn" and schema == 2)
                         else None
                     ),
                 )
+                if (
+                    artifact.kind == "resnet" and schema == 4
+                ) or (
+                    artifact.kind == "cnn"
+                    and schema == 2
+                    and payload["config"].get("true_eval_only") is not True
+                ):
+                    _validate_full_train_eval_matrix(
+                        records,
+                        f"artifact {artifact.id!r}, cut {cut}, PCA rank {rank}",
+                    )
                 cells.append(
                     _cell_metadata(
                         artifact,
@@ -1040,8 +1265,10 @@ def _validate_cell_series(
 ) -> None:
     by_distribution: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
     for row in records:
+        if row["eval_distribution"] != "true":
+            continue
         by_distribution[str(row["distribution"])].append(row)
-    required = {"true", "gaussian"}
+    required = {"true"}
     if require_projected:
         required.add("projected_true")
     missing = required - by_distribution.keys()
@@ -1049,12 +1276,22 @@ def _validate_cell_series(
         raise ReportInputError(
             f"{context} is missing required distributions: {', '.join(sorted(missing))}"
         )
+    if not any(
+        _distribution_family(distribution) == "gaussian"
+        for distribution in by_distribution
+    ):
+        raise ReportInputError(f"{context} is missing a Gaussian distribution")
     if not any(_mean_radius(name) is not None for name in by_distribution):
         raise ReportInputError(f"{context} has no mean/noise condition")
 
     coordinate_sets = {
         distribution: {
-            (int(row["draw"]), int(row["relax_epoch"])) for row in rows
+            (
+                int(row["draw"]),
+                int(row["relax_epoch"]),
+                str(row["lr_regime"]),
+            )
+            for row in rows
         }
         for distribution, rows in by_distribution.items()
     }
@@ -1067,7 +1304,7 @@ def _validate_cell_series(
             )
     if expected_draws is not None and expected_relax_epochs is not None:
         declared_coordinates = {
-            (draw, epoch)
+            (draw, epoch, "fixed_lr")
             for draw in range(expected_draws)
             for epoch in range(expected_relax_epochs + 1)
         }
@@ -1075,6 +1312,51 @@ def _validate_cell_series(
             raise ReportInputError(
                 f"{context} does not match the declared draw/relaxation grid"
             )
+
+
+def _validate_full_train_eval_matrix(
+    records: Sequence[Mapping[str, Any]],
+    context: str,
+) -> None:
+    """Require a complete train × evaluation grid for every draw and epoch."""
+
+    train_distributions = {str(row["distribution"]) for row in records}
+    eval_distributions = {str(row["eval_distribution"]) for row in records}
+    if train_distributions != eval_distributions:
+        raise ReportInputError(
+            f"{context} train/evaluation distribution registries do not match"
+        )
+    coordinates = {
+        (
+            int(row["draw"]),
+            int(row["relax_epoch"]),
+            str(row["lr_regime"]),
+        )
+        for row in records
+    }
+    observed = {
+        (
+            int(row["draw"]),
+            int(row["relax_epoch"]),
+            str(row["lr_regime"]),
+            str(row["distribution"]),
+            str(row["eval_distribution"]),
+        )
+        for row in records
+    }
+    expected = {
+        (*coordinate, train_distribution, eval_distribution)
+        for coordinate in coordinates
+        for train_distribution in train_distributions
+        for eval_distribution in eval_distributions
+    }
+    if observed != expected:
+        missing = len(expected - observed)
+        extra = len(observed - expected)
+        raise ReportInputError(
+            f"{context} has an incomplete train/evaluation matrix "
+            f"({missing} missing, {extra} unexpected cells)"
+        )
 
 
 def _cell_metadata(
@@ -1088,6 +1370,94 @@ def _cell_metadata(
     coverage: float | None,
     coverage_basis: str,
 ) -> dict[str, Any]:
+    coverage_details = _coverage_details(
+        rank_source,
+        f"artifact {artifact.id!r}, cut {cut}, PCA rank {rank}",
+    )
+    diagnostics: list[dict[str, Any]] = []
+    raw_diagnostics = rank_source.get("moment_diagnostics")
+    if isinstance(raw_diagnostics, list):
+        for index, diagnostic in enumerate(raw_diagnostics):
+            if not isinstance(diagnostic, dict):
+                raise ReportInputError(
+                    f"artifact {artifact.id!r} moment_diagnostics[{index}] "
+                    "must be an object"
+                )
+            item: dict[str, Any] = {
+                "draw": diagnostic.get("draw"),
+                "distribution": diagnostic.get("distribution"),
+                "diagnostic_space": diagnostic.get("diagnostic_space"),
+            }
+            for key in (
+                "class_mean_relative_error",
+                "class_covariance_relative_error",
+                "support_outlier_fraction",
+                "range_violation_fraction",
+            ):
+                value = diagnostic.get(key)
+                if value is None:
+                    item[key] = None
+                    continue
+                number = _number(
+                    value,
+                    f"artifact {artifact.id!r}.moment_diagnostics[{index}].{key}",
+                )
+                if number < 0:
+                    raise ReportInputError(
+                        f"artifact {artifact.id!r}.moment_diagnostics[{index}]."
+                        f"{key} must be non-negative"
+                    )
+                item[key] = number
+            diagnostics.append(item)
+    step_zero_projection = None
+    raw_step_zero = rank_source.get("step_zero_true_vs_projected")
+    if isinstance(raw_step_zero, dict):
+        step_zero_projection = {}
+        for key in (
+            "true_loss",
+            "projected_true_loss",
+            "true_accuracy",
+            "projected_true_accuracy",
+            "true_to_projected_predictive_kl",
+        ):
+            value = raw_step_zero.get(key)
+            if value is None:
+                continue
+            number = _number(
+                value,
+                f"artifact {artifact.id!r}.step_zero_true_vs_projected.{key}",
+            )
+            if number < 0:
+                raise ReportInputError(
+                    f"artifact {artifact.id!r}.step_zero_true_vs_projected."
+                    f"{key} must be non-negative"
+                )
+            if "accuracy" in key and number > 1:
+                raise ReportInputError(
+                    f"artifact {artifact.id!r}.step_zero_true_vs_projected."
+                    f"{key} must be in [0, 1]"
+                )
+            step_zero_projection[key] = number
+    covariance_estimators = None
+    raw_estimators = rank_source.get("gaussian_covariance_estimators")
+    if isinstance(raw_estimators, list):
+        covariance_estimators = []
+        for index, estimator in enumerate(raw_estimators):
+            if not isinstance(estimator, dict):
+                raise ReportInputError(
+                    f"artifact {artifact.id!r}.gaussian_covariance_estimators"
+                    f"[{index}] must be an object"
+                )
+            distribution = _validate_distribution(
+                estimator.get("distribution"),
+                f"artifact {artifact.id!r}.gaussian_covariance_estimators[{index}]",
+            )
+            if _distribution_family(distribution) != "gaussian":
+                raise ReportInputError(
+                    f"artifact {artifact.id!r}.gaussian_covariance_estimators"
+                    f"[{index}] must name a Gaussian distribution"
+                )
+            covariance_estimators.append(dict(estimator))
     radii = sorted(
         {
             radius
@@ -1107,9 +1477,15 @@ def _cell_metadata(
     moment_fit_count = rank_source.get(
         "moment_fit_count", slice_.get("moment_fit_count")
     )
-    nested_resnet = (
-        artifact.kind == "resnet"
-        and artifact.payload.get("schema_version") == 3
+    nested_surrogate_grid = (
+        (
+            artifact.kind == "resnet"
+            and artifact.payload.get("schema_version") in {3, 4}
+        )
+        or (
+            artifact.kind == "cnn"
+            and artifact.payload.get("schema_version") == 2
+        )
     )
     configured_ranks = artifact.payload["config"].get("pca_ranks")
     return {
@@ -1123,6 +1499,9 @@ def _cell_metadata(
         "pca_rank": rank,
         "coverage": coverage,
         "coverage_basis": coverage_basis,
+        "coverage_total": coverage_details["total"],
+        "coverage_within_class": coverage_details["within_class"],
+        "coverage_between_class": coverage_details["between_class"],
         "representation_shape": slice_.get("representation_shape"),
         "native_dimension": slice_.get("native_dimension"),
         "pca_fit_count": pca_fit_count,
@@ -1135,6 +1514,7 @@ def _cell_metadata(
             "trace_matched_isotropic_covariance_trace"
         ),
         "covariance_shrinkage": rank_source.get("covariance_shrinkage"),
+        "gaussian_covariance_estimators": covariance_estimators,
         "empirical_class_covariance_rank_ceiling": rank_source.get(
             "empirical_class_covariance_rank_ceiling"
         ),
@@ -1145,11 +1525,18 @@ def _cell_metadata(
             "maximal_pca_basis_sha256"
         ),
         "pca_basis_prefix_sha256": rank_source.get("pca_basis_prefix_sha256"),
-        "paired_nested_noise": nested_resnet
+        "paired_nested_noise": nested_surrogate_grid
         and isinstance(configured_ranks, list)
         and len(configured_ranks) > 1,
-        "fixed_analysis_bank": nested_resnet
+        "fixed_analysis_bank": (
+            artifact.kind == "resnet"
+            and artifact.payload.get("schema_version") in {3, 4}
+        )
         and isinstance(artifact.payload.get("analysis_banks"), dict),
+        "moment_diagnostics": diagnostics,
+        "step_zero_true_vs_projected": step_zero_projection,
+        "artifact_format": artifact.format,
+        "artifact_schema": artifact.payload.get("schema_version"),
     }
 
 
@@ -1175,6 +1562,8 @@ def _decorate_records(
             "pca_rank": rank,
             "coverage": coverage,
             "coverage_basis": coverage_basis,
+            "artifact_format": artifact.format,
+            "artifact_schema": artifact.payload.get("schema_version"),
             **row,
         }
         for row in records
@@ -1205,25 +1594,54 @@ _SUMMARY_KEYS = (
     "coverage",
     "coverage_basis",
     "distribution",
+    "eval_distribution",
     "relax_epoch",
+    "lr_regime",
 )
 
 
 def summarise_observations(
     observations: Sequence[Mapping[str, Any]],
 ) -> list[dict[str, Any]]:
-    grouped: dict[tuple[Any, ...], list[float]] = defaultdict(list)
+    grouped: dict[tuple[Any, ...], list[Mapping[str, Any]]] = defaultdict(list)
     for row in observations:
-        grouped[tuple(row[key] for key in _SUMMARY_KEYS)].append(float(row["accuracy"]))
+        grouped[tuple(row[key] for key in _SUMMARY_KEYS)].append(row)
     result: list[dict[str, Any]] = []
-    for key, values in grouped.items():
+    for key, rows in grouped.items():
         summary = dict(zip(_SUMMARY_KEYS, key))
+        accuracy_values = [float(row["accuracy"]) for row in rows]
+        loss_values = [
+            float(row["loss"]) for row in rows if row.get("loss") is not None
+        ]
+        initial_training_losses = [
+            float(row["initial_training_loss"])
+            for row in rows
+            if row.get("initial_training_loss") is not None
+        ]
+        initial_gradient_norms = [
+            float(row["initial_gradient_norm"])
+            for row in rows
+            if row.get("initial_gradient_norm") is not None
+        ]
         summary.update(
             {
-                "accuracy_mean": fmean(values),
-                "accuracy_min": min(values),
-                "accuracy_max": max(values),
-                "draw_count": len(values),
+                "accuracy_mean": fmean(accuracy_values),
+                "accuracy_min": min(accuracy_values),
+                "accuracy_max": max(accuracy_values),
+                "loss_mean": fmean(loss_values) if loss_values else None,
+                "loss_min": min(loss_values) if loss_values else None,
+                "loss_max": max(loss_values) if loss_values else None,
+                "initial_training_loss_mean": (
+                    fmean(initial_training_losses)
+                    if initial_training_losses
+                    else None
+                ),
+                "initial_gradient_norm_mean": (
+                    fmean(initial_gradient_norms)
+                    if initial_gradient_norms
+                    else None
+                ),
+                "draw_count": len(rows),
             }
         )
         result.append(summary)
@@ -1235,7 +1653,111 @@ def summarise_observations(
             row["cut"],
             row["pca_rank"],
             _distribution_order(str(row["distribution"])),
+            _distribution_order(str(row["eval_distribution"])),
             row["relax_epoch"],
+            row["lr_regime"],
+        ),
+    )
+
+
+_PAIR_KEYS = (
+    "input_id",
+    "kind",
+    "label",
+    "checkpoint_epoch",
+    "model_seed",
+    "cut",
+    "module",
+    "pca_rank",
+    "lr_regime",
+    "draw",
+    "relax_epoch",
+)
+
+
+def paired_true_eval_contrasts(
+    observations: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Compute the primary true-evaluation contrast before aggregating draws."""
+
+    grouped: dict[tuple[Any, ...], dict[str, Mapping[str, Any]]] = defaultdict(dict)
+    starts: dict[tuple[Any, ...], float] = {}
+    for row in observations:
+        if row["eval_distribution"] != "true":
+            continue
+        key = tuple(row[field] for field in _PAIR_KEYS)
+        grouped[key][str(row["distribution"])] = row
+        if int(row["relax_epoch"]) == 0:
+            start_key = tuple(row[field] for field in _PAIR_KEYS[:-1]) + (
+                str(row["distribution"]),
+            )
+            starts[start_key] = float(row["accuracy"])
+
+    contrasts: list[dict[str, Any]] = []
+    for key, by_distribution in grouped.items():
+        reference = by_distribution.get("true")
+        if reference is None:
+            continue
+        for distribution, row in by_distribution.items():
+            if distribution == "true":
+                continue
+            loss_excess = None
+            if row.get("loss") is not None and reference.get("loss") is not None:
+                loss_excess = float(row["loss"]) - float(reference["loss"])
+            start_key = key[:-1] + (distribution,)
+            start_accuracy = starts.get(start_key)
+            contrast = {field: value for field, value in zip(_PAIR_KEYS, key)}
+            contrast.update(
+                {
+                    "distribution": distribution,
+                    "loss": row.get("loss"),
+                    "reference_loss": reference.get("loss"),
+                    "loss_excess": loss_excess,
+                    "accuracy": float(row["accuracy"]),
+                    "reference_accuracy": float(reference["accuracy"]),
+                    "accuracy_shortfall": (
+                        float(reference["accuracy"]) - float(row["accuracy"])
+                    ),
+                    "accuracy_change": (
+                        None
+                        if start_accuracy is None
+                        else float(row["accuracy"]) - start_accuracy
+                    ),
+                }
+            )
+            contrasts.append(contrast)
+    return contrasts
+
+
+def summarise_paired_contrasts(
+    contrasts: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    keys = _PAIR_KEYS[:-2] + ("relax_epoch", "distribution")
+    grouped: dict[tuple[Any, ...], list[Mapping[str, Any]]] = defaultdict(list)
+    for row in contrasts:
+        grouped[tuple(row[key] for key in keys)].append(row)
+
+    summaries: list[dict[str, Any]] = []
+    for key, rows in grouped.items():
+        summary = dict(zip(keys, key))
+        for metric in ("loss_excess", "accuracy_shortfall", "accuracy_change"):
+            values = [
+                float(row[metric]) for row in rows if row.get(metric) is not None
+            ]
+            summary[f"{metric}_mean"] = fmean(values) if values else None
+            summary[f"{metric}_min"] = min(values) if values else None
+            summary[f"{metric}_max"] = max(values) if values else None
+        summary["draw_count"] = len(rows)
+        summaries.append(summary)
+    return sorted(
+        summaries,
+        key=lambda row: (
+            0 if row["kind"] == "cnn" else 1,
+            row["checkpoint_epoch"],
+            row["cut"],
+            row["pca_rank"],
+            row["relax_epoch"],
+            _distribution_order(str(row["distribution"])),
         ),
     )
 
@@ -1245,8 +1767,9 @@ def _distribution_order(distribution: str) -> tuple[int, float, str]:
         return (0, 0.0, distribution)
     if distribution == "projected_true":
         return (1, 0.0, distribution)
-    if distribution == "gaussian":
-        return (2, 0.0, distribution)
+    if _distribution_family(distribution) == "gaussian":
+        shrinkage = _gaussian_shrinkage(distribution)
+        return (2, shrinkage if shrinkage is not None else 0.5, distribution)
     radius = _mean_radius(distribution)
     return (3, radius if radius is not None else 0.0, distribution)
 
@@ -1258,6 +1781,15 @@ def _distribution_style(distribution: str) -> tuple[str, str, str]:
         return "Projected real", PROJECTED_REAL, "7 5"
     if distribution == "gaussian":
         return "Gaussian", GAUSSIAN, ""
+    if distribution == "gaussian_empirical":
+        return "Gaussian · empirical covariance", GAUSSIAN, ""
+    shrinkage = _gaussian_shrinkage(distribution)
+    if shrinkage is not None:
+        return (
+            f"Gaussian · {100 * shrinkage:g}% spherical shrinkage",
+            GAUSSIAN,
+            "9 4",
+        )
     radius = _mean_radius(distribution)
     if distribution == "mean":
         return "Mean + isotropic noise", MEAN, ""
@@ -1270,11 +1802,17 @@ def _distribution_style(distribution: str) -> tuple[str, str, str]:
 
 def _primary_distributions(distributions: Iterable[str]) -> list[str]:
     available = set(distributions)
-    result = [
-        name
-        for name in ("true", "projected_true", "gaussian")
-        if name in available
-    ]
+    result = [name for name in ("true", "projected_true") if name in available]
+    result.extend(
+        sorted(
+            (
+                name
+                for name in available
+                if _distribution_family(name) == "gaussian"
+            ),
+            key=_distribution_order,
+        )
+    )
     for preferred in ("mean", "mean_r1"):
         if preferred in available:
             result.append(preferred)
@@ -1497,6 +2035,10 @@ def _render_model_section(
     artifacts: Sequence[LoadedArtifact],
     summaries: Sequence[Mapping[str, Any]],
     cells: Sequence[Mapping[str, Any]],
+    *,
+    section_id: str | None = None,
+    eyebrow: str = "Measured experiment",
+    heading_prefix: str = "",
 ) -> str:
     architecture = _architecture_label(kind)
     run_html = []
@@ -1504,6 +2046,8 @@ def _render_model_section(
         (artifact for artifact in artifacts if artifact.kind == kind),
         key=lambda artifact: artifact.checkpoint_epoch,
     )
+    if not kind_artifacts:
+        return ""
     legacy_groups: dict[tuple[int, int], list[LoadedArtifact]] = defaultdict(list)
     run_groups: list[list[LoadedArtifact]] = []
     for artifact in kind_artifacts:
@@ -1569,6 +2113,8 @@ def _render_model_section(
                 row
                 for row in run_rows
                 if int(row["cut"]) == cut and int(row["pca_rank"]) == primary_rank
+                and row["eval_distribution"] == "true"
+                and row["lr_regime"] == "fixed_lr"
             ]
             coverage_note = (
                 f'PCA rank {primary_rank}; coverage '
@@ -1608,21 +2154,26 @@ def _render_model_section(
             + "".join(chart_cards)
             + "</details>"
         )
-    has_legacy_cnn = kind == "cnn" and any(
+    has_legacy_cnn_grid = kind == "cnn" and any(
         artifact.format == "legacy_cnn_suffix_statistics"
         for artifact in kind_artifacts
     )
+    has_legacy_cnn_schema = kind == "cnn" and any(
+        artifact.format == "post_statistics"
+        and artifact.payload.get("schema_version") != 2
+        for artifact in kind_artifacts
+    )
     has_canonical_resnet = kind == "resnet" and any(
-        artifact.payload.get("schema_version") == 3
+        artifact.payload.get("schema_version") == 4
         for artifact in kind_artifacts
     )
     has_legacy_resnet = kind == "resnet" and any(
-        artifact.payload.get("schema_version") in {1, 2}
+        artifact.payload.get("schema_version") in {1, 2, 3}
         for artifact in kind_artifacts
     )
     intro = (
         "True-data relaxation is the reference. New-format cells include "
-        "projected-real replay to isolate information lost at the PCA boundary; "
+        "projected-real replay as an empirical in-subspace control at the PCA boundary; "
         "Gaussian and mean-based replay test which retained distributional "
         "structure helps the suffix relearn."
         if kind == "cnn"
@@ -1638,7 +2189,7 @@ def _render_model_section(
         )
     )
     legacy_notes = []
-    if has_legacy_cnn:
+    if has_legacy_cnn_grid:
         legacy_notes.append(
         '<aside class="evidence-note"><strong>Legacy CNN grid.</strong> The prefixes '
         "at different nominal epochs came from separately trained and scheduled "
@@ -1648,19 +2199,586 @@ def _render_model_section(
         "one continued suffix-training trajectory. PCA coverage in these files is "
         "a legacy fit-bank value, not held-out coverage.</aside>"
         )
+    if has_legacy_cnn_schema:
+        legacy_notes.append(
+            '<aside class="evidence-note"><strong>Earlier CNN schema.</strong> '
+            "This artifact predates the full train × evaluation loss matrix and "
+            "paired optimizer diagnostics required by the canonical schema."
+            "</aside>"
+        )
     if has_legacy_resnet:
         legacy_notes.append(
             '<aside class="evidence-note"><strong>Legacy ResNet sweeps.</strong> '
-            "Schema-1/2 inputs do not record the fixed-bank, nested-rank, paired-noise, "
-            "and full lineage controls available in the schema-3 artifact.</aside>"
+            "Schema-1/2 inputs do not record the stronger bank and lineage "
+            "controls. Schema 3 adds a Fixed analysis bank, Paired rank comparison, "
+            "Trace-matched isotropic noise, and Full-bank class moments, but it "
+            "still records true-only accuracy rather than the primary loss matrix. "
+            "The canonical ResNet control uses fingerprinted fixed analysis banks "
+            "only when those controls accompany the schema-4 loss matrix."
+            "</aside>"
         )
     return (
-        f'<section id="{kind}" class="section">'
-        f'<div class="section-heading"><p class="eyebrow">Measured experiment</p>'
-        f'<h2>{_esc(architecture)}</h2><p>{_esc(intro)}</p></div>'
+        f'<section id="{_esc(section_id or kind)}" class="section">'
+        f'<div class="section-heading"><p class="eyebrow">{_esc(eyebrow)}</p>'
+        f'<h2>{_esc(heading_prefix + architecture)}</h2><p>{_esc(intro)}</p></div>'
         + "".join(legacy_notes)
         + "".join(run_html)
         + "</section>"
+    )
+
+
+def _is_legacy_artifact(artifact: LoadedArtifact) -> bool:
+    return (
+        artifact.format == "legacy_cnn_suffix_statistics"
+        or (
+            artifact.kind == "cnn"
+            and artifact.payload.get("schema_version") != 2
+        )
+        or (
+            artifact.kind == "resnet"
+            and artifact.payload.get("schema_version") != 4
+        )
+    )
+
+
+def _endpoint_paired_rows(
+    paired_summaries: Sequence[Mapping[str, Any]],
+) -> list[Mapping[str, Any]]:
+    groups: dict[tuple[Any, ...], list[Mapping[str, Any]]] = defaultdict(list)
+    for row in paired_summaries:
+        key = (
+            row["input_id"],
+            row["cut"],
+            row["pca_rank"],
+            row["lr_regime"],
+            row["distribution"],
+        )
+        groups[key].append(row)
+    return [
+        max(rows, key=lambda row: int(row["relax_epoch"]))
+        for rows in groups.values()
+    ]
+
+
+def _metric_with_range(row: Mapping[str, Any], metric: str, digits: int = 4) -> str:
+    mean = row.get(f"{metric}_mean")
+    if mean is None:
+        return "—"
+    text = f"{float(mean):.{digits}f}"
+    if int(row.get("draw_count", 1)) > 1:
+        low = float(row[f"{metric}_min"])
+        high = float(row[f"{metric}_max"])
+        text += f" ({low:.{digits}f}–{high:.{digits}f})"
+    return text
+
+
+def _percentage_point_with_range(
+    row: Mapping[str, Any],
+    metric: str,
+) -> str:
+    mean = row.get(f"{metric}_mean")
+    if mean is None:
+        return "—"
+    text = f"{100 * float(mean):.2f}"
+    if int(row.get("draw_count", 1)) > 1:
+        low = 100 * float(row[f"{metric}_min"])
+        high = 100 * float(row[f"{metric}_max"])
+        text += f" ({low:.2f}–{high:.2f})"
+    return text + " pp"
+
+
+def _primary_estimand_table(
+    paired_summaries: Sequence[Mapping[str, Any]],
+) -> str:
+    endpoints = [
+        row
+        for row in _endpoint_paired_rows(paired_summaries)
+        if row.get("loss_excess_mean") is not None
+    ]
+    if not endpoints:
+        return (
+            '<aside class="status-panel diagnostic"><strong>PRIMARY LOSS '
+            "ESTIMAND NOT RECORDED.</strong> These inputs can show accuracy "
+            "trajectories, but cannot support the declared paired cross-entropy "
+            "contrast.</aside>"
+        )
+    rows = []
+    for row in sorted(
+        endpoints,
+        key=lambda item: (
+            0 if item["kind"] == "cnn" else 1,
+            item["checkpoint_epoch"],
+            item["cut"],
+            item["pca_rank"],
+            _distribution_order(str(item["distribution"])),
+        ),
+    ):
+        label, _colour, _dash = _distribution_style(str(row["distribution"]))
+        rows.append(
+            "<tr>"
+            f'<td>{_esc(_architecture_label(str(row["kind"])))}</td>'
+            f'<td>{row["checkpoint_epoch"]}</td>'
+            f'<td>{row["model_seed"]}</td>'
+            f'<td>{_esc(row["module"])}</td>'
+            f'<td>{row["pca_rank"]}</td>'
+            f"<td>{_esc(label)}</td>"
+            f'<td class="number">{_metric_with_range(row, "loss_excess")}</td>'
+            f'<td class="number">{_percentage_point_with_range(row, "accuracy_shortfall")}</td>'
+            f'<td>{row["draw_count"]} paired draw'
+            f'{"s" if int(row["draw_count"]) != 1 else ""}</td>'
+            "</tr>"
+        )
+    return (
+        '<div class="table-scroll"><table><thead><tr>'
+        "<th>Model</th><th>Checkpoint</th><th>Model seed</th><th>Cut</th><th>Rank</th>"
+        "<th>Replay distribution</th><th>Excess loss (nats/example)</th>"
+        "<th>Accuracy shortfall (percentage points)</th><th>Uncertainty unit</th>"
+        "</tr></thead><tbody>"
+        + "".join(rows)
+        + "</tbody></table></div>"
+    )
+
+
+def _matrix_cards(observations: Sequence[Mapping[str, Any]]) -> str:
+    cell_fields = (
+        "input_id",
+        "kind",
+        "label",
+        "checkpoint_epoch",
+        "model_seed",
+        "cut",
+        "module",
+        "pca_rank",
+        "lr_regime",
+    )
+    max_rank: dict[tuple[str, int], int] = defaultdict(int)
+    for row in observations:
+        max_rank[(str(row["input_id"]), int(row["cut"]))] = max(
+            max_rank[(str(row["input_id"]), int(row["cut"]))],
+            int(row["pca_rank"]),
+        )
+    cells: dict[tuple[Any, ...], list[Mapping[str, Any]]] = defaultdict(list)
+    for row in observations:
+        if row.get("loss") is None:
+            continue
+        if int(row["pca_rank"]) != max_rank[
+            (str(row["input_id"]), int(row["cut"]))
+        ]:
+            continue
+        cells[tuple(row[field] for field in cell_fields)].append(row)
+
+    cards: list[str] = []
+    for key, rows in sorted(
+        cells.items(),
+        key=lambda item: (
+            0 if item[0][1] == "cnn" else 1,
+            item[0][3],
+            item[0][5],
+            item[0][7],
+        ),
+    ):
+        endpoint_rows: dict[tuple[int, str, str], Mapping[str, Any]] = {}
+        for row in rows:
+            endpoint_key = (
+                int(row["draw"]),
+                str(row["distribution"]),
+                str(row["eval_distribution"]),
+            )
+            previous = endpoint_rows.get(endpoint_key)
+            if previous is None or int(row["relax_epoch"]) > int(
+                previous["relax_epoch"]
+            ):
+                endpoint_rows[endpoint_key] = row
+        train_distributions = sorted(
+            {item[1] for item in endpoint_rows}, key=_distribution_order
+        )
+        eval_distributions = sorted(
+            {item[2] for item in endpoint_rows}, key=_distribution_order
+        )
+        if len(train_distributions) < 2 or len(eval_distributions) < 2:
+            continue
+        values: dict[tuple[str, str], list[float]] = defaultdict(list)
+        for (_draw, train_distribution, eval_distribution), row in endpoint_rows.items():
+            values[(train_distribution, eval_distribution)].append(float(row["loss"]))
+        required = {
+            (train_distribution, eval_distribution)
+            for train_distribution in train_distributions
+            for eval_distribution in eval_distributions
+        }
+        if not required.issubset(values):
+            continue
+        header = "".join(
+            f"<th>{_esc(_distribution_style(name)[0])}</th>"
+            for name in train_distributions
+        )
+        body_rows = []
+        for eval_distribution in eval_distributions:
+            diagonal = values.get((eval_distribution, eval_distribution))
+            diagonal_mean = fmean(diagonal) if diagonal else None
+            cells_html = []
+            for train_distribution in train_distributions:
+                mean_loss = fmean(values[(train_distribution, eval_distribution)])
+                delta = (
+                    ""
+                    if diagonal_mean is None
+                    else f'<span class="matrix-delta">Δ {mean_loss - diagonal_mean:+.4f}</span>'
+                )
+                cells_html.append(
+                    f'<td class="number"><strong>{mean_loss:.4f}</strong>{delta}</td>'
+                )
+            body_rows.append(
+                "<tr>"
+                f"<th>{_esc(_distribution_style(eval_distribution)[0])}</th>"
+                + "".join(cells_html)
+                + "</tr>"
+            )
+        metadata = dict(zip(cell_fields, key))
+        cards.append(
+            '<details class="matrix-card">'
+            "<summary><span>"
+            f'{_esc(_architecture_label(str(metadata["kind"])))} · '
+            f'epoch {metadata["checkpoint_epoch"]} · seed {metadata["model_seed"]} · '
+            f'{_esc(metadata["module"])}'
+            "</span><span class=\"summary-meta\">"
+            f'rank {metadata["pca_rank"]} · {_esc(metadata["lr_regime"])}</span>'
+            "</summary><div class=\"matrix-body\">"
+            '<p class="micro">Columns are relaxation distributions; rows are '
+            "evaluation distributions. Each cell is endpoint cross-entropy. "
+            "Δ subtracts the matched diagonal for that evaluation distribution.</p>"
+            '<div class="table-scroll"><table class="matrix-table"><thead><tr>'
+            "<th>Evaluate ↓ / relax →</th>"
+            + header
+            + "</tr></thead><tbody>"
+            + "".join(body_rows)
+            + "</tbody></table></div></div></details>"
+        )
+    if not cards:
+        return (
+            '<aside class="status-panel diagnostic"><strong>FULL MATRIX NOT '
+            "RECORDED.</strong> This build contains true-evaluation-only or "
+            "incomplete legacy rows. No cross-distribution conclusion is shown.</aside>"
+        )
+    cards[0] = cards[0].replace('<details class="matrix-card">', '<details class="matrix-card" open>', 1)
+    return "".join(cards)
+
+
+def _rank_outcome_table(
+    paired_summaries: Sequence[Mapping[str, Any]],
+    cells: Sequence[Mapping[str, Any]],
+) -> str:
+    endpoints = _endpoint_paired_rows(paired_summaries)
+    rank_groups: dict[tuple[str, int], set[int]] = defaultdict(set)
+    for cell in cells:
+        rank_groups[(str(cell["input_id"]), int(cell["cut"]))].add(
+            int(cell["pca_rank"])
+        )
+    multi = {key for key, ranks in rank_groups.items() if len(ranks) > 1}
+    if not multi:
+        return '<p class="empty-control">No measured multi-rank outcome sweep in this build.</p>'
+    cell_lookup = {
+        (str(cell["input_id"]), int(cell["cut"]), int(cell["pca_rank"])): cell
+        for cell in cells
+    }
+    rows = []
+    for row in sorted(
+        (
+            row
+            for row in endpoints
+            if (str(row["input_id"]), int(row["cut"])) in multi
+            and _distribution_family(str(row["distribution"]))
+            in {"projected_true", "gaussian"}
+        ),
+        key=lambda item: (
+            item["input_id"],
+            item["cut"],
+            item["pca_rank"],
+            _distribution_order(str(item["distribution"])),
+        ),
+    ):
+        cell = cell_lookup[
+            (str(row["input_id"]), int(row["cut"]), int(row["pca_rank"]))
+        ]
+        label, _colour, _dash = _distribution_style(str(row["distribution"]))
+        rows.append(
+            "<tr>"
+            f'<td>{_esc(_architecture_label(str(row["kind"])))}</td>'
+            f'<td>{row["checkpoint_epoch"]}</td><td>{row["model_seed"]}</td>'
+            f'<td>{_esc(row["module"])}</td>'
+            f'<td>{row["pca_rank"]}</td>'
+            f'<td>{_fmt_percent(cell.get("coverage_within_class"))}</td>'
+            f"<td>{_esc(label)}</td>"
+            f'<td class="number">{_metric_with_range(row, "loss_excess")}</td>'
+            "</tr>"
+        )
+    return (
+        '<div class="table-scroll"><table><thead><tr><th>Model</th>'
+        "<th>Checkpoint</th><th>Model seed</th><th>Cut</th><th>Rank</th>"
+        "<th>Within-class coverage</th><th>Replay</th><th>Excess loss</th>"
+        "</tr></thead><tbody>"
+        + "".join(rows)
+        + "</tbody></table></div>"
+    )
+
+
+def _noise_outcome_table(
+    paired_summaries: Sequence[Mapping[str, Any]],
+) -> str:
+    endpoints = _endpoint_paired_rows(paired_summaries)
+    groups: dict[tuple[str, int, int], set[float]] = defaultdict(set)
+    for row in endpoints:
+        radius = _mean_radius(str(row["distribution"]))
+        if radius is not None:
+            groups[
+                (str(row["input_id"]), int(row["cut"]), int(row["pca_rank"]))
+            ].add(radius)
+    multi = {key for key, radii in groups.items() if len(radii) > 1}
+    if not multi:
+        return '<p class="empty-control">No measured multi-radius outcome sweep in this build.</p>'
+    rows = []
+    for row in sorted(
+        (
+            row
+            for row in endpoints
+            if (
+                str(row["input_id"]),
+                int(row["cut"]),
+                int(row["pca_rank"]),
+            )
+            in multi
+            and _mean_radius(str(row["distribution"])) is not None
+        ),
+        key=lambda item: (
+            item["input_id"],
+            item["cut"],
+            item["pca_rank"],
+            float(_mean_radius(str(item["distribution"])) or 0),
+        ),
+    ):
+        radius = _mean_radius(str(row["distribution"]))
+        rows.append(
+            "<tr>"
+            f'<td>{_esc(_architecture_label(str(row["kind"])))}</td>'
+            f'<td>{row["checkpoint_epoch"]}</td><td>{row["model_seed"]}</td>'
+            f'<td>{_esc(row["module"])}</td>'
+            f'<td>{row["pca_rank"]}</td><td>{radius:g}</td>'
+            f'<td class="number">{_metric_with_range(row, "loss_excess")}</td>'
+            f'<td class="number">{_percentage_point_with_range(row, "accuracy_shortfall")}</td>'
+            "</tr>"
+        )
+    return (
+        '<div class="table-scroll"><table><thead><tr><th>Model</th>'
+        "<th>Checkpoint</th><th>Model seed</th><th>Cut</th><th>Rank</th>"
+        "<th>Noise radius</th>"
+        "<th>Excess loss</th><th>Accuracy shortfall (percentage points)</th>"
+        "</tr></thead><tbody>"
+        + "".join(rows)
+        + "</tbody></table></div>"
+    )
+
+
+def _moment_diagnostic_table(cells: Sequence[Mapping[str, Any]]) -> str:
+    rows = []
+    for cell in cells:
+        for diagnostic in cell.get("moment_diagnostics", []):
+            distribution = diagnostic.get("distribution")
+            if not isinstance(distribution, str):
+                continue
+            label, _colour, _dash = _distribution_style(distribution)
+            mean_error = diagnostic.get("class_mean_relative_error")
+            covariance_error = diagnostic.get("class_covariance_relative_error")
+            rows.append(
+                "<tr>"
+                f'<td>{_esc(_architecture_label(str(cell["kind"])))}</td>'
+                f'<td>{cell["checkpoint_epoch"]}</td><td>{cell["model_seed"]}</td>'
+                f'<td>{_esc(cell["module"])}</td>'
+                f'<td>{cell["pca_rank"]}</td><td>{_esc(label)}</td>'
+                f'<td>{_esc(diagnostic.get("draw", "—"))}</td>'
+                f'<td class="number">{("—" if mean_error is None else f"{float(mean_error):.4f}")}</td>'
+                f'<td class="number">{("—" if covariance_error is None else f"{float(covariance_error):.4f}")}</td>'
+                f'<td>{_esc(diagnostic.get("diagnostic_space") or "not recorded")}</td>'
+                "</tr>"
+            )
+    if not rows:
+        return '<p class="empty-control">No normalized moment-fidelity diagnostics in this build.</p>'
+    return (
+        '<div class="table-scroll"><table><thead><tr><th>Model</th>'
+        "<th>Checkpoint</th><th>Model seed</th><th>Cut</th><th>Rank</th>"
+        "<th>Surrogate</th>"
+        "<th>Draw</th><th>Class-mean relative error</th>"
+        "<th>Class-covariance relative error</th><th>Diagnostic space</th>"
+        "</tr></thead><tbody>"
+        + "".join(rows)
+        + "</tbody></table></div>"
+    )
+
+
+def _gradient_diagnostic_table(
+    observations: Sequence[Mapping[str, Any]],
+) -> str:
+    groups: dict[
+        tuple[Any, ...], dict[str, Mapping[str, Any]]
+    ] = defaultdict(dict)
+    for row in observations:
+        if (
+            row["eval_distribution"] != "true"
+            or int(row["relax_epoch"]) != 0
+            or row.get("initial_gradient_norm") is None
+        ):
+            continue
+        key = (
+            row["input_id"],
+            row["kind"],
+            row["checkpoint_epoch"],
+            row["model_seed"],
+            row["cut"],
+            row["module"],
+            row["pca_rank"],
+            row["lr_regime"],
+            row["draw"],
+        )
+        groups[key][str(row["distribution"])] = row
+    ratios: dict[
+        tuple[Any, ...], list[tuple[float, float | None, float | None]]
+    ] = defaultdict(list)
+    for key, values in groups.items():
+        reference = values.get("true")
+        if reference is None or float(reference["initial_gradient_norm"]) <= 0:
+            continue
+        for distribution, row in values.items():
+            if distribution == "true":
+                continue
+            total_ratio = float(row["initial_gradient_norm"]) / float(
+                reference["initial_gradient_norm"]
+            )
+            rms_ratio = None
+            if (
+                row.get("initial_gradient_rms") is not None
+                and reference.get("initial_gradient_rms") not in {None, 0}
+            ):
+                rms_ratio = float(row["initial_gradient_rms"]) / float(
+                    reference["initial_gradient_rms"]
+                )
+            update_ratio = None
+            if (
+                row.get("initial_update_to_weight_ratio") is not None
+                and reference.get("initial_update_to_weight_ratio") not in {None, 0}
+            ):
+                update_ratio = float(
+                    row["initial_update_to_weight_ratio"]
+                ) / float(reference["initial_update_to_weight_ratio"])
+            ratios[key[:-1] + (distribution,)].append(
+                (total_ratio, rms_ratio, update_ratio)
+            )
+    if not ratios:
+        return '<p class="empty-control">No initial suffix-gradient norms in this build.</p>'
+    rows = []
+    for key, values in sorted(
+        ratios.items(),
+        key=lambda item: (
+            0 if item[0][1] == "cnn" else 1,
+            item[0][2],
+            item[0][4],
+            item[0][6],
+            _distribution_order(str(item[0][-1])),
+        ),
+    ):
+        (
+            _input_id,
+            kind,
+            epoch,
+            model_seed,
+            _cut,
+            module,
+            rank,
+            regime,
+            distribution,
+        ) = key
+        label, _colour, _dash = _distribution_style(str(distribution))
+        total_values = [value[0] for value in values]
+        rms_values = [value[1] for value in values if value[1] is not None]
+        update_values = [value[2] for value in values if value[2] is not None]
+        row_html = (
+            "<tr>"
+            f'<td>{_esc(_architecture_label(str(kind)))}</td><td>{epoch}</td>'
+            f"<td>{model_seed}</td>"
+            f"<td>{_esc(module)}</td><td>{rank}</td><td>{_esc(label)}</td>"
+            f'<td class="number">{fmean(total_values):.3f}×</td>'
+        )
+        row_html += (
+            f'<td class="number">{fmean(rms_values):.3f}×</td>'
+            if rms_values
+            else '<td class="number">—</td>'
+        )
+        row_html += (
+            f'<td class="number">{fmean(update_values):.3f}×</td>'
+            if update_values
+            else '<td class="number">—</td>'
+        )
+        row_html += (
+            f"<td>{len(values)} paired draw"
+            f'{"s" if len(values) != 1 else ""}</td><td>{_esc(regime)}</td>'
+            "</tr>"
+        )
+        rows.append(row_html)
+    return (
+        '<div class="table-scroll"><table><thead><tr><th>Model</th>'
+        "<th>Checkpoint</th><th>Model seed</th><th>Cut</th><th>Rank</th>"
+        "<th>Replay</th>"
+        "<th>Total gradient / true</th><th>RMS gradient / true</th>"
+        "<th>Update-to-weight / true</th><th>Uncertainty unit</th><th>LR regime</th>"
+        "</tr></thead><tbody>"
+        + "".join(rows)
+        + "</tbody></table></div>"
+    )
+
+
+def _projection_diagnostic_table(
+    cells: Sequence[Mapping[str, Any]],
+) -> str:
+    rows = []
+    for cell in cells:
+        diagnostic = cell.get("step_zero_true_vs_projected")
+        if not isinstance(diagnostic, dict):
+            continue
+        true_loss = diagnostic.get("true_loss")
+        projected_loss = diagnostic.get("projected_true_loss")
+        true_accuracy = diagnostic.get("true_accuracy")
+        projected_accuracy = diagnostic.get("projected_true_accuracy")
+        loss_delta = (
+            float(projected_loss) - float(true_loss)
+            if true_loss is not None and projected_loss is not None
+            else None
+        )
+        accuracy_delta = (
+            100 * (float(projected_accuracy) - float(true_accuracy))
+            if true_accuracy is not None and projected_accuracy is not None
+            else None
+        )
+        predictive_kl = diagnostic.get("true_to_projected_predictive_kl")
+        rows.append(
+            "<tr>"
+            f'<td>{_esc(_architecture_label(str(cell["kind"])))}</td>'
+            f'<td>{cell["checkpoint_epoch"]}</td>'
+            f'<td>{cell["model_seed"]}</td>'
+            f'<td>{_esc(cell["module"])}</td><td>{cell["pca_rank"]}</td>'
+            f'<td class="number">{("—" if loss_delta is None else f"{loss_delta:+.5f}")}</td>'
+            f'<td class="number">{("—" if accuracy_delta is None else f"{accuracy_delta:+.2f} pp")}</td>'
+            f'<td class="number">{("—" if predictive_kl is None else f"{float(predictive_kl):.5f}")}</td>'
+            "</tr>"
+        )
+    if not rows:
+        return (
+            '<p class="empty-control">No step-zero true-versus-projected '
+            "functional diagnostic in this build.</p>"
+        )
+    return (
+        '<div class="table-scroll"><table><thead><tr><th>Model</th>'
+        "<th>Checkpoint</th><th>Model seed</th><th>Cut</th><th>Rank</th>"
+        "<th>Projected − true loss</th><th>Projected − true accuracy</th>"
+        "<th>Predictive KL(true ∥ projected)</th>"
+        "</tr></thead><tbody>"
+        + "".join(rows)
+        + "</tbody></table></div>"
     )
 
 
@@ -1673,7 +2791,7 @@ def _completed_controls(
         controls.append(
             (
                 "Projected-real replay",
-                "Separates PCA projection loss from the Gaussian approximation.",
+                "Provides an empirical in-subspace baseline before the Gaussian approximation.",
             )
         )
     ranks_by_cut: dict[tuple[str, int], set[int]] = defaultdict(set)
@@ -1749,6 +2867,11 @@ def _completed_controls(
 
 
 def _coverage_table(cells: Sequence[Mapping[str, Any]]) -> str:
+    if not cells:
+        return (
+            '<p class="empty-control">No canonical PCA coverage metadata in '
+            "this build.</p>"
+        )
     rows = []
     for cell in sorted(
         cells,
@@ -1763,6 +2886,15 @@ def _coverage_table(cells: Sequence[Mapping[str, Any]]) -> str:
         pca_fit_count = cell.get("pca_fit_count")
         moment_fit_count = cell.get("moment_fit_count")
         shrinkage = cell.get("covariance_shrinkage")
+        estimators = cell.get("gaussian_covariance_estimators")
+        estimator_text = "—"
+        if isinstance(estimators, list):
+            estimator_text = ", ".join(
+                _distribution_style(str(item["distribution"]))[0]
+                for item in estimators
+                if isinstance(item, dict)
+                and isinstance(item.get("distribution"), str)
+            ) or "—"
         isotropic_trace = cell.get("trace_matched_isotropic_covariance_trace")
         shrinkage_text = (
             _fmt_percent(float(shrinkage)) if shrinkage is not None else "—"
@@ -1783,22 +2915,31 @@ def _coverage_table(cells: Sequence[Mapping[str, Any]]) -> str:
             "<tr>"
             f'<td>{_esc(_architecture_label(str(cell["kind"])))}</td>'
             f'<td>{cell["checkpoint_epoch"]}</td>'
+            f'<td>{cell["model_seed"]}</td>'
             f'<td>{_esc(cell["module"])}</td>'
             f'<td>{cell["pca_rank"]}{rank_flag}</td>'
-            f'<td>{_fmt_percent(cell["coverage"])}</td>'
+            f'<td>{_fmt_percent(cell.get("coverage_total"))}</td>'
+            f'<td>{_fmt_percent(cell.get("coverage_within_class"))}</td>'
+            f'<td>{_fmt_percent(cell.get("coverage_between_class"))}</td>'
             f'<td>{_esc(cell["coverage_basis"])}</td>'
+            f'<td>{_esc(cell.get("native_dimension") or "—")}</td>'
             f'<td>{_esc(pca_fit_count if pca_fit_count is not None else "—")}</td>'
             f'<td>{_esc(moment_fit_count if moment_fit_count is not None else "—")}</td>'
             f"<td>{shrinkage_text}</td>"
+            f"<td>{_esc(estimator_text)}</td>"
             f"<td>{isotropic_trace_text}</td>"
             f'<td>{_esc(radii)}</td>'
             "</tr>"
         )
     return (
         '<div class="table-scroll"><table><thead><tr>'
-        "<th>Model</th><th>Checkpoint epoch</th><th>Cut</th><th>PCA rank</th>"
-        "<th>Variance retained</th><th>Coverage population</th>"
-        "<th>PCA-fit n</th><th>Moment-fit n</th><th>Cov. shrinkage</th>"
+        "<th>Model</th><th>Checkpoint epoch</th><th>Model seed</th>"
+        "<th>Cut</th><th>PCA rank</th>"
+        "<th>Total variance</th><th>Within-class variance</th>"
+        "<th>Between-class mean variance</th><th>Coverage population</th>"
+        "<th>Native coordinates</th>"
+        "<th>PCA-fit n</th><th>Moment-fit n</th><th>Legacy cov. shrinkage</th>"
+        "<th>Gaussian covariance estimators</th>"
         "<th>Isotropic trace</th><th>Mean-noise r</th>"
         "</tr></thead><tbody>"
         + "".join(rows)
@@ -1810,25 +2951,38 @@ def _exact_table(summaries: Sequence[Mapping[str, Any]]) -> str:
     rows = []
     for row in summaries:
         label, _colour, _dash = _distribution_style(str(row["distribution"]))
+        eval_label, _eval_colour, _eval_dash = _distribution_style(
+            str(row["eval_distribution"])
+        )
+        loss_text = (
+            f'{float(row["loss_mean"]):.5f}'
+            if row.get("loss_mean") is not None
+            else "—"
+        )
         rows.append(
             "<tr>"
             f'<td>{_esc(_architecture_label(str(row["kind"])))}</td>'
             f'<td>{row["checkpoint_epoch"]}</td>'
+            f'<td>{row["model_seed"]}</td>'
             f'<td>{_esc(row["module"])}</td>'
             f'<td>{row["pca_rank"]}</td>'
             f'<td>{_esc(label)}</td>'
+            f'<td>{_esc(eval_label)}</td>'
             f'<td>{row["relax_epoch"]}</td>'
+            f"<td>{loss_text}</td>"
             f'<td>{100 * float(row["accuracy_mean"]):.3f}%</td>'
             f'<td>{100 * float(row["accuracy_min"]):.3f}%–'
             f'{100 * float(row["accuracy_max"]):.3f}%</td>'
             f'<td>{row["draw_count"]}</td>'
+            f'<td>{_esc(row["lr_regime"])}</td>'
             "</tr>"
         )
     return (
         '<div class="table-scroll exact-table"><table><thead><tr>'
-        "<th>Model</th><th>Checkpoint</th><th>Cut</th><th>Rank</th>"
-        "<th>Training distribution</th><th>Relax epoch</th>"
-        "<th>Mean accuracy</th><th>Draw range</th><th>n</th>"
+        "<th>Model</th><th>Checkpoint</th><th>Model seed</th><th>Cut</th><th>Rank</th>"
+        "<th>Training distribution</th><th>Evaluation distribution</th>"
+        "<th>Relax epoch</th><th>Mean loss</th>"
+        "<th>Mean accuracy</th><th>Draw range</th><th>n</th><th>LR regime</th>"
         "</tr></thead><tbody>"
         + "".join(rows)
         + "</tbody></table></div>"
@@ -1839,6 +2993,14 @@ def _manifest_cards(artifacts: Sequence[LoadedArtifact]) -> str:
     cards = []
     for kind in ("cnn", "resnet"):
         group = [artifact for artifact in artifacts if artifact.kind == kind]
+        if not group:
+            cards.append(
+                '<article class="input-card absent">'
+                f'<p class="eyebrow">{_esc(_architecture_label(kind))}</p>'
+                "<h3>Not loaded</h3><p>No measured artifact for this "
+                "architecture is present in the manifest.</p></article>"
+            )
+            continue
         epochs = sorted({artifact.checkpoint_epoch for artifact in group})
         seeds = sorted({artifact.model_seed for artifact in group})
         draw_counts = sorted(
@@ -2042,15 +3204,27 @@ h3 {{ margin: .1rem 0 .65rem; }}
 .measured {{ background: #e3eee4; border-color: #719176; }}
 .section {{ padding: 4rem 0 1rem; scroll-margin-top: 3.6rem; }}
 .section-heading {{ max-width: 780px; margin-bottom: 1.8rem; }}
+.question {{
+  font-family: Georgia, serif; font-size: 1.23rem; line-height: 1.4;
+  color: #37322c; margin: .8rem 0 0;
+}}
 .evidence-note {{
   background: #f7edda; border: 1px solid #caa969; border-left: 4px solid #9d6e19;
   border-radius: 8px; padding: .85rem 1rem; margin: 0 0 1rem;
 }}
+.status-panel {{
+  background: #f8e9d6; border: 1px solid #c59d62; border-left: 5px solid var(--accent);
+  border-radius: 10px; padding: 1rem 1.15rem; margin: 1rem 0 1.4rem;
+}}
+.status-panel.measured-result {{ background: #e9f1e8; border-color: #7b9b7e; }}
+.status-panel.diagnostic {{ background: #f8e9d6; border-color: #c59d62; }}
+.status-panel p {{ margin: .35rem 0 0; }}
 .input-grid {{ display: grid; grid-template-columns: repeat(auto-fit,minmax(240px,1fr)); gap: 1rem; }}
-.input-card, .method-card, .control-card, .provenance-card {{
+.input-card, .method-card, .control-card, .provenance-card, .estimand-card {{
   background: var(--card); border: 1px solid var(--rule); border-radius: 12px;
   padding: 1.15rem; box-shadow: 0 2px 14px rgba(45,37,28,.04);
 }}
+.input-card.absent {{ color: var(--muted); background: #eeeae2; }}
 dl {{ margin: .8rem 0 0; }}
 dl div {{ display: flex; justify-content: space-between; gap: 1rem;
           padding: .35rem 0; border-top: 1px solid #ebe6dc; }}
@@ -2066,6 +3240,17 @@ dt {{ color: var(--muted); }} dd {{ margin: 0; text-align: right; }}
                  gap: 1rem; margin-top: 1rem; }}
 .method-notes h3 {{ font-size: 1rem; }}
 .method-notes p {{ color: var(--muted); margin: .3rem 0 0; }}
+.equation-box {{
+  margin: 1.2rem 0; padding: 1rem 1.2rem; border: 1px solid #bdb4a6;
+  border-radius: 9px; background: #f2eee6; overflow-x: auto;
+}}
+.equation {{
+  font-family: "STIX Two Text", Georgia, serif; font-size: 1.08rem;
+  white-space: nowrap; font-variant-numeric: tabular-nums;
+}}
+.equation-box p {{ margin: .4rem 0 0; color: var(--muted); font-size: .88rem; }}
+.criteria-list {{ margin: .4rem 0 0; padding-left: 1.1rem; color: var(--muted); }}
+.criteria-list li {{ margin: .28rem 0; }}
 .legend-strip {{ display: flex; flex-wrap: wrap; gap: .75rem 1.2rem; margin: 1rem 0; }}
 .legend-item {{ display: flex; align-items: center; gap: .45rem; font-size: .9rem; }}
 .legend-swatch {{ width: 30px; height: 4px; display: inline-block; }}
@@ -2111,6 +3296,31 @@ details > summary::marker {{ color: var(--accent); }}
                  gap: 1rem; margin: 1rem 0 2rem; }}
 .control-card h3 {{ font-size: 1rem; }}
 .control-card p {{ margin: .3rem 0 0; color: var(--muted); }}
+.control-stack {{ display: grid; gap: 2rem; }}
+.control-block {{ border-top: 1px solid var(--rule); padding-top: 1.2rem; }}
+.control-block h3 {{ font-family: Georgia, serif; font-size: 1.35rem; }}
+.control-block > p {{ color: var(--muted); max-width: 800px; }}
+.empty-control {{
+  color: var(--muted); border: 1px dashed #bdb4a6; border-radius: 8px;
+  padding: .8rem 1rem; background: rgba(255,253,248,.5);
+}}
+.matrix-card {{
+  background: var(--card); border: 1px solid var(--rule); border-radius: 12px;
+  margin: 1rem 0; overflow: clip;
+}}
+.matrix-body {{ padding: 0 1.1rem 1.1rem; }}
+.matrix-table th:first-child {{ background: #e7dfd3; }}
+.matrix-table td {{ vertical-align: top; }}
+.matrix-delta {{ display: block; color: var(--muted); font-size: .72rem; margin-top: .15rem; }}
+.number {{ font-variant-numeric: tabular-nums; text-align: right; }}
+.result-note {{
+  color: var(--muted); max-width: 820px; border-left: 3px solid var(--rule);
+  padding-left: .85rem; margin: 1rem 0;
+}}
+.legacy-divider {{
+  border-top: 4px double #9c9489; margin-top: 4rem; padding-top: 1rem;
+}}
+.legacy-divider > .section-heading {{ margin-bottom: .8rem; }}
 .table-scroll {{ overflow-x: auto; background: var(--card); border: 1px solid var(--rule);
                  border-radius: 10px; }}
 table {{ border-collapse: collapse; width: 100%; font-size: .82rem; }}
@@ -2165,11 +3375,54 @@ def render_report(
 
     observations, cells = normalise_artifacts(artifacts)
     summaries = summarise_observations(observations)
-    controls = _completed_controls(summaries, cells)
+    paired_draws = paired_true_eval_contrasts(observations)
+    paired_summaries = summarise_paired_contrasts(paired_draws)
+
+    canonical_artifacts = [
+        artifact for artifact in artifacts if not _is_legacy_artifact(artifact)
+    ]
+    legacy_artifacts = [
+        artifact for artifact in artifacts if _is_legacy_artifact(artifact)
+    ]
+    canonical_ids = {artifact.id for artifact in canonical_artifacts}
+    legacy_ids = {artifact.id for artifact in legacy_artifacts}
+    canonical_observations = [
+        row for row in observations if row["input_id"] in canonical_ids
+    ]
+    canonical_cells = [row for row in cells if row["input_id"] in canonical_ids]
+    canonical_summaries = [
+        row for row in summaries if row["input_id"] in canonical_ids
+    ]
+    canonical_paired = [
+        row for row in paired_summaries if row["input_id"] in canonical_ids
+    ]
+    legacy_summaries = [row for row in summaries if row["input_id"] in legacy_ids]
+    legacy_cells = [row for row in cells if row["input_id"] in legacy_ids]
+
+    controls = _completed_controls(canonical_summaries, canonical_cells)
     control_html = "".join(
         f'<article class="control-card"><h3>{_esc(name)}</h3>'
         f'<p>{_esc(description)}</p></article>'
         for name, description in controls
+    ) or (
+        '<article class="control-card"><h3>No canonical control suite loaded</h3>'
+        "<p>The measured legacy evidence remains below, but it is not promoted "
+        "to a completed canonical control.</p></article>"
+    )
+    has_primary = any(
+        row.get("loss_excess_mean") is not None for row in canonical_paired
+    )
+    status_html = (
+        '<aside class="status-panel measured-result"><strong>PRIMARY ESTIMAND '
+        "AVAILABLE.</strong><p>The canonical artifacts record paired, draw-level "
+        "true-evaluation cross-entropy contrasts. Accuracy remains a secondary "
+        "readout.</p></aside>"
+        if has_primary
+        else
+        '<aside class="status-panel diagnostic"><strong>DIAGNOSTIC BUILD.</strong>'
+        "<p>The loaded canonical artifacts do not yet record the paired "
+        "cross-entropy estimand. Accuracy-only trajectories are descriptive and "
+        "cannot settle the main claim.</p></aside>"
     )
     embedded = {
         "manifest": manifest,
@@ -2185,8 +3438,13 @@ def render_report(
             }
             for artifact in artifacts
         ],
-        "normalised_true_evaluation_records": observations,
+        "normalised_evaluation_records": observations,
+        "normalised_true_evaluation_records": [
+            row for row in observations if row["eval_distribution"] == "true"
+        ],
         "exact_summary_rows": summaries,
+        "paired_true_evaluation_draw_contrasts": paired_draws,
+        "paired_true_evaluation_summaries": paired_summaries,
         "cell_metadata": cells,
     }
     provenance_cards = "".join(
@@ -2197,6 +3455,47 @@ def render_report(
         "</article>"
         for artifact in artifacts
     )
+    canonical_sections = "".join(
+        _render_model_section(
+            kind,
+            canonical_artifacts,
+            canonical_summaries,
+            canonical_cells,
+            section_id=kind,
+            eyebrow="Canonical measured evidence",
+        )
+        for kind in ("cnn", "resnet")
+    )
+    legacy_sections = "".join(
+        _render_model_section(
+            kind,
+            legacy_artifacts,
+            legacy_summaries,
+            legacy_cells,
+            section_id=f"legacy-{kind}",
+            eyebrow="Legacy measured appendix",
+            heading_prefix="Legacy: ",
+        )
+        for kind in ("cnn", "resnet")
+    )
+    legacy_html = ""
+    if legacy_artifacts:
+        legacy_html = (
+            '<section id="legacy" class="section legacy-divider">'
+            '<div class="section-heading"><p class="eyebrow">Legacy appendix</p>'
+            "<h2>Earlier measured evidence, kept in its lane</h2>"
+            "<p>These hashed artifacts remain available for audit and historical "
+            "context. They are excluded from the primary estimand and canonical "
+            "control claims because they lack one or more required measurement or "
+            "pairing fields.</p></div></section>"
+            + legacy_sections
+        )
+    canonical_nav = "".join(
+        f'<a href="#{kind}">{_esc(_architecture_label(kind))}</a>'
+        for kind in ("cnn", "resnet")
+        if any(artifact.kind == kind for artifact in canonical_artifacts)
+    )
+    legacy_nav = '<a href="#legacy">Legacy appendix</a>' if legacy_artifacts else ""
 
     return f"""<!doctype html>
 <html lang="en">
@@ -2209,22 +3508,26 @@ def render_report(
 <body>
 <nav aria-label="Report sections">
   <a href="#overview">Overview</a>
-  <a href="#method">Method</a>
-  <a href="#cnn">Four-block CNN</a>
-  <a href="#resnet">ResNet-18</a>
-  <a href="#data">Robustness &amp; data</a>
+  <a href="#method">Methodology</a>
+  <a href="#estimand">Primary estimand</a>
+  <a href="#matrix">Full matrix</a>
+  <a href="#controls">Controls</a>
+  {canonical_nav}
+  {legacy_nav}
+  <a href="#data">Data &amp; provenance</a>
 </nav>
 <main>
   <header id="overview" class="hero">
-    <p class="eyebrow">Research note · data appendix</p>
+    <p class="eyebrow">Research note · measured dashboard</p>
     <h1>{_esc(TITLE)}</h1>
-    <p class="lede">This appendix follows class-conditioned activation distributions
-      through trained network prefixes, then asks how quickly the remaining suffix
-      relearns from real, projected-real, Gaussian, or mean-based replay.</p>
+    <p class="lede">How much of a trained suffix's relearning behaviour is explained
+      by low-order, class-conditional activation statistics—and what fails when
+      projection, covariance, or optimization is changed?</p>
     <div class="status-line">
       <span class="badge wip">Work in progress</span>
       <span class="badge measured">Measured inputs only</span>
-      <span>{len(artifacts)} hashed artifacts · dashboard source base
+      <span>{len(canonical_artifacts)} canonical · {len(legacy_artifacts)} legacy ·
+        {len(artifacts)} hashed artifacts · dashboard source base
         <code>{_esc(manifest["source_commit"])}</code></span>
     </div>
   </header>
@@ -2233,20 +3536,21 @@ def render_report(
     <div class="section-heading">
       <p class="eyebrow">Evidence in this build</p>
       <h2 id="evidence-heading">A narrow, auditable view</h2>
-      <p>Each card names the experimental unit. Model seeds and surrogate draws are
-        not interchangeable; both are shown explicitly throughout.</p>
+      <p class="question">The claim is credible only if the paired true-evaluation
+        loss contrast survives the projection, rank, moment, noise, and optimizer
+        controls below.</p>
     </div>
+    {status_html}
     <div class="input-grid">{_manifest_cards(artifacts)}</div>
   </section>
 
   <section id="method" class="section">
     <div class="section-heading">
-      <p class="eyebrow">Method</p>
-      <h2>Cut, fit, replay, relax</h2>
+      <p class="eyebrow">Methodology and decision rule</p>
+      <h2>Cut, fit, replay, relax—then test the right contrast</h2>
       <p>A checkpoint supplies one prefix and suffix. We push a labelled input
         distribution through the prefix, fit PCA and class-conditional moments at
-        the cut, replay controlled distributions there, and train only the suffix.
-        Every curve is evaluated on held-out real activations.</p>
+        the cut, replay controlled distributions there, and train only the suffix.</p>
     </div>
     <div class="method-card">
       {_method_diagram()}
@@ -2257,31 +3561,130 @@ def render_report(
         <span class="legend-item"><i class="legend-swatch" style="background:{MEAN}"></i>Mean + isotropic noise</span>
       </div>
       <div class="method-notes">
-        <div><h3>Projected real</h3><p>Projects empirical activations into the fitted
-          PCA subspace, isolating reconstruction loss before distributional fitting.</p></div>
-        <div><h3>Gaussian</h3><p>Preserves fitted class means and covariance in PCA
-          space, with the shrinkage recorded in the artifact.</p></div>
+        <div><h3>Experimental unit</h3><p>Checkpoint/model seed × cut × nested PCA
+          rank × surrogate draw. Draws estimate surrogate-sampling variation; they
+          are not independent model seeds.</p></div>
+        <div><h3>Banks and splits</h3><p>PCA and class moments are fitted only on the
+          declared analysis bank. Coverage and outcome evaluation must identify
+          their held-out population and bank fingerprints.</p></div>
+        <div><h3>Projected-real control</h3><p>Projects empirical activations into
+          the fitted PCA subspace, giving an in-subspace empirical baseline before
+          any Gaussian approximation. Because projection changes both replay and
+          deployment inputs, it is not a pure reconstruction-loss measurement.</p></div>
+        <div><h3>Gaussian registry</h3><p><code>gaussian_empirical</code> means the
+          empirical PCA-space covariance. <code>gaussian_shrunk_s05</code> means
+          5% spherical shrinkage. Plain <code>gaussian</code> remains a legacy
+          label whose shrinkage must be read from metadata.</p></div>
+        <div><h3>PCA is an approximation</h3><p>The dashboard records native
+          coordinate count, fitted rank, total/within/between-class coverage, and
+          the empirical per-class covariance ceiling. “All components” means all
+          estimable components, at most min(native dimension, PCA-fit n − 1).
+          Native coordinates are activation-map entries (channels × height ×
+          width), not raw pixels or model parameters, so an early cut can exceed
+          ten thousand coordinates.</p></div>
         <div><h3>Mean + isotropic noise</h3><p>This is not epsilon jitter. At
           r = 1 its covariance trace matches the pooled average within-class
           covariance trace; radius r scales trace by r².</p></div>
       </div>
+      <div class="equation-box">
+        <div class="equation">Δ<sub>true|r</sub>(t, ℓ, u) =
+          L<sub>true eval</sub>(suffix trained on r) −
+          L<sub>true eval</sub>(suffix trained on true)</div>
+        <p>The primary estimand is this paired cross-entropy excess loss at matched
+          checkpoint t, cut ℓ, PCA rank, draw u, minibatch order, and learning-rate
+          regime. Summaries average paired draw-level contrasts, not unpaired bars.</p>
+      </div>
+      <div class="method-notes">
+        <div><h3>Optimizer control</h3><p>The fixed-learning-rate regime is the
+          primary comparison. Initial training loss and suffix-gradient norm expose
+          scale mismatches; any gradient-normalized sensitivity regime is reported
+          separately, never silently pooled.</p></div>
+        <div><h3>Failure criteria</h3><ul class="criteria-list">
+          <li>Large projected-real gap: PCA truncation, not moment failure.</li>
+          <li>Rank-sensitive conclusion or poor held-out within-class coverage.</li>
+          <li>Surrogate moment errors outside declared tolerances.</li>
+          <li>Step-zero or initial-gradient mismatch that changes under the LR control.</li>
+          <li>Missing cells in the train × evaluation distribution loss matrix.</li>
+        </ul></div>
+      </div>
     </div>
   </section>
 
-  {_render_model_section("cnn", artifacts, summaries, cells)}
-  {_render_model_section("resnet", artifacts, summaries, cells)}
+  <section id="estimand" class="section">
+    <div class="section-heading">
+      <p class="eyebrow">Primary result</p>
+      <h2>Paired true-evaluation excess loss</h2>
+      <p class="question">At the relaxation endpoint, how much cross-entropy is
+        added by training on each surrogate instead of matched real activations?</p>
+      <p>Read zero as parity with the paired real-replay baseline. Positive values
+        mean worse held-out real loss. Parentheses are the min–max range across
+        surrogate draws; model-seed uncertainty requires additional checkpoints.</p>
+    </div>
+    {_primary_estimand_table(canonical_paired)}
+  </section>
+
+  <section id="matrix" class="section">
+    <div class="section-heading">
+      <p class="eyebrow">Distribution shift diagnostic</p>
+      <h2>Full train × evaluation loss matrix</h2>
+      <p class="question">Does a replay distribution merely fit its own support, or
+        does it transfer to real and alternative activation distributions?</p>
+      <p>Rows change the held-out evaluation distribution; columns change the
+        relaxation distribution. The matrix is shown only when every declared cell
+        is measured at the endpoint.</p>
+    </div>
+    {_matrix_cards(canonical_observations)}
+  </section>
+
+  <section id="controls" class="section">
+    <div class="section-heading">
+      <p class="eyebrow">Ablations and diagnostics</p>
+      <h2>What would invalidate the simple interpretation?</h2>
+      <p>Control settings are useful only when connected to outcomes. The panels
+        below therefore show measured effect estimates where available and state
+        plainly when the relevant diagnostic was not recorded.</p>
+    </div>
+    <div class="control-grid">{control_html}</div>
+    <div class="control-stack">
+      <div class="control-block"><h3>PCA-rank sensitivity</h3>
+        <p>Compare projected-real and Gaussian excess loss across nested ranks.
+          Within-class coverage is the relevant companion statistic.</p>
+        {_rank_outcome_table(canonical_paired, canonical_cells)}</div>
+      <div class="control-block"><h3>Mean-noise radius sensitivity</h3>
+        <p>Tests whether an apparent centroid result depends on the chosen
+          trace-scaled isotropic radius.</p>
+        {_noise_outcome_table(canonical_paired)}</div>
+      <div class="control-block"><h3>Step-zero PCA functional change</h3>
+        <p>Before relaxation, compare the unchanged suffix on true and projected
+          held-out activations. A large gap means rank truncation has already
+          changed the function presented to the suffix.</p>
+        {_projection_diagnostic_table(canonical_cells)}</div>
+      <div class="control-block"><h3>Initial suffix-gradient scale</h3>
+        <p>Ratios are paired to real replay at the same cell and draw. A large
+          mismatch motivates a separately labelled optimizer-sensitivity regime.</p>
+        {_gradient_diagnostic_table(canonical_observations)}</div>
+      <div class="control-block"><h3>Surrogate moment fidelity</h3>
+        <p>Generated-bank class means and covariances should match the target
+          moments in the declared diagnostic space.</p>
+        {_moment_diagnostic_table(canonical_cells)}</div>
+      <div class="control-block"><h3>PCA coverage and sampling metadata</h3>
+        <p>Total variance can be dominated by between-class mean separation, so
+          total, within-class, and between-class coverage are kept separate.</p>
+        {_coverage_table(canonical_cells)}</div>
+    </div>
+  </section>
+
+  {canonical_sections}
+  {legacy_html}
 
   <section id="data" class="section">
     <div class="section-heading">
-      <p class="eyebrow">Robustness &amp; data</p>
-      <h2>Completed controls and exact values</h2>
-      <p>Only controls present in the hashed measured artifacts appear here. The
-        full source payloads and the normalized true-evaluation table are embedded
-        in this HTML file.</p>
+      <p class="eyebrow">Data and provenance</p>
+      <h2>Exact values and hashed inputs</h2>
+      <p>The full source payloads, normalized evaluation records, paired
+        draw-level contrasts, aggregate rows, and metadata are embedded in this
+        self-contained file.</p>
     </div>
-    <div class="control-grid">{control_html}</div>
-    <h3>PCA coverage and noise settings</h3>
-    {_coverage_table(cells)}
     <details class="data-details">
       <summary><span>Exact trajectory values</span>
         <span class="summary-meta">{len(summaries)} aggregated rows</span></summary>
@@ -2300,7 +3703,7 @@ def render_report(
       rejects missing files, digest mismatches, non-measured statuses, fake-data
       configurations, unsupported experiments, and checkpoint metadata mismatches.
       The manifest commit identifies the dashboard branch base, not experiment
-      lineage. The legacy artifacts did not record their generating code revision;
+      lineage. Where legacy artifacts do not record their generating code revision,
       their SHA-256 digests identify the exact evidence files used here.</p>
   </section>
 </main>

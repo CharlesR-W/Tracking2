@@ -5,6 +5,7 @@ import hashlib
 import json
 import re
 from pathlib import Path
+from typing import Sequence
 
 
 TITLE = "Free-Body Diagrams for Neural Networks — Interactive Data Appendix (WIP)"
@@ -104,75 +105,112 @@ def legacy_cnn_entries(artifact_root: Path, output: Path) -> list[dict[str, obje
     return inputs
 
 
-def post_cnn_entries(artifact_root: Path, output: Path) -> list[dict[str, object]]:
-    result_root = artifact_root / "lw_post" / "cnn_statistics_seed0"
-    paths = [
-        (
-            f"cnn-e{epoch}",
-            f"Four-block CNN · uninterrupted trajectory · epoch {epoch}",
-            epoch,
-            result_root / f"base_epoch{epoch}" / "post_statistics.json",
-        )
-        for epoch in CNN_EPOCHS
-    ]
-    paths.extend(
-        [
-            (
-                "cnn-e30-pca-ablation-c3",
-                "Four-block CNN · epoch 30 · cut 3 · PCA-rank ablation",
-                30,
-                result_root
-                / "pca_ablation_epoch30_cut3"
-                / "post_statistics.json",
-            ),
-            (
-                "cnn-e30-noise-ablation-c3",
-                "Four-block CNN · epoch 30 · cut 3 · noise-radius ablation",
-                30,
-                result_root
-                / "noise_ablation_epoch30_cut3"
-                / "post_statistics.json",
-            ),
-        ]
-    )
+def post_cnn_entries(
+    artifact_root: Path,
+    output: Path,
+    seeds: Sequence[int] = (0,),
+) -> list[dict[str, object]]:
     inputs = []
-    for input_id, label, epoch, artifact_path in paths:
-        payload = measured_payload(artifact_path, epoch=epoch, seed=0)
-        if payload.get("experiment") != "lw_post_cnn_suffix_statistics":
-            raise RuntimeError(f"{artifact_path} is not a post-facing CNN artifact")
-        inputs.append(
-            entry(
-                manifest_dir=output.parent,
-                artifact_path=artifact_path,
-                input_id=input_id,
-                kind="cnn",
-                artifact_format="post_statistics",
-                label=label,
-                epoch=epoch,
-                seed=0,
+    for seed in seeds:
+        result_root = artifact_root / "lw_post" / f"cnn_statistics_seed{seed}"
+        paths = [
+            (
+                f"cnn-s{seed}-e{epoch}",
+                f"Four-block CNN · seed {seed} · uninterrupted trajectory · epoch {epoch}",
+                epoch,
+                result_root / f"base_epoch{epoch}" / "post_statistics.json",
             )
+            for epoch in CNN_EPOCHS
+        ]
+        paths.extend(
+            [
+                (
+                    f"cnn-s{seed}-e30-pca-ablation-c1",
+                    f"Four-block CNN · seed {seed} · epoch 30 · shallow-cut PCA ranks",
+                    30,
+                    result_root
+                    / "pca_ablation_epoch30_cut1"
+                    / "post_statistics.json",
+                ),
+                (
+                    f"cnn-s{seed}-e30-pca-ablation-c4",
+                    f"Four-block CNN · seed {seed} · epoch 30 · late-cut PCA ranks",
+                    30,
+                    result_root
+                    / "pca_ablation_epoch30_cut4"
+                    / "post_statistics.json",
+                ),
+                (
+                    f"cnn-s{seed}-e30-noise-ablation-cuts1-4",
+                    f"Four-block CNN · seed {seed} · epoch 30 · shallow/late noise radii",
+                    30,
+                    result_root
+                    / "noise_ablation_epoch30_cuts1_4"
+                    / "post_statistics.json",
+                ),
+                (
+                    f"cnn-s{seed}-e30-covariance-ablation-cuts1-4",
+                    f"Four-block CNN · seed {seed} · epoch 30 · empirical/shrunk covariance",
+                    30,
+                    result_root
+                    / "covariance_ablation_epoch30_cuts1_4"
+                    / "post_statistics.json",
+                ),
+            ]
         )
+        for input_id, label, epoch, artifact_path in paths:
+            payload = measured_payload(artifact_path, epoch=epoch, seed=seed)
+            if (
+                payload.get("schema_version") != 2
+                or payload.get("experiment") != "lw_post_cnn_suffix_statistics"
+            ):
+                raise RuntimeError(
+                    f"{artifact_path} is not a schema-v2 post-facing CNN artifact"
+                )
+            inputs.append(
+                entry(
+                    manifest_dir=output.parent,
+                    artifact_path=artifact_path,
+                    input_id=input_id,
+                    kind="cnn",
+                    artifact_format="post_statistics",
+                    label=label,
+                    epoch=epoch,
+                    seed=seed,
+                )
+            )
     return inputs
 
 
 def canonical_resnet_entries(
-    artifact_root: Path, output: Path
+    artifact_root: Path,
+    output: Path,
+    artifact_path: Path | None = None,
 ) -> list[dict[str, object]]:
-    artifact_path = artifact_root / CANONICAL_RESNET_PATH
+    artifact_path = artifact_root / CANONICAL_RESNET_PATH if artifact_path is None else artifact_path
     payload = measured_payload(artifact_path, epoch=100, seed=0)
-    if (
-        payload.get("schema_version") != 3
-        or payload.get("experiment") != "resnet18_suffix_statistics_sweep"
-    ):
-        raise RuntimeError(f"{artifact_path} is not a schema-v3 ResNet artifact")
+    schema = payload.get("schema_version")
+    if schema not in {3, 4} or payload.get(
+        "experiment"
+    ) != "resnet18_suffix_statistics_sweep":
+        raise RuntimeError(f"{artifact_path} is not a schema-v3/v4 ResNet artifact")
     config = payload["config"]
-    if (
-        config.get("pca_ranks") != [128, 256, 512]
-        or config.get("cuts") != [3, 7]
-        or config.get("mean_noise_radii") != [1.0]
-        or config.get("include_projected_true") is not True
-        or config.get("true_eval_only") is not True
-    ):
+    expected_cuts = [3, 7] if schema == 3 else [0, 7]
+    required = (
+        config.get("pca_ranks") == [128, 256, 512]
+        and config.get("cuts") == expected_cuts
+        and config.get("mean_noise_radii") == [1.0]
+        and config.get("include_projected_true") is True
+    )
+    if schema == 3:
+        required = required and config.get("true_eval_only") is True
+    else:
+        required = (
+            required
+            and config.get("true_eval_only") is False
+            and config.get("gaussian_covariance_shrinkages") == [0.0, 0.05]
+        )
+    if not required:
         raise RuntimeError(
             f"{artifact_path} does not match the canonical ResNet control grid"
         )
@@ -192,14 +230,24 @@ def canonical_resnet_entries(
         raise RuntimeError(
             f"{artifact_path} lacks a reproducible source identity"
         )
+    input_id = (
+        "resnet-e100-pca-ablation-cuts4-8"
+        if schema == 3
+        else "resnet-e100-full-matrix-cuts1-8"
+    )
+    label = (
+        "ResNet-18 · epoch 100 · nested PCA controls · cuts 4 and 8"
+        if schema == 3
+        else "ResNet-18 · epoch 100 · full matrix · shallow and late cuts"
+    )
     return [
         entry(
             manifest_dir=output.parent,
             artifact_path=artifact_path,
-            input_id="resnet-e100-pca-ablation-cuts4-8",
+            input_id=input_id,
             kind="resnet",
             artifact_format="resnet_suffix_statistics",
-            label="ResNet-18 · epoch 100 · nested PCA controls · cuts 4 and 8",
+            label=label,
             epoch=100,
             seed=0,
         )
@@ -207,7 +255,10 @@ def canonical_resnet_entries(
 
 
 def resnet_entries(
-    artifact_root: Path, output: Path, source: str
+    artifact_root: Path,
+    output: Path,
+    source: str,
+    canonical_path: Path | None = None,
 ) -> list[dict[str, object]]:
     inputs: list[dict[str, object]] = []
     if source in {"legacy", "both"}:
@@ -225,9 +276,11 @@ def resnet_entries(
                 )
             )
     if source in {"canonical", "both"}:
-        inputs.extend(canonical_resnet_entries(artifact_root, output))
-    if source not in {"legacy", "canonical", "both"}:
-        raise ValueError("resnet_source must be 'legacy', 'canonical', or 'both'")
+        inputs.extend(canonical_resnet_entries(artifact_root, output, canonical_path))
+    if source not in {"none", "legacy", "canonical", "both"}:
+        raise ValueError(
+            "resnet_source must be 'none', 'legacy', 'canonical', or 'both'"
+        )
     return inputs
 
 
@@ -235,18 +288,27 @@ def build_manifest(
     artifact_root: Path,
     output: Path,
     source_commit: str,
-    cnn_source: str,
-    resnet_source: str = "legacy",
+    cnn_source: str = "post",
+    resnet_source: str = "none",
+    cnn_seeds: Sequence[int] = (0,),
+    canonical_resnet_path: Path | None = None,
 ) -> dict:
     if not COMMIT_RE.fullmatch(source_commit):
         raise ValueError("source_commit must be a 7–64 character hexadecimal id")
     if cnn_source == "legacy":
         inputs = legacy_cnn_entries(artifact_root, output)
     elif cnn_source == "post":
-        inputs = post_cnn_entries(artifact_root, output)
+        inputs = post_cnn_entries(artifact_root, output, cnn_seeds)
     else:
         raise ValueError("cnn_source must be 'legacy' or 'post'")
-    inputs.extend(resnet_entries(artifact_root, output, resnet_source))
+    inputs.extend(
+        resnet_entries(
+            artifact_root,
+            output,
+            resnet_source,
+            canonical_resnet_path,
+        )
+    )
     return {
         "schema_version": 1,
         "title": TITLE,
@@ -272,14 +334,26 @@ def main() -> None:
     parser.add_argument(
         "--cnn-source",
         choices=("legacy", "post"),
-        default="legacy",
+        default="post",
         help="Select the legacy pilot grid or the verified uninterrupted-run battery.",
     )
     parser.add_argument(
+        "--cnn-seeds",
+        type=int,
+        nargs="+",
+        default=[0],
+        help="Model seeds whose complete schema-v2 canonical batteries are required.",
+    )
+    parser.add_argument(
         "--resnet-source",
-        choices=("legacy", "canonical", "both"),
-        default="legacy",
-        help="Select legacy sweeps, the canonical schema-v3 control, or both.",
+        choices=("none", "legacy", "canonical", "both"),
+        default="none",
+        help="Omit ResNet, select legacy sweeps, an explicit canonical input, or both.",
+    )
+    parser.add_argument(
+        "--canonical-resnet-path",
+        type=Path,
+        help="Explicit schema-v3/v4 ResNet artifact; required for new canonical runs.",
     )
     args = parser.parse_args()
     args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -289,6 +363,12 @@ def main() -> None:
         args.source_commit,
         args.cnn_source,
         args.resnet_source,
+        args.cnn_seeds,
+        (
+            args.canonical_resnet_path.resolve()
+            if args.canonical_resnet_path is not None
+            else None
+        ),
     )
     args.output.write_text(json.dumps(manifest, indent=2, allow_nan=False) + "\n")
     print(args.output)

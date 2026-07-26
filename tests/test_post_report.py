@@ -23,6 +23,8 @@ from tracking2.post_report import (
     load_manifest,
     main,
     normalise_artifacts,
+    paired_true_eval_contrasts,
+    summarise_paired_contrasts,
 )
 
 
@@ -159,6 +161,102 @@ def _resnet_payload(*, held_out: bool = False) -> dict:
     }
 
 
+def _cnn_v2_matrix_payload() -> dict:
+    payload = _cnn_payload()
+    payload["schema_version"] = 2
+    payload["provenance"] = {"source_revision": "a" * 40}
+    payload["config"].update(
+        {
+            "relax_epochs": 1,
+            "true_eval_only": False,
+            "gaussian_covariance_shrinkages": [0.0, 0.05],
+        }
+    )
+    distributions = [
+        "true",
+        "projected_true",
+        "gaussian_empirical",
+        "gaussian_shrunk_s05",
+        "mean_r1",
+    ]
+    train_penalty = {
+        "true": 0.0,
+        "projected_true": 0.03,
+        "gaussian_empirical": 0.10,
+        "gaussian_shrunk_s05": 0.15,
+        "mean_r1": 0.25,
+    }
+    records = []
+    for train_distribution in distributions:
+        for eval_distribution in distributions:
+            for relax_epoch in (0, 1):
+                records.append(
+                    {
+                        "draw": 0,
+                        "train_distribution": train_distribution,
+                        "eval_distribution": eval_distribution,
+                        "relax_epoch": relax_epoch,
+                        "loss": (
+                            0.8
+                            - 0.2 * relax_epoch
+                            + train_penalty[train_distribution]
+                            + 0.02
+                            * (eval_distribution != train_distribution)
+                        ),
+                        "accuracy": (
+                            0.5
+                            + 0.2 * relax_epoch
+                            - train_penalty[train_distribution] / 2
+                        ),
+                        "initial_training_loss": 0.9
+                        + train_penalty[train_distribution],
+                        "initial_gradient_norm": 1.0
+                        + train_penalty[train_distribution],
+                        "initial_gradient_rms": 0.1
+                        + train_penalty[train_distribution] / 10,
+                        "initial_suffix_parameter_count": 100,
+                        "initial_suffix_weight_norm": 2.0,
+                        "first_step_update_to_weight_ratio": 0.01
+                        + train_penalty[train_distribution] / 100,
+                    }
+                )
+    rank_result = payload["slices"][0]["rank_results"][0]
+    rank_result["records"] = records
+    rank_result["gaussian_covariance_estimators"] = [
+        {
+            "distribution": "gaussian_empirical",
+            "requested_covariance_shrinkage": 0.0,
+        },
+        {
+            "distribution": "gaussian_shrunk_s05",
+            "requested_covariance_shrinkage": 0.05,
+        },
+    ]
+    rank_result["moment_diagnostics"] = [
+        {
+            "draw": 0,
+            "distribution": "gaussian_empirical",
+            "class_mean_relative_error": 0.01,
+            "class_covariance_relative_error": 0.04,
+            "diagnostic_space": "fitted PCA subspace",
+        }
+    ]
+    rank_result["step_zero_true_vs_projected"] = {
+        "true_loss": 0.8,
+        "projected_true_loss": 0.83,
+        "true_accuracy": 0.50,
+        "projected_true_accuracy": 0.49,
+        "true_to_projected_predictive_kl": 0.02,
+    }
+    payload["slices"][0]["reference_records"] = [
+        row
+        for row in records
+        if row["train_distribution"] == "true"
+        and row["eval_distribution"] == "true"
+    ]
+    return payload
+
+
 def _resnet_v3_payload() -> dict:
     block_names = [
         "stage1.resblk1",
@@ -290,6 +388,67 @@ def _resnet_v3_payload() -> dict:
         ],
         "runtime_seconds": 1.0,
     }
+
+
+def _resnet_v4_payload() -> dict:
+    payload = _resnet_v3_payload()
+    payload["schema_version"] = 4
+    payload["config"].update(
+        {
+            "true_eval_only": False,
+            "gaussian_covariance_shrinkages": [0.0, 0.05],
+        }
+    )
+    distributions = [
+        "true",
+        "projected_true",
+        "gaussian_empirical",
+        "gaussian_shrunk_s0.05",
+        "mean_r0",
+        "mean_r1",
+    ]
+    first_reference = None
+    for rank_result in payload["slices"][0]["rank_results"]:
+        records = []
+        for train_index, train_distribution in enumerate(distributions):
+            for eval_index, eval_distribution in enumerate(distributions):
+                for relax_epoch in (0, 1):
+                    records.append(
+                        {
+                            "draw": 0,
+                            "train_distribution": train_distribution,
+                            "eval_distribution": eval_distribution,
+                            "relax_epoch": relax_epoch,
+                            "loss": (
+                                0.9
+                                - 0.2 * relax_epoch
+                                + 0.03 * train_index
+                                + 0.01 * eval_index
+                            ),
+                            "accuracy": (
+                                0.45
+                                + 0.2 * relax_epoch
+                                - 0.01 * train_index
+                            ),
+                            "initial_training_loss": 1.0 + 0.03 * train_index,
+                            "initial_gradient_norm": 2.0 + 0.03 * train_index,
+                        }
+                    )
+        rank_result.pop("covariance_shrinkage")
+        rank_result["gaussian_covariance_estimators"] = [
+            {"distribution": "gaussian_empirical"},
+            {"distribution": "gaussian_shrunk_s0.05"},
+        ]
+        rank_result["records"] = records
+        if first_reference is None:
+            first_reference = [
+                row
+                for row in records
+                if row["train_distribution"] == "true"
+                and row["eval_distribution"] == "true"
+            ]
+    payload["slices"][0]["reference_records"] = first_reference
+    return payload
 
 
 def _canonical_resnet_entry_payload() -> dict:
@@ -550,6 +709,73 @@ def test_schema_v3_resnet_rejects_missing_provenance_and_invalid_grid(tmp_path):
     manifest_path = _make_manifest(tmp_path, resnet=invalid_grid)
     _manifest, artifacts = load_manifest(manifest_path)
     with pytest.raises(ReportInputError, match="mismatched draw/relaxation grids"):
+        normalise_artifacts(artifacts)
+
+
+def test_schema_v2_cnn_retains_full_matrix_and_primary_loss_estimand(tmp_path):
+    manifest_path = _make_manifest(tmp_path, cnn=_cnn_v2_matrix_payload())
+    _manifest, artifacts = load_manifest(manifest_path)
+    observations, _cells = normalise_artifacts(artifacts)
+    cnn_observations = [
+        row for row in observations if row["kind"] == "cnn"
+    ]
+
+    assert len(cnn_observations) == 50
+    assert {row["eval_distribution"] for row in cnn_observations} == {
+        "true",
+        "projected_true",
+        "gaussian_empirical",
+        "gaussian_shrunk_s05",
+        "mean_r1",
+    }
+    assert all(
+        row["initial_gradient_rms"] is not None
+        and row["initial_suffix_parameter_count"] == 100
+        and row["initial_update_to_weight_ratio"] is not None
+        for row in cnn_observations
+    )
+    paired = summarise_paired_contrasts(
+        paired_true_eval_contrasts(cnn_observations)
+    )
+    empirical_endpoint = next(
+        row
+        for row in paired
+        if row["distribution"] == "gaussian_empirical"
+        and row["relax_epoch"] == 1
+    )
+    assert empirical_endpoint["loss_excess_mean"] == pytest.approx(0.12)
+
+    rendered = build_report(manifest_path, tmp_path / "schema-v2.html").read_text()
+    assert "PRIMARY ESTIMAND AVAILABLE" in rendered
+    assert "Full train × evaluation loss matrix" in rendered
+    assert "Gaussian · empirical covariance" in rendered
+    assert "Gaussian · 5% spherical shrinkage" in rendered
+    assert "Initial suffix-gradient scale" in rendered
+    assert "Class-covariance relative error" in rendered
+    assert "Step-zero PCA functional change" in rendered
+    assert "Predictive KL(true ∥ projected)" in rendered
+
+
+def test_schema_v4_resnet_is_canonical_and_requires_complete_matrix(tmp_path):
+    manifest_path = _make_manifest(tmp_path, resnet=_resnet_v4_payload())
+    _manifest, artifacts = load_manifest(manifest_path)
+    observations, _cells = normalise_artifacts(artifacts)
+    resnet_observations = [
+        row for row in observations if row["kind"] == "resnet"
+    ]
+    assert len(resnet_observations) == 2 * 6 * 6 * 2
+
+    rendered = build_report(manifest_path, tmp_path / "schema-v4.html").read_text()
+    assert "PRIMARY ESTIMAND AVAILABLE" in rendered
+    assert "Canonical measured evidence" in rendered
+    assert "Legacy: ResNet-18" not in rendered
+    assert "Gaussian · 5% spherical shrinkage" in rendered
+
+    incomplete = _resnet_v4_payload()
+    incomplete["slices"][0]["rank_results"][0]["records"].pop()
+    manifest_path = _make_manifest(tmp_path, resnet=incomplete)
+    _manifest, artifacts = load_manifest(manifest_path)
+    with pytest.raises(ReportInputError, match="incomplete train/evaluation matrix"):
         normalise_artifacts(artifacts)
 
 

@@ -22,7 +22,7 @@ DEVICE="${DEVICE:-cuda}"
 CHECKPOINT="${CHECKPOINT:-artifacts/resnet_criticality/seed${SEED}/checkpoint_epoch100.pt}"
 TRAINING_MANIFEST="${TRAINING_MANIFEST:-artifacts/resnet_criticality/seed${SEED}/resnet_training.json}"
 RESULT_ROOT="artifacts/lw_post/resnet_ablations_seed${SEED}"
-OUTPUT="$RESULT_ROOT/nested_ranks_epoch100_cuts4_8"
+OUTPUT="$RESULT_ROOT/nested_ranks_epoch100_cuts1_8"
 
 if [[ ! -f "$CHECKPOINT" ]]; then
   echo "Missing ResNet checkpoint: $CHECKPOINT" >&2
@@ -42,7 +42,7 @@ else
     --checkpoint "$CHECKPOINT" --checkpoint-epoch 100 \
     --training-manifest "$TRAINING_MANIFEST" \
     --data-backend torchvision \
-    --cuts 3 7 --train-size 10000 --test-size 2000 --batch-size 128 \
+    --cuts 0 7 --train-size 10000 --test-size 2000 --batch-size 128 \
     --pca-fit-size 5000 --pca-ranks 128 256 512 \
     --gaussian-covariance-shrinkages 0 0.05 \
     --surrogate-draws 3 --mean-noise-radii 1 \

@@ -11,7 +11,7 @@ from tracking2.cnn_checkpoints import sha256
 
 
 RANKS = (128, 256, 512)
-CUTS = (3, 7)
+CUTS = (0, 7)
 SOURCE_REVISION = re.compile(r"(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})")
 SHA256 = re.compile(r"[0-9a-fA-F]{64}")
 BLOCK_NAMES = [
