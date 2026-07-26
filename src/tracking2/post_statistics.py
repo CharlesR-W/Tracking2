@@ -59,6 +59,7 @@ class PostStatisticsConfig:
     mean_noise_radii: tuple[float, ...] = (1.0,)
     surrogate_draws: int = 1
     true_eval_only: bool = False
+    suffix_initialization: str = "warm"
     relax_epochs: int = 10
     relax_learning_rate: float = 0.01
     seed: int = 0
@@ -257,8 +258,29 @@ def _relax_suffix(
     relax_learning_rate: float,
     shuffle_seed: int,
     device: torch.device,
+    suffix_initialization: str = "warm",
+    initialization_seed: int = 0,
 ) -> list[dict[str, object]]:
     candidate = copy.deepcopy(model)
+    if suffix_initialization not in {"warm", "reinitialized"}:
+        raise ValueError("suffix_initialization must be 'warm' or 'reinitialized'")
+    if suffix_initialization == "reinitialized":
+        cuda_devices = (
+            [device.index if device.index is not None else torch.cuda.current_device()]
+            if device.type == "cuda"
+            else []
+        )
+        with torch.random.fork_rng(devices=cuda_devices):
+            torch.manual_seed(initialization_seed)
+            for block in candidate.blocks[cut:]:
+                block.apply(
+                    lambda module: (
+                        module.reset_parameters()
+                        if hasattr(module, "reset_parameters")
+                        else None
+                    )
+                )
+            candidate.classifier.reset_parameters()
     for parameter in candidate.prefix_parameters(cut):
         parameter.requires_grad_(False)
     optimizer = torch.optim.SGD(
@@ -294,6 +316,7 @@ def _relax_suffix(
                     "train_distribution": distribution,
                     "eval_distribution": evaluation_distribution,
                     "relax_epoch": relax_epoch,
+                    "suffix_initialization": suffix_initialization,
                     **initial_diagnostics,
                     **evaluate_suffix(candidate, cut, evaluation_data, device),
                 }
@@ -328,6 +351,8 @@ def run(config: PostStatisticsConfig) -> Path:
         raise ValueError(
             "gaussian_covariance_shrinkages must contain values in [0, 1]"
         )
+    if config.suffix_initialization not in {"warm", "reinitialized"}:
+        raise ValueError("suffix_initialization must be 'warm' or 'reinitialized'")
 
     checkpoint = Path(config.checkpoint)
     output = Path(config.output)
@@ -512,6 +537,10 @@ def run(config: PostStatisticsConfig) -> Path:
                         relax_learning_rate=config.relax_learning_rate,
                         shuffle_seed=common_shuffle_seed,
                         device=device,
+                        suffix_initialization=config.suffix_initialization,
+                        initialization_seed=(
+                            config.seed + 9_000_000 + 1_000 * cut + draw
+                        ),
                     )
                 )
 
@@ -534,6 +563,10 @@ def run(config: PostStatisticsConfig) -> Path:
                         relax_learning_rate=config.relax_learning_rate,
                         shuffle_seed=common_shuffle_seed,
                         device=device,
+                        suffix_initialization=config.suffix_initialization,
+                        initialization_seed=(
+                            config.seed + 9_000_000 + 1_000 * cut + draw
+                        ),
                     )
                 )
                 del projected_train
@@ -561,6 +594,10 @@ def run(config: PostStatisticsConfig) -> Path:
                             relax_learning_rate=config.relax_learning_rate,
                             shuffle_seed=common_shuffle_seed,
                             device=device,
+                            suffix_initialization=config.suffix_initialization,
+                            initialization_seed=(
+                                config.seed + 9_000_000 + 1_000 * cut + draw
+                            ),
                         )
                     )
                     del gaussian_train
@@ -592,6 +629,10 @@ def run(config: PostStatisticsConfig) -> Path:
                             relax_learning_rate=config.relax_learning_rate,
                             shuffle_seed=common_shuffle_seed,
                             device=device,
+                            suffix_initialization=config.suffix_initialization,
+                            initialization_seed=(
+                                config.seed + 9_000_000 + 1_000 * cut + draw
+                            ),
                         )
                     )
                     del mean_train
@@ -694,7 +735,9 @@ def run(config: PostStatisticsConfig) -> Path:
             "activations, not on the rows used to fit PCA. By default every "
             "trained suffix is evaluated on every rank- and draw-matched test "
             "distribution; true-eval-only is reserved for targeted sensitivity "
-            "runs."
+            "runs. Warm-started suffix relaxation is primary; any reinitialized "
+            "suffix run is an explicitly labelled retained-knowledge control, "
+            "with initialization held fixed across distributions within a draw."
         ),
         "config": asdict(config),
         "dataset": dataset_fingerprints,
@@ -721,6 +764,11 @@ def parse_args() -> PostStatisticsConfig:
         "--data-backend",
         choices=("torchvision", "parquet"),
         default=PostStatisticsConfig.data_backend,
+    )
+    parser.add_argument(
+        "--suffix-initialization",
+        choices=("warm", "reinitialized"),
+        default="warm",
     )
     parser.add_argument("--fake-data", action="store_true")
     parser.add_argument("--train-size", type=int, default=50000)
@@ -775,6 +823,7 @@ def parse_args() -> PostStatisticsConfig:
         mean_noise_radii=tuple(args.mean_noise_radii),
         surrogate_draws=args.surrogate_draws,
         true_eval_only=args.true_eval_only,
+        suffix_initialization=args.suffix_initialization,
         relax_epochs=args.relax_epochs,
         relax_learning_rate=args.relax_learning_rate,
         seed=args.seed,

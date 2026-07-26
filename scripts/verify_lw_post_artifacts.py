@@ -275,6 +275,7 @@ def require_complete_statistics(
         "checkpoint_epoch": expected_epoch,
         "seed": expected_seed,
         "device": "cuda",
+        "suffix_initialization": "warm",
     }
     for key, expected in expected_protocol.items():
         if artifact["config"].get(key) != expected:

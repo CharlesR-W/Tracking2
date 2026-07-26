@@ -952,6 +952,14 @@ def _normalise_records(
             ),
             "fixed_lr",
         )
+        suffix_initialization = row.get("suffix_initialization", "warm")
+        if suffix_initialization not in {"warm", "reinitialized"}:
+            raise ReportInputError(
+                f"{row_context}.suffix_initialization must be "
+                "'warm' or 'reinitialized'"
+            )
+        if suffix_initialization == "reinitialized":
+            lr_regime = f"reinitialized_{lr_regime}"
         key = (distribution, evaluation, draw, relax_epoch, lr_regime)
         if key in seen:
             raise ReportInputError(

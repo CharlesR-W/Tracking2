@@ -138,6 +138,42 @@ def test_relaxation_step_zero_is_common_across_train_distributions():
             == shifted_row["initial_batch_index_sha256"]
         )
 
+    reinitialized_common = {
+        **common,
+        "suffix_initialization": "reinitialized",
+        "initialization_seed": 991,
+    }
+    reinitialized_true = _relax_suffix(
+        train_rep=true_train,
+        distribution="true",
+        **reinitialized_common,
+    )
+    reinitialized_shifted = _relax_suffix(
+        train_rep=shifted_train,
+        distribution="shifted",
+        **reinitialized_common,
+    )
+    assert {
+        row["suffix_initialization"]
+        for row in [*reinitialized_true, *reinitialized_shifted]
+    } == {"reinitialized"}
+    assert reinitialized_true[0]["initial_suffix_weight_norm"] == pytest.approx(
+        reinitialized_shifted[0]["initial_suffix_weight_norm"]
+    )
+    for evaluation_distribution in evaluation_sets:
+        true_row = next(
+            row
+            for row in reinitialized_true
+            if row["eval_distribution"] == evaluation_distribution
+        )
+        shifted_row = next(
+            row
+            for row in reinitialized_shifted
+            if row["eval_distribution"] == evaluation_distribution
+        )
+        assert true_row["loss"] == pytest.approx(shifted_row["loss"])
+        assert true_row["accuracy"] == shifted_row["accuracy"]
+
 
 def test_cnn_verifier_rejects_duplicate_cartesian_cells(tmp_path):
     rows = [
