@@ -458,18 +458,30 @@ def run(config: PostStatisticsConfig) -> Path:
             ranks[-1],
             config.seed + 10_000 * cut,
             covariance_shrinkage=0.0,
+            moment_representations=train_rep,
+            moment_labels=train_labels,
         )
         reference_records: list[dict[str, object]] = []
         rank_results: list[dict[str, object]] = []
         for rank in ranks:
-            print(f"[cut={cut}] truncate maximal PCA to rank={rank}", flush=True)
-            surrogate = truncate_representation_surrogate(
-                maximal_surrogate,
-                train_rep,
-                train_labels,
-                rank,
-                covariance_shrinkage=0.0,
-            )
+            if rank == ranks[-1]:
+                print(
+                    f"[cut={cut}] reuse maximal PCA rank={rank}",
+                    flush=True,
+                )
+                surrogate = maximal_surrogate
+            else:
+                print(
+                    f"[cut={cut}] truncate maximal PCA to rank={rank}",
+                    flush=True,
+                )
+                surrogate = truncate_representation_surrogate(
+                    maximal_surrogate,
+                    train_rep,
+                    train_labels,
+                    rank,
+                    covariance_shrinkage=0.0,
+                )
             coverage = pca_coverage_diagnostics(
                 surrogate, test_rep, test_labels
             )

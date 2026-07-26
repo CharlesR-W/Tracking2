@@ -303,6 +303,45 @@ def test_truncation_reuses_leading_maximal_pca_basis():
     np.testing.assert_allclose(truncated.components, maximal.components[:3])
 
 
+def test_maximal_fit_with_full_moment_bank_matches_previous_truncation():
+    rng = np.random.default_rng(81)
+    representations = rng.normal(size=(120, 7)).astype(np.float32)
+    labels = np.tile(np.arange(3), 40)
+    fit_count = 45
+    basis_only = fit_representation_surrogate(
+        representations[:fit_count],
+        labels[:fit_count],
+        5,
+        seed=4,
+        covariance_shrinkage=0.0,
+    )
+    previous = truncate_representation_surrogate(
+        basis_only,
+        representations,
+        labels,
+        5,
+        covariance_shrinkage=0.0,
+    )
+    reused = fit_representation_surrogate(
+        representations[:fit_count],
+        labels[:fit_count],
+        5,
+        seed=4,
+        covariance_shrinkage=0.0,
+        moment_representations=representations,
+        moment_labels=labels,
+    )
+    np.testing.assert_allclose(reused.pca_mean, previous.pca_mean)
+    np.testing.assert_allclose(reused.components, previous.components)
+    np.testing.assert_allclose(reused.class_means, previous.class_means)
+    np.testing.assert_allclose(
+        reused.class_covariances, previous.class_covariances
+    )
+    np.testing.assert_allclose(reused.class_factors, previous.class_factors)
+    assert reused.pooled_variance == previous.pooled_variance
+    assert reused.covariance_provenance() == previous.covariance_provenance()
+
+
 def test_nested_ranks_share_leading_standard_normal_coordinates():
     rng = np.random.default_rng(18)
     representations = rng.normal(size=(120, 7)).astype(np.float32)

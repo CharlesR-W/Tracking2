@@ -229,21 +229,55 @@ def fit_representation_surrogate(
     n_components: int,
     seed: int,
     covariance_shrinkage: float = 0.05,
+    *,
+    moment_representations: np.ndarray | None = None,
+    moment_labels: np.ndarray | None = None,
 ) -> RepresentationSurrogate:
+    if (moment_representations is None) != (moment_labels is None):
+        raise ValueError(
+            "moment_representations and moment_labels must be supplied together"
+        )
     flat = representations.reshape(len(representations), -1).astype(
         np.float32, copy=False
     )
     if not 1 <= n_components < len(flat):
         raise ValueError("n_components must be positive and smaller than the sample count")
     pca = PCA(n_components=min(n_components, flat.shape[1]), svd_solver="randomized", random_state=seed)
-    z = pca.fit_transform(flat)
+    if moment_representations is None:
+        coordinate_labels = labels
+        z = pca.fit_transform(flat)
+        representation_shape = tuple(representations.shape[1:])
+    else:
+        pca.fit(flat)
+        moment_flat = moment_representations.reshape(
+            len(moment_representations), -1
+        ).astype(np.float32, copy=False)
+        if moment_flat.shape[1] != flat.shape[1]:
+            raise ValueError(
+                "PCA-fit and moment-fit representations must have the same "
+                "flattened dimension"
+            )
+        if len(moment_flat) != len(moment_labels):
+            raise ValueError(
+                "moment_representations and moment_labels must have equal length"
+            )
+        z = np.empty(
+            (len(moment_flat), len(pca.components_)), dtype=np.float32
+        )
+        for start in range(0, len(moment_flat), 512):
+            stop = min(start + 512, len(moment_flat))
+            z[start:stop] = (
+                moment_flat[start:stop] - pca.mean_
+            ) @ pca.components_.T
+        coordinate_labels = moment_labels
+        representation_shape = tuple(moment_representations.shape[1:])
     return _surrogate_from_coordinates(
         z=z,
-        labels=labels,
+        labels=coordinate_labels,
         pca_mean=pca.mean_,
         components=pca.components_,
         covariance_shrinkage=covariance_shrinkage,
-        representation_shape=tuple(representations.shape[1:]),
+        representation_shape=representation_shape,
     )
 
 

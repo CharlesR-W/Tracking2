@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 import torch
 
+import tracking2.post_statistics as post_statistics
 from scripts.verify_lw_post_artifacts import (
     require_common_relaxation_endpoint,
     require_distinct_checkpoint_hashes,
@@ -306,7 +307,25 @@ def test_cnn_verifier_requires_finite_pca_space_moment_diagnostics(tmp_path):
         )
 
 
-def test_post_statistics_smoke_records_pca_and_noise_controls(tmp_path):
+def test_post_statistics_smoke_records_pca_and_noise_controls(
+    tmp_path, monkeypatch
+):
+    truncate_calls = []
+    original_truncate = (
+        post_statistics.truncate_representation_surrogate
+    )
+
+    def record_truncate(model, representations, labels, rank, **kwargs):
+        truncate_calls.append((rank, kwargs.get("covariance_shrinkage")))
+        return original_truncate(
+            model, representations, labels, rank, **kwargs
+        )
+
+    monkeypatch.setattr(
+        post_statistics,
+        "truncate_representation_surrogate",
+        record_truncate,
+    )
     training_path = train_cnn(
         CNNCheckpointConfig(
             output=str(tmp_path / "training"),
@@ -382,6 +401,8 @@ def test_post_statistics_smoke_records_pca_and_noise_controls(tmp_path):
     ] == ["gaussian_empirical", "gaussian_shrunk_s0.05"]
     assert estimators[0]["requested_covariance_shrinkage"] == 0.0
     assert estimators[1]["requested_covariance_shrinkage"] == 0.05
+    assert (3, 0.0) not in truncate_calls
+    assert truncate_calls == [(2, 0.0), (2, 0.05), (3, 0.05)]
     assert ranks[0]["step_zero_true_vs_projected"].keys() == {
         "true_loss",
         "true_accuracy",
