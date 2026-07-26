@@ -9,6 +9,7 @@ import pytest
 
 from scripts.make_lw_post_manifest import (
     CANONICAL_RESNET_PATH,
+    build_manifest,
     canonical_resnet_entries,
     explicit_post_cnn_entries,
     projection_adequacy_entries,
@@ -165,6 +166,7 @@ def _resnet_payload(*, held_out: bool = False) -> dict:
 
 def _cnn_v2_matrix_payload(
     learning_rate_regime: str = "fixed_lr",
+    suffix_initialization: str = "warm",
 ) -> dict:
     payload = _cnn_payload()
     payload["schema_version"] = 2
@@ -175,6 +177,7 @@ def _cnn_v2_matrix_payload(
             "true_eval_only": False,
             "gaussian_covariance_shrinkages": [0.0, 0.05],
             "learning_rate_regime": learning_rate_regime,
+            "suffix_initialization": suffix_initialization,
         }
     )
     distributions = [
@@ -229,6 +232,7 @@ def _cnn_v2_matrix_payload(
                         "first_step_update_to_weight_ratio": 0.01
                         + train_penalty[train_distribution] / 100,
                         "learning_rate_regime": learning_rate_regime,
+                        "suffix_initialization": suffix_initialization,
                         "base_relax_learning_rate": 0.01,
                         "learning_rate_multiplier": lr_multiplier,
                         "effective_relax_learning_rate": 0.01
@@ -269,6 +273,47 @@ def _cnn_v2_matrix_payload(
         for row in records
         if row["train_distribution"] == "true"
         and row["eval_distribution"] == "true"
+    ]
+    return payload
+
+
+def _cnn_v2_noise_reversal_payload() -> dict:
+    payload = _cnn_v2_matrix_payload()
+    payload["config"]["true_eval_only"] = True
+    rank_result = payload["slices"][0]["rank_results"][0]
+    records = [
+        row
+        for row in rank_result["records"]
+        if row["eval_distribution"] == "true"
+    ]
+    for row in records:
+        if (
+            row["train_distribution"] == "mean_r1"
+            and row["relax_epoch"] == 1
+        ):
+            row["loss"] = 0.65
+    template = next(
+        row
+        for row in records
+        if row["train_distribution"] == "mean_r1"
+        and row["relax_epoch"] == 0
+    )
+    for relax_epoch, loss in ((0, 0.9), (1, 0.8)):
+        mean_zero = copy.deepcopy(template)
+        mean_zero.update(
+            {
+                "train_distribution": "mean_r0",
+                "relax_epoch": relax_epoch,
+                "loss": loss,
+                "accuracy": 0.5 + 0.05 * relax_epoch,
+            }
+        )
+        records.append(mean_zero)
+    rank_result["records"] = records
+    payload["slices"][0]["reference_records"] = [
+        row
+        for row in records
+        if row["train_distribution"] == "true"
     ]
     return payload
 
@@ -824,6 +869,21 @@ def test_new_resnet_held_out_coverage_overrides_legacy_field(tmp_path):
     assert "82.0%" in rendered
 
 
+def test_tiny_floating_point_coverage_overshoot_is_clamped(tmp_path):
+    cnn = _cnn_v2_matrix_payload()
+    rank_result = cnn["slices"][0]["rank_results"][0]
+    rank_result["held_out_explained_variance_fraction"] = 1.00000006
+    rank_result["held_out_coverage"][
+        "total_variance_fraction"
+    ] = 1.00000006
+    manifest_path = _make_manifest(tmp_path, cnn=cnn)
+    _manifest, artifacts = load_manifest(manifest_path)
+    _observations, cells = normalise_artifacts(artifacts)
+    cnn_cell = next(cell for cell in cells if cell["kind"] == "cnn")
+
+    assert cnn_cell["coverage_total"] == 1.0
+
+
 def test_schema_v3_resnet_loads_normalises_and_renders(tmp_path):
     manifest_path = _make_manifest(tmp_path, resnet=_resnet_v3_payload())
     _manifest, artifacts = load_manifest(manifest_path)
@@ -1073,6 +1133,88 @@ def test_matched_update_regime_is_separate_optimizer_sensitivity(tmp_path):
     assert "Matched-update sensitivity" in rendered
 
 
+def test_noise_radius_reversal_is_artifact_driven_and_prominent(tmp_path):
+    manifest_path = _make_manifest(
+        tmp_path, cnn=_cnn_v2_noise_reversal_payload()
+    )
+    rendered = build_report(
+        manifest_path, tmp_path / "noise-reversal.html"
+    ).read_text()
+
+    assert "GAUSSIAN–MEAN ORDERING REVERSAL" in rendered
+    assert "radius-dependent for that stratum" in rendered
+    assert "Gaussian − mean r=0" in rendered
+    assert "Gaussian − mean r=1" in rendered
+    assert "<td>YES</td>" in rendered
+
+
+def test_covariance_sensitivity_reports_delta_without_pass_threshold(tmp_path):
+    manifest_path = _make_manifest(
+        tmp_path, cnn=_cnn_v2_matrix_payload()
+    )
+    rendered = build_report(
+        manifest_path, tmp_path / "covariance-sensitivity.html"
+    ).read_text()
+
+    assert "Covariance-shrinkage sensitivity" in rendered
+    assert "Shrunk − exact" in rendered
+    assert "No pass threshold was preregistered" in rendered
+    assert "assigns no pass/fail label" in rendered
+
+
+def test_reinitialized_suffix_is_never_merged_with_warm_replicates(tmp_path):
+    manifest_path = _make_manifest(
+        tmp_path, cnn=_cnn_v2_matrix_payload(suffix_initialization="warm")
+    )
+    _append_manifest_input(
+        manifest_path,
+        payload=_cnn_v2_matrix_payload(
+            suffix_initialization="reinitialized"
+        ),
+        input_id="cnn-reinitialized-s0-e1",
+        kind="cnn",
+        artifact_format="post_statistics",
+        label="CNN reinitialized suffix control",
+        epoch=1,
+        seed=0,
+    )
+    _manifest, artifacts = load_manifest(manifest_path)
+    observations, _cells = normalise_artifacts(artifacts)
+    paired = paired_true_eval_contrasts(observations)
+    summaries = summarise_paired_contrasts(paired)
+
+    assert {row["suffix_initialization"] for row in paired} == {
+        "warm",
+        "reinitialized",
+    }
+    empirical_endpoints = [
+        row
+        for row in summaries
+        if row["distribution"] == "gaussian_empirical"
+        and row["relax_epoch"] == 1
+    ]
+    assert len(empirical_endpoints) == 2
+    assert {row["suffix_initialization"] for row in empirical_endpoints} == {
+        "warm",
+        "reinitialized",
+    }
+    assert all(row["draw_count"] == 1 for row in empirical_endpoints)
+
+    rendered = build_report(
+        manifest_path, tmp_path / "reinitialized.html"
+    ).read_text()
+    assert "Reinitialized suffixes are a separate control stratum" in rendered
+    assert "does not capacity-match cuts" in rendered
+    assert "warm suffix" in rendered
+    assert "reinitialized suffix" in rendered
+    optimizer_start = rendered.index(
+        "<h3>Optimizer-regime outcome sensitivity</h3>"
+    )
+    optimizer_end = rendered.index("<h3>Surrogate moment fidelity</h3>")
+    optimizer_block = rendered[optimizer_start:optimizer_end]
+    assert "<td>reinitialized</td>" not in optimizer_block
+
+
 def test_canonical_resnet_entries_accepts_canonical_profile_at_fixed_path(tmp_path):
     artifact_root = tmp_path / "artifacts"
     output = artifact_root / "lw_post" / "dashboard_manifest.json"
@@ -1148,6 +1290,25 @@ def test_manifest_accepts_explicit_projection_and_optimizer_sensitivity_paths(
     assert sensitivity_entries[0]["format"] == "post_statistics"
     assert sensitivity_entries[0]["sha256"] == matched_digest
     assert "match_true_initial_update" in sensitivity_entries[0]["label"]
+
+
+def test_manifest_can_use_only_explicit_measured_inputs(tmp_path):
+    output = tmp_path / "artifacts" / "lw_post" / "dashboard_manifest.json"
+    output.parent.mkdir(parents=True)
+    matched_path = output.parent / "matched.json"
+    _write_json(
+        matched_path,
+        _cnn_v2_matrix_payload("match_true_initial_update"),
+    )
+    manifest = build_manifest(
+        tmp_path / "unused",
+        output,
+        "a" * 40,
+        cnn_source="none",
+        extra_cnn_paths=[matched_path],
+    )
+    assert len(manifest["inputs"]) == 1
+    assert manifest["inputs"][0]["format"] == "post_statistics"
 
 
 def test_explicit_legacy_cnn_format_builds_and_discloses_limitations(tmp_path):

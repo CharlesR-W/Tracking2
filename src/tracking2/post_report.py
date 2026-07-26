@@ -1099,9 +1099,9 @@ def _coverage_details(source: Mapping[str, Any], context: str) -> dict[str, Any]
     direct = source.get("held_out_explained_variance_fraction")
     if direct is not None:
         value = _number(direct, f"{context}.held_out_explained_variance_fraction")
-        if not 0 <= value <= 1:
+        if not 0 <= value <= 1.0001:
             raise ReportInputError(f"{context} held-out PCA coverage must be in [0, 1]")
-        details["total"] = value
+        details["total"] = min(value, 1.0)
         details["basis"] = "held-out activations"
 
     held_out = source.get("held_out_coverage")
@@ -1158,7 +1158,7 @@ def _normalise_records(
 ) -> list[dict[str, Any]]:
     rows = _objects(records, context)
     normalised: list[dict[str, Any]] = []
-    seen: set[tuple[str, str, int, int, str]] = set()
+    seen: set[tuple[str, str, int, int, str, str]] = set()
     for index, row in enumerate(rows):
         row_context = f"{context}[{index}]"
         evaluation = _validate_distribution(
@@ -1344,9 +1344,14 @@ def _normalise_records(
                 f"{row_context}.suffix_initialization must be "
                 "'warm' or 'reinitialized'"
             )
-        if suffix_initialization == "reinitialized":
-            lr_regime = f"reinitialized_{lr_regime}"
-        key = (distribution, evaluation, draw, relax_epoch, lr_regime)
+        key = (
+            distribution,
+            evaluation,
+            draw,
+            relax_epoch,
+            suffix_initialization,
+            lr_regime,
+        )
         if key in seen:
             raise ReportInputError(
                 f"{context} contains duplicate evaluation record {key}"
@@ -1366,6 +1371,7 @@ def _normalise_records(
                 "initial_suffix_parameter_count": suffix_parameter_count,
                 "initial_suffix_weight_norm": suffix_weight_norm,
                 "initial_update_to_weight_ratio": update_to_weight_ratio,
+                "suffix_initialization": suffix_initialization,
                 "lr_regime": lr_regime,
                 **lr_fields,
             }
@@ -1684,6 +1690,7 @@ def _validate_cell_series(
             (
                 int(row["draw"]),
                 int(row["relax_epoch"]),
+                str(row["suffix_initialization"]),
                 str(row["lr_regime"]),
             )
             for row in rows
@@ -1699,7 +1706,10 @@ def _validate_cell_series(
             )
     if expected_draws is not None and expected_relax_epochs is not None:
         regimes = {
-            str(row["lr_regime"])
+            (
+                str(row["suffix_initialization"]),
+                str(row["lr_regime"]),
+            )
             for row in records
             if row["eval_distribution"] == "true"
         }
@@ -1707,9 +1717,14 @@ def _validate_cell_series(
             raise ReportInputError(
                 f"{context} must contain exactly one learning-rate regime"
             )
-        expected_regime = next(iter(regimes))
+        expected_initialization, expected_regime = next(iter(regimes))
         declared_coordinates = {
-            (draw, epoch, expected_regime)
+            (
+                draw,
+                epoch,
+                expected_initialization,
+                expected_regime,
+            )
             for draw in range(expected_draws)
             for epoch in range(expected_relax_epochs + 1)
         }
@@ -1735,6 +1750,7 @@ def _validate_full_train_eval_matrix(
         (
             int(row["draw"]),
             int(row["relax_epoch"]),
+            str(row["suffix_initialization"]),
             str(row["lr_regime"]),
         )
         for row in records
@@ -1743,6 +1759,7 @@ def _validate_full_train_eval_matrix(
         (
             int(row["draw"]),
             int(row["relax_epoch"]),
+            str(row["suffix_initialization"]),
             str(row["lr_regime"]),
             str(row["distribution"]),
             str(row["eval_distribution"]),
@@ -1899,6 +1916,12 @@ def _cell_metadata(
         "label": artifact.label,
         "checkpoint_epoch": artifact.checkpoint_epoch,
         "model_seed": artifact.model_seed,
+        "suffix_initialization": artifact.payload["config"].get(
+            "suffix_initialization", "warm"
+        ),
+        "learning_rate_regime": artifact.payload["config"].get(
+            "learning_rate_regime", "fixed_lr"
+        ),
         "cut": cut,
         "module": module,
         "pca_rank": rank,
@@ -2003,6 +2026,7 @@ _SUMMARY_KEYS = (
     "distribution",
     "eval_distribution",
     "relax_epoch",
+    "suffix_initialization",
     "lr_regime",
 )
 
@@ -2079,6 +2103,7 @@ def summarise_observations(
             _distribution_order(str(row["distribution"])),
             _distribution_order(str(row["eval_distribution"])),
             row["relax_epoch"],
+            row["suffix_initialization"],
             row["lr_regime"],
         ),
     )
@@ -2093,6 +2118,7 @@ _PAIR_KEYS = (
     "cut",
     "module",
     "pca_rank",
+    "suffix_initialization",
     "lr_regime",
     "draw",
     "relax_epoch",
@@ -2507,10 +2533,18 @@ def _render_model_section(
         recorded_regimes = sorted(
             {str(row["lr_regime"]) for row in run_rows}
         )
+        recorded_initializations = sorted(
+            {str(row["suffix_initialization"]) for row in run_rows}
+        )
         display_regime = (
             "fixed_lr"
             if "fixed_lr" in recorded_regimes
             else recorded_regimes[0]
+        )
+        display_initialization = (
+            "warm"
+            if "warm" in recorded_initializations
+            else recorded_initializations[0]
         )
         cuts = sorted({int(cell["cut"]) for cell in run_cells})
         ranks = sorted({int(cell["pca_rank"]) for cell in run_cells})
@@ -2547,6 +2581,7 @@ def _render_model_section(
                 if int(row["cut"]) == cut and int(row["pca_rank"]) == primary_rank
                 and row["eval_distribution"] == "true"
                 and row["lr_regime"] == display_regime
+                and row["suffix_initialization"] == display_initialization
             ]
             coverage_note = (
                 f'PCA rank {primary_rank}; coverage '
@@ -2581,7 +2616,8 @@ def _render_model_section(
             f'seed {model_seed} · {len(cuts)} cuts · '
             f'{draw_count} draw{"s" if draw_count != 1 else ""}</span></summary>'
             '<div class="run-intro">'
-            f"<p>{_esc(rank_note)} Displayed optimizer regime: "
+            f"<p>{_esc(rank_note)} Displayed suffix initialization: "
+            f"<code>{_esc(display_initialization)}</code>; optimizer regime: "
             f"<code>{_esc(display_regime)}</code>.</p>"
             "</div>"
             + "".join(chart_cards)
@@ -2850,6 +2886,7 @@ def _endpoint_paired_rows(
             row["input_id"],
             row["cut"],
             row["pca_rank"],
+            row["suffix_initialization"],
             row["lr_regime"],
             row["distribution"],
         )
@@ -2895,6 +2932,7 @@ def _primary_estimand_table(
         for row in _endpoint_paired_rows(paired_summaries)
         if row.get("loss_excess_mean") is not None
         and row["lr_regime"] == "fixed_lr"
+        and row["suffix_initialization"] == "warm"
     ]
     if not endpoints:
         return (
@@ -2950,6 +2988,7 @@ def _matrix_cards(observations: Sequence[Mapping[str, Any]]) -> str:
         "cut",
         "module",
         "pca_rank",
+        "suffix_initialization",
         "lr_regime",
     )
     max_rank: dict[tuple[str, int], int] = defaultdict(int)
@@ -3041,7 +3080,9 @@ def _matrix_cards(observations: Sequence[Mapping[str, Any]]) -> str:
             f'epoch {metadata["checkpoint_epoch"]} · seed {metadata["model_seed"]} · '
             f'{_esc(metadata["module"])}'
             "</span><span class=\"summary-meta\">"
-            f'rank {metadata["pca_rank"]} · {_esc(metadata["lr_regime"])}</span>'
+            f'rank {metadata["pca_rank"]} · '
+            f'{_esc(metadata["suffix_initialization"])} suffix · '
+            f'{_esc(metadata["lr_regime"])}</span>'
             "</summary><div class=\"matrix-body\">"
             '<p class="micro">Columns are relaxation distributions; rows are '
             "evaluation distributions. Each cell is endpoint cross-entropy. "
@@ -3106,6 +3147,8 @@ def _rank_outcome_table(
             f'<td>{row["checkpoint_epoch"]}</td><td>{row["model_seed"]}</td>'
             f'<td>{_esc(row["module"])}</td>'
             f'<td>{row["pca_rank"]}</td>'
+            f'<td>{_esc(row["suffix_initialization"])}</td>'
+            f'<td>{_esc(row["lr_regime"])}</td>'
             f'<td>{_fmt_percent(cell.get("coverage_within_class"))}</td>'
             f"<td>{_esc(label)}</td>"
             f'<td class="number">{_metric_with_range(row, "loss_excess")}</td>'
@@ -3114,6 +3157,7 @@ def _rank_outcome_table(
     return (
         '<div class="table-scroll"><table><thead><tr><th>Model</th>'
         "<th>Checkpoint</th><th>Model seed</th><th>Cut</th><th>Rank</th>"
+        "<th>Suffix initialization</th><th>LR regime</th>"
         "<th>Within-class coverage</th><th>Replay</th><th>Excess loss</th>"
         "</tr></thead><tbody>"
         + "".join(rows)
@@ -3161,7 +3205,9 @@ def _noise_outcome_table(
             f'<td>{_esc(_architecture_label(str(row["kind"])))}</td>'
             f'<td>{row["checkpoint_epoch"]}</td><td>{row["model_seed"]}</td>'
             f'<td>{_esc(row["module"])}</td>'
-            f'<td>{row["pca_rank"]}</td><td>{radius:g}</td>'
+            f'<td>{row["pca_rank"]}</td>'
+            f'<td>{_esc(row["suffix_initialization"])}</td>'
+            f'<td>{_esc(row["lr_regime"])}</td><td>{radius:g}</td>'
             f'<td class="number">{_metric_with_range(row, "loss_excess")}</td>'
             f'<td class="number">{_percentage_point_with_range(row, "accuracy_shortfall")}</td>'
             "</tr>"
@@ -3169,10 +3215,204 @@ def _noise_outcome_table(
     return (
         '<div class="table-scroll"><table><thead><tr><th>Model</th>'
         "<th>Checkpoint</th><th>Model seed</th><th>Cut</th><th>Rank</th>"
-        "<th>Noise radius</th>"
+        "<th>Suffix initialization</th><th>LR regime</th><th>Noise radius</th>"
         "<th>Excess loss</th><th>Accuracy shortfall (percentage points)</th>"
         "</tr></thead><tbody>"
         + "".join(rows)
+        + "</tbody></table></div>"
+    )
+
+
+def _noise_gaussian_ordering_panel(
+    paired_summaries: Sequence[Mapping[str, Any]],
+) -> str:
+    context_fields = (
+        "input_id",
+        "label",
+        "kind",
+        "checkpoint_epoch",
+        "model_seed",
+        "cut",
+        "module",
+        "pca_rank",
+        "suffix_initialization",
+        "lr_regime",
+    )
+    grouped: dict[
+        tuple[Any, ...], dict[str, Mapping[str, Any]]
+    ] = defaultdict(dict)
+    for row in _endpoint_paired_rows(paired_summaries):
+        if row.get("loss_excess_mean") is None:
+            continue
+        grouped[
+            tuple(row[field] for field in context_fields)
+        ][str(row["distribution"])] = row
+
+    comparisons: list[dict[str, Any]] = []
+    for key, distributions in grouped.items():
+        gaussian = distributions.get("gaussian_empirical")
+        mean_zero = next(
+            (
+                row
+                for name, row in distributions.items()
+                if _mean_radius(name) == 0
+            ),
+            None,
+        )
+        mean_one = next(
+            (
+                row
+                for name, row in distributions.items()
+                if _mean_radius(name) == 1
+            ),
+            None,
+        )
+        if gaussian is None or mean_zero is None or mean_one is None:
+            continue
+        gaussian_loss = float(gaussian["loss_excess_mean"])
+        mean_zero_loss = float(mean_zero["loss_excess_mean"])
+        mean_one_loss = float(mean_one["loss_excess_mean"])
+        delta_zero = gaussian_loss - mean_zero_loss
+        delta_one = gaussian_loss - mean_one_loss
+        comparison = dict(zip(context_fields, key))
+        comparison.update(
+            {
+                "gaussian_loss": gaussian_loss,
+                "mean_zero_loss": mean_zero_loss,
+                "mean_one_loss": mean_one_loss,
+                "gaussian_minus_mean_zero": delta_zero,
+                "gaussian_minus_mean_one": delta_one,
+                "ordering_reversal": delta_zero * delta_one < 0,
+            }
+        )
+        comparisons.append(comparison)
+    if not comparisons:
+        return (
+            '<p class="empty-control">No artifact contains exact Gaussian, '
+            "mean r = 0, and mean r = 1 endpoints in the same experimental "
+            "stratum.</p>"
+        )
+    reversals = [
+        comparison
+        for comparison in comparisons
+        if comparison["ordering_reversal"]
+    ]
+    warning = ""
+    if reversals:
+        warning = (
+            '<aside class="status-panel diagnostic"><strong>GAUSSIAN–MEAN '
+            "ORDERING REVERSAL.</strong><p>At least one measured stratum changes "
+            "which condition has lower endpoint loss between mean r = 0 and "
+            "mean r = 1. Any “covariance helps” claim is therefore "
+            "radius-dependent for that stratum.</p></aside>"
+        )
+    body = []
+    for row in comparisons:
+        body.append(
+            "<tr>"
+            f'<td>{row["checkpoint_epoch"]}</td><td>{row["model_seed"]}</td>'
+            f'<td>{_esc(row["module"])}</td><td>{row["pca_rank"]}</td>'
+            f'<td>{_esc(row["suffix_initialization"])}</td>'
+            f'<td>{_esc(row["lr_regime"])}</td>'
+            f'<td class="number">{row["gaussian_loss"]:.4f}</td>'
+            f'<td class="number">{row["mean_zero_loss"]:.4f}</td>'
+            f'<td class="number">{row["gaussian_minus_mean_zero"]:+.4f}</td>'
+            f'<td class="number">{row["mean_one_loss"]:.4f}</td>'
+            f'<td class="number">{row["gaussian_minus_mean_one"]:+.4f}</td>'
+            f'<td>{"YES" if row["ordering_reversal"] else "NO"}</td>'
+            "</tr>"
+        )
+    return (
+        warning
+        + '<div class="table-scroll"><table><thead><tr>'
+        "<th>Checkpoint</th><th>Model seed</th><th>Cut</th><th>Rank</th>"
+        "<th>Suffix initialization</th><th>LR regime</th>"
+        "<th>Exact Gaussian excess loss</th><th>Mean r=0 excess loss</th>"
+        "<th>Gaussian − mean r=0</th><th>Mean r=1 excess loss</th>"
+        "<th>Gaussian − mean r=1</th><th>Ordering reverses?</th>"
+        "</tr></thead><tbody>"
+        + "".join(body)
+        + "</tbody></table></div>"
+    )
+
+
+def _covariance_sensitivity_table(
+    paired_summaries: Sequence[Mapping[str, Any]],
+) -> str:
+    context_fields = (
+        "input_id",
+        "label",
+        "kind",
+        "checkpoint_epoch",
+        "model_seed",
+        "cut",
+        "module",
+        "pca_rank",
+        "suffix_initialization",
+        "lr_regime",
+    )
+    grouped: dict[
+        tuple[Any, ...], dict[str, Mapping[str, Any]]
+    ] = defaultdict(dict)
+    for row in _endpoint_paired_rows(paired_summaries):
+        if row.get("loss_excess_mean") is None:
+            continue
+        grouped[
+            tuple(row[field] for field in context_fields)
+        ][str(row["distribution"])] = row
+    body = []
+    for key, distributions in grouped.items():
+        exact = distributions.get("gaussian_empirical")
+        if exact is None:
+            continue
+        exact_loss = float(exact["loss_excess_mean"])
+        metadata = dict(zip(context_fields, key))
+        for distribution, row in sorted(
+            distributions.items(),
+            key=lambda item: _distribution_order(item[0]),
+        ):
+            shrinkage = _gaussian_shrinkage(distribution)
+            if (
+                distribution == "gaussian_empirical"
+                or shrinkage is None
+                or shrinkage == 0
+            ):
+                continue
+            shrunk_loss = float(row["loss_excess_mean"])
+            delta = shrunk_loss - exact_loss
+            body.append(
+                "<tr>"
+                f'<td>{metadata["checkpoint_epoch"]}</td>'
+                f'<td>{metadata["model_seed"]}</td>'
+                f'<td>{_esc(metadata["module"])}</td>'
+                f'<td>{metadata["pca_rank"]}</td>'
+                f'<td>{_esc(metadata["suffix_initialization"])}</td>'
+                f'<td>{_esc(metadata["lr_regime"])}</td>'
+                f'<td>{100 * shrinkage:g}%</td>'
+                f'<td class="number">{exact_loss:.4f}</td>'
+                f'<td class="number">{shrunk_loss:.4f}</td>'
+                f'<td class="number">{delta:+.4f}</td>'
+                f'<td class="number">{abs(delta):.4f}</td>'
+                "</tr>"
+            )
+    if not body:
+        return (
+            '<p class="empty-control">No exact-versus-shrunk Gaussian endpoint '
+            "comparison is recorded in one experimental stratum.</p>"
+        )
+    return (
+        '<p class="result-note"><strong>Interpretation.</strong> The covariance '
+        "conclusion is robust to shrinkage only when the endpoint delta is small "
+        "on the substantive loss scale. No pass threshold was preregistered, so "
+        "this dashboard reports the delta descriptively and assigns no pass/fail "
+        "label.</p>"
+        '<div class="table-scroll"><table><thead><tr>'
+        "<th>Checkpoint</th><th>Model seed</th><th>Cut</th><th>Rank</th>"
+        "<th>Suffix initialization</th><th>LR regime</th><th>Shrinkage</th>"
+        "<th>Exact Gaussian excess loss</th><th>Shrunk Gaussian excess loss</th>"
+        "<th>Shrunk − exact</th><th>|delta|</th>"
+        "</tr></thead><tbody>"
+        + "".join(body)
         + "</tbody></table></div>"
     )
 
@@ -3192,7 +3432,10 @@ def _moment_diagnostic_table(cells: Sequence[Mapping[str, Any]]) -> str:
                 f'<td>{_esc(_architecture_label(str(cell["kind"])))}</td>'
                 f'<td>{cell["checkpoint_epoch"]}</td><td>{cell["model_seed"]}</td>'
                 f'<td>{_esc(cell["module"])}</td>'
-                f'<td>{cell["pca_rank"]}</td><td>{_esc(label)}</td>'
+                f'<td>{cell["pca_rank"]}</td>'
+                f'<td>{_esc(cell["suffix_initialization"])}</td>'
+                f'<td>{_esc(cell["learning_rate_regime"])}</td>'
+                f'<td>{_esc(label)}</td>'
                 f'<td>{_esc(diagnostic.get("draw", "—"))}</td>'
                 f'<td class="number">{("—" if mean_error is None else f"{float(mean_error):.4f}")}</td>'
                 f'<td class="number">{("—" if covariance_error is None else f"{float(covariance_error):.4f}")}</td>'
@@ -3204,7 +3447,7 @@ def _moment_diagnostic_table(cells: Sequence[Mapping[str, Any]]) -> str:
     return (
         '<div class="table-scroll"><table><thead><tr><th>Model</th>'
         "<th>Checkpoint</th><th>Model seed</th><th>Cut</th><th>Rank</th>"
-        "<th>Surrogate</th>"
+        "<th>Suffix initialization</th><th>LR regime</th><th>Surrogate</th>"
         "<th>Draw</th><th>Class-mean relative error</th>"
         "<th>Class-covariance relative error</th><th>Diagnostic space</th>"
         "</tr></thead><tbody>"
@@ -3234,6 +3477,7 @@ def _gradient_diagnostic_table(
             row["cut"],
             row["module"],
             row["pca_rank"],
+            row["suffix_initialization"],
             row["lr_regime"],
             row["draw"],
         )
@@ -3310,6 +3554,7 @@ def _gradient_diagnostic_table(
             _cut,
             module,
             rank,
+            suffix_initialization,
             regime,
             distribution,
         ) = key
@@ -3329,7 +3574,8 @@ def _gradient_diagnostic_table(
             "<tr>"
             f'<td>{_esc(_architecture_label(str(kind)))}</td><td>{epoch}</td>'
             f"<td>{model_seed}</td>"
-            f"<td>{_esc(module)}</td><td>{rank}</td><td>{_esc(label)}</td>"
+            f"<td>{_esc(module)}</td><td>{rank}</td>"
+            f"<td>{_esc(suffix_initialization)}</td><td>{_esc(label)}</td>"
             f'<td class="number">{fmean(total_values):.3f}×</td>'
         )
         row_html += (
@@ -3362,7 +3608,7 @@ def _gradient_diagnostic_table(
     return (
         '<div class="table-scroll"><table><thead><tr><th>Model</th>'
         "<th>Checkpoint</th><th>Model seed</th><th>Cut</th><th>Rank</th>"
-        "<th>Replay</th>"
+        "<th>Suffix initialization</th><th>Replay</th>"
         "<th>Total gradient / true</th><th>RMS gradient / true</th>"
         "<th>Update-to-weight / true</th><th>Base LR</th>"
         "<th>LR multiplier</th><th>Effective LR</th>"
@@ -3403,6 +3649,8 @@ def _projection_diagnostic_table(
             f'<td>{cell["checkpoint_epoch"]}</td>'
             f'<td>{cell["model_seed"]}</td>'
             f'<td>{_esc(cell["module"])}</td><td>{cell["pca_rank"]}</td>'
+            f'<td>{_esc(cell["suffix_initialization"])}</td>'
+            f'<td>{_esc(cell["learning_rate_regime"])}</td>'
             f'<td class="number">{("—" if loss_delta is None else f"{loss_delta:+.5f}")}</td>'
             f'<td class="number">{("—" if accuracy_delta is None else f"{accuracy_delta:+.2f} pp")}</td>'
             f'<td class="number">{("—" if predictive_kl is None else f"{float(predictive_kl):.5f}")}</td>'
@@ -3416,6 +3664,7 @@ def _projection_diagnostic_table(
     return (
         '<div class="table-scroll"><table><thead><tr><th>Model</th>'
         "<th>Checkpoint</th><th>Model seed</th><th>Cut</th><th>Rank</th>"
+        "<th>Suffix initialization</th><th>LR regime</th>"
         "<th>Projected − true loss</th><th>Projected − true accuracy</th>"
         "<th>Predictive KL(true ∥ projected)</th>"
         "</tr></thead><tbody>"
@@ -3438,12 +3687,18 @@ def _optimizer_regime_outcome_table(
         "model_seed",
         "cut",
         "pca_rank",
+        "suffix_initialization",
         "distribution",
     )
+    regimes_by_context: dict[tuple[Any, ...], set[str]] = defaultdict(set)
+    for row in endpoints:
+        regimes_by_context[
+            tuple(row[field] for field in context_fields)
+        ].add(str(row["lr_regime"]))
     matched_contexts = {
-        tuple(row[field] for field in context_fields)
-        for row in endpoints
-        if row["lr_regime"] == "match_true_initial_update"
+        context
+        for context, regimes in regimes_by_context.items()
+        if {"fixed_lr", "match_true_initial_update"} <= regimes
     }
     rows = [
         row
@@ -3482,6 +3737,7 @@ def _optimizer_regime_outcome_table(
             "<tr>"
             f'<td>{row["checkpoint_epoch"]}</td><td>{row["model_seed"]}</td>'
             f'<td>{_esc(row["module"])}</td><td>{row["pca_rank"]}</td>'
+            f'<td>{_esc(row["suffix_initialization"])}</td>'
             f"<td>{_esc(label)}</td><td>{_esc(regime)}</td>"
             f'<td class="number">{_metric_with_range(row, "loss_excess")}</td>'
             f'<td>{_esc(row["label"])}</td>'
@@ -3490,7 +3746,8 @@ def _optimizer_regime_outcome_table(
     return (
         '<div class="table-scroll"><table><thead><tr>'
         "<th>Checkpoint</th><th>Model seed</th><th>Cut</th><th>Rank</th>"
-        "<th>Replay</th><th>Optimizer regime</th><th>Excess loss</th>"
+        "<th>Suffix initialization</th><th>Replay</th>"
+        "<th>Optimizer regime</th><th>Excess loss</th>"
         "<th>Artifact profile</th></tr></thead><tbody>"
         + "".join(body)
         + "</tbody></table></div>"
@@ -3633,6 +3890,8 @@ def _coverage_table(cells: Sequence[Mapping[str, Any]]) -> str:
             f'<td>{cell["model_seed"]}</td>'
             f'<td>{_esc(cell["module"])}</td>'
             f'<td>{cell["pca_rank"]}{rank_flag}</td>'
+            f'<td>{_esc(cell["suffix_initialization"])}</td>'
+            f'<td>{_esc(cell["learning_rate_regime"])}</td>'
             f'<td>{_fmt_percent(cell.get("coverage_total"))}</td>'
             f'<td>{_fmt_percent(cell.get("coverage_within_class"))}</td>'
             f'<td>{_fmt_percent(cell.get("coverage_between_class"))}</td>'
@@ -3650,6 +3909,7 @@ def _coverage_table(cells: Sequence[Mapping[str, Any]]) -> str:
         '<div class="table-scroll"><table><thead><tr>'
         "<th>Model</th><th>Checkpoint epoch</th><th>Model seed</th>"
         "<th>Cut</th><th>PCA rank</th>"
+        "<th>Suffix initialization</th><th>LR regime</th>"
         "<th>Total variance</th><th>Within-class variance</th>"
         "<th>Between-class mean variance</th><th>Coverage population</th>"
         "<th>Native coordinates</th>"
@@ -3694,6 +3954,7 @@ def _exact_table(summaries: Sequence[Mapping[str, Any]]) -> str:
             f'<td>{row["model_seed"]}</td>'
             f'<td>{_esc(row["module"])}</td>'
             f'<td>{row["pca_rank"]}</td>'
+            f'<td>{_esc(row["suffix_initialization"])}</td>'
             f'<td>{_esc(label)}</td>'
             f'<td>{_esc(eval_label)}</td>'
             f'<td>{row["relax_epoch"]}</td>'
@@ -3712,7 +3973,8 @@ def _exact_table(summaries: Sequence[Mapping[str, Any]]) -> str:
     return (
         '<div class="table-scroll exact-table"><table><thead><tr>'
         "<th>Model</th><th>Checkpoint</th><th>Model seed</th><th>Cut</th><th>Rank</th>"
-        "<th>Training distribution</th><th>Evaluation distribution</th>"
+        "<th>Suffix initialization</th><th>Training distribution</th>"
+        "<th>Evaluation distribution</th>"
         "<th>Relax epoch</th><th>Mean loss</th>"
         "<th>Mean accuracy</th><th>Draw range</th><th>n</th><th>LR regime</th>"
         "<th>Base LR</th><th>LR multiplier</th><th>Effective LR</th>"
@@ -4188,6 +4450,7 @@ def render_report(
     has_primary = any(
         row.get("loss_excess_mean") is not None
         and row["lr_regime"] == "fixed_lr"
+        and row["suffix_initialization"] == "warm"
         for row in canonical_paired
     )
     status_html = (
@@ -4350,6 +4613,11 @@ def render_report(
         <div><h3>Experimental unit</h3><p>Checkpoint/model seed × cut × nested PCA
           rank × surrogate draw. Draws estimate surrogate-sampling variation; they
           are not independent model seeds.</p></div>
+        <div><h3>Suffix initialization</h3><p>Warm-started relaxation is primary.
+          Reinitialized suffixes are a separate control stratum and are never
+          paired with warm rows as replicates. Reinitialization removes inherited
+          weights, but it does not capacity-match cuts: suffix depth and parameter
+          count still change with cut location.</p></div>
         <div><h3>Banks and splits</h3><p>PCA and class moments are fitted only on the
           declared analysis bank. Coverage and outcome evaluation must identify
           their held-out population and bank fingerprints.</p></div>
@@ -4435,8 +4703,8 @@ def render_report(
       <p class="question">At the relaxation endpoint, how much cross-entropy is
         added by training on each surrogate instead of matched real activations?</p>
       <p>Read zero as parity with the paired real-replay baseline. Positive values
-        mean worse held-out real loss. This table contains the fixed-LR
-        intervention only. Parentheses are the min–max range across surrogate
+        mean worse held-out real loss. This table contains warm-started,
+        fixed-LR intervention rows only. Parentheses are the min–max range across surrogate
         draws; model-seed uncertainty requires additional checkpoints.</p>
     </div>
     {_primary_estimand_table(canonical_paired)}
@@ -4471,8 +4739,15 @@ def render_report(
         {_rank_outcome_table(canonical_paired, canonical_cells)}</div>
       <div class="control-block"><h3>Mean-noise radius sensitivity</h3>
         <p>Tests whether an apparent centroid result depends on the chosen
-          trace-scaled isotropic radius.</p>
-        {_noise_outcome_table(canonical_paired)}</div>
+          trace-scaled isotropic radius. The ordering diagnostic compares r = 0
+          and r = 1 to exact empirical-covariance Gaussian replay only within the
+          same seed, cut, rank, suffix initialization, LR regime, and endpoint.</p>
+        {_noise_outcome_table(canonical_paired)}
+        {_noise_gaussian_ordering_panel(canonical_paired)}</div>
+      <div class="control-block"><h3>Covariance-shrinkage sensitivity</h3>
+        <p>Compares exact empirical covariance with each declared spherical-
+          shrinkage condition at the same endpoint and experimental stratum.</p>
+        {_covariance_sensitivity_table(canonical_paired)}</div>
       <div class="control-block"><h3>Step-zero PCA functional change</h3>
         <p>Before relaxation, compare the unchanged suffix on true and projected
           held-out activations. A large gap means rank truncation has already

@@ -383,12 +383,14 @@ def build_manifest(
 ) -> dict:
     if not COMMIT_RE.fullmatch(source_commit):
         raise ValueError("source_commit must be a 7–64 character hexadecimal id")
-    if cnn_source == "legacy":
+    if cnn_source == "none":
+        inputs = []
+    elif cnn_source == "legacy":
         inputs = legacy_cnn_entries(artifact_root, output)
     elif cnn_source == "post":
         inputs = post_cnn_entries(artifact_root, output, cnn_seeds)
     else:
-        raise ValueError("cnn_source must be 'legacy' or 'post'")
+        raise ValueError("cnn_source must be 'none', 'legacy', or 'post'")
     inputs.extend(explicit_post_cnn_entries(output, extra_cnn_paths))
     inputs.extend(
         projection_adequacy_entries(output, projection_adequacy_paths)
@@ -425,9 +427,12 @@ def main() -> None:
     parser.add_argument("--source-commit", required=True)
     parser.add_argument(
         "--cnn-source",
-        choices=("legacy", "post"),
+        choices=("none", "legacy", "post"),
         default="post",
-        help="Select the legacy pilot grid or the verified uninterrupted-run battery.",
+        help=(
+            "Select no implicit CNN inputs, the legacy pilot grid, or the "
+            "verified uninterrupted-run battery."
+        ),
     )
     parser.add_argument(
         "--cnn-seeds",
