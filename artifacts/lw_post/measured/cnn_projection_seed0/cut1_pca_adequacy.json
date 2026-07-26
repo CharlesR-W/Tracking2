@@ -1,0 +1,270 @@
+{
+  "schema_version": 1,
+  "experiment": "lw_post_cnn_projection_adequacy",
+  "status": "MEASURED",
+  "purpose": "PCA-only adequacy gate. It fits no class-conditional surrogate moments or covariances, Gaussian surrogate, or relaxation trajectory. Held-out class means are used only to decompose reported variance coverage.",
+  "fit_protocol": "For each requested cut, encode exactly the first pca_fit_size ordered training examples, fit one randomized PCA basis at the maximum requested rank, and evaluate nested leading-coordinate prefixes on the held-out ordered test activation bank. Projection metrics are streamed in batches without materializing a projected test bank.",
+  "config": {
+    "output": "/workspace/tracking2-pca-gate/artifacts/cut1_r2048_4096",
+    "checkpoint": "/workspace/tracking2-controls/artifacts/cnn_seed0/checkpoint_epoch30.pt",
+    "training_manifest": "/workspace/tracking2-controls/artifacts/cnn_seed0/training.json",
+    "checkpoint_epoch": 30,
+    "data_root": "/workspace/tracking2/data",
+    "data_backend": "torchvision",
+    "fake_data": false,
+    "train_size": 50000,
+    "pca_fit_size": 10000,
+    "test_size": 10000,
+    "cuts": [
+      1
+    ],
+    "widths": [
+      32,
+      64,
+      128,
+      128
+    ],
+    "batch_size": 256,
+    "pca_ranks": [
+      2048,
+      3072,
+      4096
+    ],
+    "seed": 0,
+    "device": "cuda"
+  },
+  "architecture": {
+    "name": "four-block residual CNN with GroupNorm",
+    "widths": [
+      32,
+      64,
+      128,
+      128
+    ]
+  },
+  "lineage": {
+    "checkpoint": {
+      "epoch": 30,
+      "path": "/workspace/tracking2-controls/artifacts/cnn_seed0/checkpoint_epoch30.pt",
+      "sha256": "6ca7debe42e51f8142f595d14732f389fa2bf82e5fc3461d29f7c6d85f3ab41a"
+    },
+    "training_manifest": {
+      "path": "/workspace/tracking2-controls/artifacts/cnn_seed0/training.json",
+      "sha256": "063867dc7750b4c27331c3644b9e99b87cf5471d3cef4371d7064555dcf81bcc",
+      "status": "MEASURED",
+      "experiment": "lw_post_cnn_checkpoint_trajectory",
+      "source_provenance": {
+        "python": "3.12.3",
+        "platform": "Linux-6.14.0-33-generic-x86_64-with-glibc2.39",
+        "packages": {
+          "numpy": "1.26.4",
+          "scikit-learn": "1.9.0",
+          "torch": "2.8.0+cu128",
+          "torchvision": "0.23.0+cu128"
+        },
+        "accelerator": {
+          "cuda_available": true,
+          "torch_cuda_version": "12.8",
+          "cudnn_version": 91002,
+          "deterministic_algorithms_enabled": false,
+          "device_name": "NVIDIA L4",
+          "device_capability": [
+            8,
+            9
+          ]
+        },
+        "command": [
+          "/workspace/tracking2-controls/src/tracking2/cnn_checkpoints.py",
+          "--output",
+          "/workspace/tracking2-controls/artifacts/cnn_seed0",
+          "--data-root",
+          "/workspace/tracking2/data",
+          "--epochs",
+          "30",
+          "--checkpoints",
+          "0",
+          "1",
+          "5",
+          "10",
+          "20",
+          "30",
+          "--seed",
+          "0",
+          "--device",
+          "cuda"
+        ],
+        "source_revision": "5873b1bc8736e623effd57f83d976366458dedca",
+        "source_archive_sha256": "b31c0c452dd999b7dccce8e3cd571eb5a859ba4095d6f5666853a2d01a38280b"
+      },
+      "dataset": {
+        "backend": "torchvision",
+        "splits": {
+          "train": {
+            "count": 50000,
+            "ordered_images_sha256": "10279eb78c7ca3cd5afed27d670f35007d7a85d6964a82f1f5ec7f3c1a36da32",
+            "ordered_labels_sha256": "9a079c6c415c258710e71a52df551eba875339d17c5b649f1fc5db69a5641cb6"
+          },
+          "test": {
+            "count": 10000,
+            "ordered_images_sha256": "d4edcf08d2845f0421e76ccbf07bc17d044ab5f988b8e9b65ba453e8c5fc5245",
+            "ordered_labels_sha256": "c75ed787823fef8d57e4fdb02ce3fa89b4693f0c5341b37da5f1275037e4baac"
+          }
+        }
+      }
+    }
+  },
+  "dataset": {
+    "backend": "torchvision",
+    "splits": {
+      "train": {
+        "count": 50000,
+        "ordered_images_sha256": "10279eb78c7ca3cd5afed27d670f35007d7a85d6964a82f1f5ec7f3c1a36da32",
+        "ordered_labels_sha256": "9a079c6c415c258710e71a52df551eba875339d17c5b649f1fc5db69a5641cb6"
+      },
+      "test": {
+        "count": 10000,
+        "ordered_images_sha256": "d4edcf08d2845f0421e76ccbf07bc17d044ab5f988b8e9b65ba453e8c5fc5245",
+        "ordered_labels_sha256": "c75ed787823fef8d57e4fdb02ce3fa89b4693f0c5341b37da5f1275037e4baac"
+      }
+    }
+  },
+  "dataset_roles": {
+    "train": "full ordered split fingerprinted for training lineage; only the declared prefix is activation-encoded",
+    "test": "held-out projection adequacy evaluation bank"
+  },
+  "pca_fit_prefix": {
+    "count": 10000,
+    "ordered_images_sha256": "601ad0b95fee2dcc23961ce1390b47f3284b879550ed68e0efad2d80d5b7a09d",
+    "ordered_labels_sha256": "102acd41415b6cb2da7ef656173a2bf70f50ac8bb16b4abe339fa418602dfd6b",
+    "selection": "range(0, 10000)"
+  },
+  "device": "cuda",
+  "provenance": {
+    "python": "3.12.3",
+    "platform": "Linux-6.14.0-33-generic-x86_64-with-glibc2.39",
+    "packages": {
+      "numpy": "1.26.4",
+      "scikit-learn": "1.9.0",
+      "torch": "2.8.0+cu128",
+      "torchvision": "0.23.0+cu128"
+    },
+    "accelerator": {
+      "cuda_available": true,
+      "torch_cuda_version": "12.8",
+      "cudnn_version": 91002,
+      "deterministic_algorithms_enabled": false,
+      "device_name": "NVIDIA L4",
+      "device_capability": [
+        8,
+        9
+      ]
+    },
+    "command": [
+      "/workspace/tracking2-pca-gate/src/tracking2/cnn_projection_adequacy.py",
+      "--output",
+      "/workspace/tracking2-pca-gate/artifacts/cut1_r2048_4096",
+      "--checkpoint",
+      "/workspace/tracking2-controls/artifacts/cnn_seed0/checkpoint_epoch30.pt",
+      "--training-manifest",
+      "/workspace/tracking2-controls/artifacts/cnn_seed0/training.json",
+      "--checkpoint-epoch",
+      "30",
+      "--data-root",
+      "/workspace/tracking2/data",
+      "--cuts",
+      "1",
+      "--pca-ranks",
+      "2048",
+      "3072",
+      "4096",
+      "--seed",
+      "0",
+      "--device",
+      "cuda"
+    ],
+    "source_revision": "9b5acf99ad446c6e1dd026c7655e64d1a51f49e4",
+    "source_archive_sha256": "80f3708d099ba0436d943ed5f9c0b6c3f55cf217954ea3ffcdd53ab209c7e98e"
+  },
+  "slices": [
+    {
+      "cut": 1,
+      "representation_shape": [
+        32,
+        32,
+        32
+      ],
+      "activation_flattened_dimension": 32768,
+      "pca_fit_count": 10000,
+      "pca_fit_class_counts": {
+        "0": 1005,
+        "1": 974,
+        "2": 1032,
+        "3": 1016,
+        "4": 999,
+        "5": 937,
+        "6": 1030,
+        "7": 1001,
+        "8": 1025,
+        "9": 981
+      },
+      "sample_rank_ceiling": 9999,
+      "activation_dimension_rank_ceiling": 32768,
+      "maximal_feasible_rank": 9999,
+      "maximal_requested_rank": 4096,
+      "pca_solver": "randomized",
+      "pca_random_state": 10000,
+      "maximal_pca_basis_sha256": "3168a574c7965d6307a96d9ad414047c04898ffc46b2a96ed32ae5cf4bc7b0c6",
+      "rank_results": [
+        {
+          "pca_rank": 2048,
+          "pca_basis_prefix_sha256": "fd70637019751030c8f6e4e16f267de0614c779478aebdfd582aedd35199553a",
+          "held_out_coverage": {
+            "total_variance_fraction": 0.8802306941035515,
+            "within_class_variance_fraction": 0.876007746540218,
+            "between_class_mean_variance_fraction": 0.9956856600905093
+          },
+          "step_zero_true_vs_projected": {
+            "true_loss": 0.8896824811935424,
+            "true_accuracy": 0.7802,
+            "projected_true_loss": 0.9050390028953552,
+            "projected_true_accuracy": 0.7773,
+            "true_to_projected_predictive_kl": 0.03729105162024498
+          }
+        },
+        {
+          "pca_rank": 3072,
+          "pca_basis_prefix_sha256": "2a91c487e2551d9d127843d23b221c693b505623b019e13a13c46a99054af781",
+          "held_out_coverage": {
+            "total_variance_fraction": 0.9120810162895789,
+            "within_class_variance_fraction": 0.908979055447488,
+            "between_class_mean_variance_fraction": 0.9968883279094058
+          },
+          "step_zero_true_vs_projected": {
+            "true_loss": 0.8896824811935424,
+            "true_accuracy": 0.7802,
+            "projected_true_loss": 0.8979556320190429,
+            "projected_true_accuracy": 0.7781,
+            "true_to_projected_predictive_kl": 0.02109086861014366
+          }
+        },
+        {
+          "pca_rank": 4096,
+          "pca_basis_prefix_sha256": "3168a574c7965d6307a96d9ad414047c04898ffc46b2a96ed32ae5cf4bc7b0c6",
+          "held_out_coverage": {
+            "total_variance_fraction": 0.9302498687450651,
+            "within_class_variance_fraction": 0.9277885639199808,
+            "between_class_mean_variance_fraction": 0.9975417153728562
+          },
+          "step_zero_true_vs_projected": {
+            "true_loss": 0.8896824811935424,
+            "true_accuracy": 0.7802,
+            "projected_true_loss": 0.8941324674606324,
+            "projected_true_accuracy": 0.7782,
+            "true_to_projected_predictive_kl": 0.01461284049153328
+          }
+        }
+      ]
+    }
+  ],
+  "runtime_seconds": 767.6153995990753
+}

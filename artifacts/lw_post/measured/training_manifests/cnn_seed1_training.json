@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "experiment": "lw_post_cnn_checkpoint_trajectory",
+  "status": "MEASURED",
+  "architecture": "four-block residual CNN with GroupNorm",
+  "trajectory_semantics": "Every checkpoint is from this one uninterrupted end-to-end training run.",
+  "config": {
+    "output": "/workspace/tracking2-pca-gate/artifacts/cnn_seed1",
+    "data_root": "/workspace/tracking2/data",
+    "data_backend": "torchvision",
+    "fake_data": false,
+    "train_size": 50000,
+    "test_size": 10000,
+    "epochs": 30,
+    "checkpoint_epochs": [
+      30
+    ],
+    "widths": [
+      32,
+      64,
+      128,
+      128
+    ],
+    "batch_size": 256,
+    "learning_rate": 0.05,
+    "weight_decay": 0.0005,
+    "seed": 1,
+    "device": "cuda"
+  },
+  "dataset": {
+    "backend": "torchvision",
+    "splits": {
+      "train": {
+        "count": 50000,
+        "ordered_images_sha256": "10279eb78c7ca3cd5afed27d670f35007d7a85d6964a82f1f5ec7f3c1a36da32",
+        "ordered_labels_sha256": "9a079c6c415c258710e71a52df551eba875339d17c5b649f1fc5db69a5641cb6"
+      },
+      "test": {
+        "count": 10000,
+        "ordered_images_sha256": "d4edcf08d2845f0421e76ccbf07bc17d044ab5f988b8e9b65ba453e8c5fc5245",
+        "ordered_labels_sha256": "c75ed787823fef8d57e4fdb02ce3fa89b4693f0c5341b37da5f1275037e4baac"
+      }
+    }
+  },
+  "device": "cuda",
+  "provenance": {
+    "python": "3.12.3",
+    "platform": "Linux-6.14.0-33-generic-x86_64-with-glibc2.39",
+    "packages": {
+      "numpy": "1.26.4",
+      "scikit-learn": "1.9.0",
+      "torch": "2.8.0+cu128",
+      "torchvision": "0.23.0+cu128"
+    },
+    "accelerator": {
+      "cuda_available": true,
+      "torch_cuda_version": "12.8",
+      "cudnn_version": 91002,
+      "deterministic_algorithms_enabled": false,
+      "device_name": "NVIDIA L4",
+      "device_capability": [
+        8,
+        9
+      ]
+    },
+    "command": [
+      "/workspace/tracking2-pca-gate/src/tracking2/cnn_checkpoints.py",
+      "--output",
+      "/workspace/tracking2-pca-gate/artifacts/cnn_seed1",
+      "--data-root",
+      "/workspace/tracking2/data",
+      "--epochs",
+      "30",
+      "--checkpoints",
+      "30",
+      "--seed",
+      "1",
+      "--device",
+      "cuda"
+    ],
+    "source_revision": "9b5acf99ad446c6e1dd026c7655e64d1a51f49e4",
+    "source_archive_sha256": "80f3708d099ba0436d943ed5f9c0b6c3f55cf217954ea3ffcdd53ab209c7e98e"
+  },
+  "checkpoints": [
+    {
+      "epoch": 30,
+      "path": "checkpoint_epoch30.pt",
+      "sha256": "3a2c9654690cb56436a76a83638f0650370a25657db4742dcc3f8efd8cf76efa",
+      "learning_rate": 0.0,
+      "loss": 0.939821075630188,
+      "accuracy": 0.768
+    }
+  ],
+  "runtime_seconds": 233.90415167808533
+}

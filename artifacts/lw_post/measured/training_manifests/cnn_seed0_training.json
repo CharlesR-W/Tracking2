@@ -1,0 +1,145 @@
+{
+  "schema_version": 1,
+  "experiment": "lw_post_cnn_checkpoint_trajectory",
+  "status": "MEASURED",
+  "architecture": "four-block residual CNN with GroupNorm",
+  "trajectory_semantics": "Every checkpoint is from this one uninterrupted end-to-end training run.",
+  "config": {
+    "output": "/workspace/tracking2-controls/artifacts/cnn_seed0",
+    "data_root": "/workspace/tracking2/data",
+    "data_backend": "torchvision",
+    "fake_data": false,
+    "train_size": 50000,
+    "test_size": 10000,
+    "epochs": 30,
+    "checkpoint_epochs": [
+      0,
+      1,
+      5,
+      10,
+      20,
+      30
+    ],
+    "widths": [
+      32,
+      64,
+      128,
+      128
+    ],
+    "batch_size": 256,
+    "learning_rate": 0.05,
+    "weight_decay": 0.0005,
+    "seed": 0,
+    "device": "cuda"
+  },
+  "dataset": {
+    "backend": "torchvision",
+    "splits": {
+      "train": {
+        "count": 50000,
+        "ordered_images_sha256": "10279eb78c7ca3cd5afed27d670f35007d7a85d6964a82f1f5ec7f3c1a36da32",
+        "ordered_labels_sha256": "9a079c6c415c258710e71a52df551eba875339d17c5b649f1fc5db69a5641cb6"
+      },
+      "test": {
+        "count": 10000,
+        "ordered_images_sha256": "d4edcf08d2845f0421e76ccbf07bc17d044ab5f988b8e9b65ba453e8c5fc5245",
+        "ordered_labels_sha256": "c75ed787823fef8d57e4fdb02ce3fa89b4693f0c5341b37da5f1275037e4baac"
+      }
+    }
+  },
+  "device": "cuda",
+  "provenance": {
+    "python": "3.12.3",
+    "platform": "Linux-6.14.0-33-generic-x86_64-with-glibc2.39",
+    "packages": {
+      "numpy": "1.26.4",
+      "scikit-learn": "1.9.0",
+      "torch": "2.8.0+cu128",
+      "torchvision": "0.23.0+cu128"
+    },
+    "accelerator": {
+      "cuda_available": true,
+      "torch_cuda_version": "12.8",
+      "cudnn_version": 91002,
+      "deterministic_algorithms_enabled": false,
+      "device_name": "NVIDIA L4",
+      "device_capability": [
+        8,
+        9
+      ]
+    },
+    "command": [
+      "/workspace/tracking2-controls/src/tracking2/cnn_checkpoints.py",
+      "--output",
+      "/workspace/tracking2-controls/artifacts/cnn_seed0",
+      "--data-root",
+      "/workspace/tracking2/data",
+      "--epochs",
+      "30",
+      "--checkpoints",
+      "0",
+      "1",
+      "5",
+      "10",
+      "20",
+      "30",
+      "--seed",
+      "0",
+      "--device",
+      "cuda"
+    ],
+    "source_revision": "5873b1bc8736e623effd57f83d976366458dedca",
+    "source_archive_sha256": "b31c0c452dd999b7dccce8e3cd571eb5a859ba4095d6f5666853a2d01a38280b"
+  },
+  "checkpoints": [
+    {
+      "epoch": 0,
+      "path": "checkpoint_epoch0.pt",
+      "sha256": "555c3ab98639be3774a32f8843a87324cf496888c3bc7e0adc3771c4ab2a14d3",
+      "learning_rate": 0.05,
+      "loss": 2.33667544631958,
+      "accuracy": 0.1
+    },
+    {
+      "epoch": 1,
+      "path": "checkpoint_epoch1.pt",
+      "sha256": "9c697f08a87c65d81fbd076c49200cbdb1cf6e4f0a0f7ccc1da0134c4740ddeb",
+      "learning_rate": 0.049863047384206834,
+      "loss": 1.6887987155914306,
+      "accuracy": 0.3854
+    },
+    {
+      "epoch": 5,
+      "path": "checkpoint_epoch5.pt",
+      "sha256": "087d667d172f34a88adeba6a05bb96d5171150d0b40e7b5deaa6880d50555a71",
+      "learning_rate": 0.04665063509461097,
+      "loss": 1.2166491703033446,
+      "accuracy": 0.5673
+    },
+    {
+      "epoch": 10,
+      "path": "checkpoint_epoch10.pt",
+      "sha256": "7d0e92edaa341734e317786d2616864ead7b9b978972e4b9f1a02ea487ed6503",
+      "learning_rate": 0.03749999999999999,
+      "loss": 0.8357889939308166,
+      "accuracy": 0.7095
+    },
+    {
+      "epoch": 20,
+      "path": "checkpoint_epoch20.pt",
+      "sha256": "5de3a2d04eaafe56c8f1213b85501a0b1a5eb98dc8b19c484ef9aaa992b729b9",
+      "learning_rate": 0.012500000000000006,
+      "loss": 0.8664723924636841,
+      "accuracy": 0.7776
+    },
+    {
+      "epoch": 30,
+      "path": "checkpoint_epoch30.pt",
+      "sha256": "6ca7debe42e51f8142f595d14732f389fa2bf82e5fc3461d29f7c6d85f3ab41a",
+      "learning_rate": 0.0,
+      "loss": 0.8896824811935424,
+      "accuracy": 0.7802
+    }
+  ],
+  "runtime_seconds": 93.09197402000427
+}
