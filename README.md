@@ -36,8 +36,10 @@ PYTHONPATH=src python -m tracking2.post_report \
 After the uninterrupted CNN battery passes
 `scripts/verify_lw_post_artifacts.py`, regenerate with `--cnn-source post` to
 replace the separately scheduled pilot cells and add the completed PCA/noise
-controls. GitHub Pages rebuilds the canonical file from the committed manifest
-and checks it against the tracked HTML before deployment.
+controls. After the schema-v3 ResNet control passes its verifier, add
+`--resnet-source both` to retain the trajectory sweep alongside that control.
+GitHub Pages rebuilds the canonical file from the committed manifest and checks
+it against the tracked HTML before deployment.
 
 ## Implemented
 

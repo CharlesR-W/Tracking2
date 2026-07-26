@@ -159,7 +159,7 @@ CHECKPOINT=/path/to/checkpoint_epoch100.pt \
 ```
 
 These controls use post-block cuts 4 and 8 (zero-based indices 3 and 7), three
-repeats, and PCA ranks 256, 512, and 1,024. They do not convert the one-ResNet
+repeats, and PCA ranks 128, 256, and 512. They do not convert the one-ResNet
 result into an across-seed estimate.
 
 ## Evidence gate for the public dashboard

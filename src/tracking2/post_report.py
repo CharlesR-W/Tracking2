@@ -56,7 +56,7 @@ MEAN = "#D55E00"
 
 _EXPECTED_EXPERIMENTS = {
     "cnn": ("lw_post_cnn_suffix_statistics", {1}),
-    "resnet": ("resnet18_suffix_statistics_sweep", {1, 2}),
+    "resnet": ("resnet18_suffix_statistics_sweep", {1, 2, 3}),
 }
 _EXPECTED_FORMATS = {
     ("cnn", "post_statistics"),
@@ -65,6 +65,7 @@ _EXPECTED_FORMATS = {
 }
 _COMMIT_RE = re.compile(r"^[0-9a-fA-F]{7,64}$")
 _DIGEST_RE = re.compile(r"^[0-9a-fA-F]{64}$")
+_SOURCE_REVISION_RE = re.compile(r"^(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$")
 
 
 class ReportInputError(ValueError):
@@ -122,6 +123,13 @@ def _require_int(mapping: Mapping[str, Any], key: str, context: str) -> int:
     return value
 
 
+def _require_digest(mapping: Mapping[str, Any], key: str, context: str) -> str:
+    value = _require_string(mapping, key, context).lower()
+    if not _DIGEST_RE.fullmatch(value):
+        raise ReportInputError(f"{context}.{key} must contain 64 hex characters")
+    return value
+
+
 def _number(value: Any, context: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ReportInputError(f"{context} must be numeric")
@@ -153,17 +161,365 @@ def _artifact_epoch(
     if not isinstance(config, dict):
         raise ReportInputError(f"{context}.config must be an object")
     epoch = _require_int(config, "checkpoint_epoch", f"{context}.config")
-    if kind == "cnn" and artifact_format == "post_statistics":
+    has_structured_checkpoint = (
+        kind == "cnn" and artifact_format == "post_statistics"
+    ) or (kind == "resnet" and payload.get("schema_version") == 3)
+    if has_structured_checkpoint:
         checkpoint = payload.get("checkpoint")
         if not isinstance(checkpoint, dict):
             raise ReportInputError(f"{context}.checkpoint must be an object")
         checkpoint_epoch = _require_int(checkpoint, "epoch", f"{context}.checkpoint")
+        _require_string(checkpoint, "path", f"{context}.checkpoint")
+        _require_digest(checkpoint, "sha256", f"{context}.checkpoint")
         if checkpoint_epoch != epoch:
             raise ReportInputError(
                 f"{context} disagrees internally about checkpoint epoch: "
                 f"{checkpoint_epoch} != {epoch}"
             )
     return epoch
+
+
+def _source_identity(
+    provenance: Any, context: str, *, required: bool
+) -> tuple[str, str] | None:
+    if not isinstance(provenance, dict):
+        if required:
+            raise ReportInputError(f"{context} must be an object")
+        return None
+    revision = provenance.get("source_revision")
+    if isinstance(revision, str) and _SOURCE_REVISION_RE.fullmatch(revision):
+        return "source revision", revision.lower()
+    archive = provenance.get("source_archive_sha256")
+    if isinstance(archive, str) and _DIGEST_RE.fullmatch(archive):
+        return "source archive", archive.lower()
+    if required:
+        raise ReportInputError(
+            f"{context} must record a full clean source revision or source archive SHA-256"
+        )
+    return None
+
+
+def _validate_resnet_v3(
+    payload: Mapping[str, Any],
+    *,
+    context: str,
+    epoch: int,
+    seed: int,
+) -> None:
+    """Validate the lineage and controls promised by the canonical v3 artifact."""
+
+    config = payload["config"]
+    expected_flags = {
+        "data_backend": "torchvision",
+        "include_projected_true": True,
+        "true_eval_only": True,
+    }
+    for key, expected in expected_flags.items():
+        if config.get(key) != expected:
+            raise ReportInputError(
+                f"{context}.config.{key} must be {expected!r} for canonical "
+                "ResNet controls"
+            )
+    draws = _require_int(config, "surrogate_draws", f"{context}.config")
+    if draws < 1:
+        raise ReportInputError(f"{context}.config.surrogate_draws must be positive")
+    relax_epochs = _require_int(config, "relax_epochs", f"{context}.config")
+    if relax_epochs < 0:
+        raise ReportInputError(
+            f"{context}.config.relax_epochs must be non-negative"
+        )
+    ranks = config.get("pca_ranks")
+    if (
+        not isinstance(ranks, list)
+        or not ranks
+        or any(isinstance(rank, bool) or not isinstance(rank, int) or rank < 1 for rank in ranks)
+    ):
+        raise ReportInputError(
+            f"{context}.config.pca_ranks must contain positive integer ranks"
+        )
+    expected_ranks = sorted(set(ranks))
+    if ranks != expected_ranks:
+        raise ReportInputError(
+            f"{context}.config.pca_ranks must be sorted and unique"
+        )
+    radii = config.get("mean_noise_radii")
+    if not isinstance(radii, list) or not radii:
+        raise ReportInputError(
+            f"{context}.config.mean_noise_radii must be a non-empty array"
+        )
+    for index, radius in enumerate(radii):
+        if _number(radius, f"{context}.config.mean_noise_radii[{index}]") < 0:
+            raise ReportInputError(
+                f"{context}.config.mean_noise_radii[{index}] must be non-negative"
+            )
+
+    _require_string(payload, "mean_noise_definition", context)
+    _require_string(payload, "pca_protocol", context)
+    _source_identity(payload.get("provenance"), f"{context}.provenance", required=True)
+
+    architecture = payload.get("architecture")
+    if not isinstance(architecture, dict):
+        raise ReportInputError(f"{context}.architecture must be an object")
+    if architecture.get("name") != "InstrumentedResNet18V2":
+        raise ReportInputError(
+            f"{context}.architecture.name must be 'InstrumentedResNet18V2'"
+        )
+    width = _require_int(architecture, "width", f"{context}.architecture")
+    if width != _require_int(config, "width", f"{context}.config"):
+        raise ReportInputError(f"{context} architecture width disagrees with config")
+    block_names = architecture.get("block_names")
+    if (
+        not isinstance(block_names, list)
+        or not block_names
+        or not all(isinstance(name, str) and name for name in block_names)
+    ):
+        raise ReportInputError(
+            f"{context}.architecture.block_names must be a non-empty string array"
+        )
+
+    checkpoint = payload["checkpoint"]
+    lineage = payload.get("lineage")
+    if not isinstance(lineage, dict):
+        raise ReportInputError(f"{context}.lineage must be an object")
+    if lineage.get("checkpoint") != checkpoint:
+        raise ReportInputError(f"{context}.lineage.checkpoint must match checkpoint")
+    if lineage.get("model_seed") != seed:
+        raise ReportInputError(f"{context}.lineage.model_seed must match config.seed")
+    if lineage.get("architecture") != architecture:
+        raise ReportInputError(
+            f"{context}.lineage.architecture must match architecture"
+        )
+    _source_identity(
+        lineage.get("training_source"),
+        f"{context}.lineage.training_source",
+        required=True,
+    )
+    training_manifest = lineage.get("training_manifest")
+    if not isinstance(training_manifest, dict):
+        raise ReportInputError(
+            f"{context}.lineage.training_manifest must be an object"
+        )
+    _require_string(
+        training_manifest, "path", f"{context}.lineage.training_manifest"
+    )
+    _require_digest(
+        training_manifest, "sha256", f"{context}.lineage.training_manifest"
+    )
+    if (
+        training_manifest.get("status") != "MEASURED"
+        or training_manifest.get("experiment") != "resnet18_training_checkpoints"
+    ):
+        raise ReportInputError(
+            f"{context}.lineage.training_manifest must identify measured "
+            "ResNet training checkpoints"
+        )
+
+    dataset = payload.get("dataset")
+    if not isinstance(dataset, dict) or dataset.get("backend") != "torchvision":
+        raise ReportInputError(
+            f"{context}.dataset must identify the torchvision backend"
+        )
+    for split in ("train", "test"):
+        split_data = dataset.get(split)
+        if not isinstance(split_data, dict):
+            raise ReportInputError(f"{context}.dataset.{split} must be an object")
+        _require_digest(split_data, "source_sha256", f"{context}.dataset.{split}")
+    expected_dataset_source = {
+        "backend": dataset["backend"],
+        "train": dataset["train"],
+        "test": dataset["test"],
+    }
+    if lineage.get("dataset_source") != expected_dataset_source:
+        raise ReportInputError(
+            f"{context}.lineage.dataset_source must match dataset fingerprints"
+        )
+
+    banks = payload.get("analysis_banks")
+    if not isinstance(banks, dict):
+        raise ReportInputError(f"{context}.analysis_banks must be an object")
+    _require_string(banks, "definition", f"{context}.analysis_banks")
+    train_size = _require_int(config, "train_size", f"{context}.config")
+    test_size = _require_int(config, "test_size", f"{context}.config")
+    for split, expected_count, expected_seed in (
+        ("train", train_size, seed + 2_000_000),
+        ("test", test_size, seed + 2_000_001),
+    ):
+        bank = banks.get(split)
+        if not isinstance(bank, dict):
+            raise ReportInputError(
+                f"{context}.analysis_banks.{split} must be an object"
+            )
+        if (
+            _require_int(bank, "count", f"{context}.analysis_banks.{split}")
+            != expected_count
+        ):
+            raise ReportInputError(
+                f"{context}.analysis_banks.{split}.count must match config"
+            )
+        if (
+            _require_int(bank, "seed", f"{context}.analysis_banks.{split}")
+            != expected_seed
+        ):
+            raise ReportInputError(
+                f"{context}.analysis_banks.{split}.seed does not match protocol"
+            )
+        _require_digest(bank, "sha256", f"{context}.analysis_banks.{split}")
+
+    if checkpoint.get("epoch") != epoch:
+        raise ReportInputError(f"{context}.checkpoint.epoch must match config")
+    if payload.get("module_names") != block_names:
+        raise ReportInputError(
+            f"{context}.module_names must match architecture.block_names"
+        )
+
+    configured_cuts = config.get("cuts")
+    if (
+        not isinstance(configured_cuts, list)
+        or not configured_cuts
+        or any(
+            isinstance(cut, bool) or not isinstance(cut, int)
+            for cut in configured_cuts
+        )
+    ):
+        raise ReportInputError(
+            f"{context}.config.cuts must be a non-empty integer array"
+        )
+    slices = _objects(payload.get("slices"), f"{context}.slices")
+    if [slice_.get("cut") for slice_ in slices] != configured_cuts:
+        raise ReportInputError(f"{context}.slices must match config.cuts in order")
+    pca_fit_size = _require_int(config, "pca_fit_size", f"{context}.config")
+    expected_fit_count = min(pca_fit_size, train_size)
+
+    def count_total(value: Any, count_context: str) -> int:
+        if not isinstance(value, dict) or not value:
+            raise ReportInputError(f"{count_context} must be a non-empty object")
+        total = 0
+        for class_id, count in value.items():
+            if not isinstance(class_id, str) or not class_id:
+                raise ReportInputError(
+                    f"{count_context} must use non-empty string class ids"
+                )
+            if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+                raise ReportInputError(
+                    f"{count_context}[{class_id!r}] must be a non-negative integer"
+                )
+            total += count
+        return total
+
+    for slice_index, slice_ in enumerate(slices):
+        slice_context = f"{context}.slices[{slice_index}]"
+        if slice_.get("condition") not in (None, "native"):
+            raise ReportInputError(
+                f"{slice_context}.condition must be 'native' when present"
+            )
+        _require_string(slice_, "module", slice_context)
+        maximal_rank = _require_int(
+            slice_, "maximal_pca_rank", slice_context
+        )
+        if maximal_rank != expected_ranks[-1]:
+            raise ReportInputError(
+                f"{slice_context}.maximal_pca_rank must match config.pca_ranks"
+            )
+        maximal_basis = _require_digest(
+            slice_, "maximal_pca_basis_sha256", slice_context
+        )
+        if (
+            _require_int(slice_, "pca_basis_fit_count", slice_context)
+            != expected_fit_count
+        ):
+            raise ReportInputError(
+                f"{slice_context}.pca_basis_fit_count must match the fit bank"
+            )
+        if _require_int(slice_, "moment_fit_count", slice_context) != train_size:
+            raise ReportInputError(
+                f"{slice_context}.moment_fit_count must match the train bank"
+            )
+        if (
+            count_total(
+                slice_.get("pca_basis_fit_class_counts"),
+                f"{slice_context}.pca_basis_fit_class_counts",
+            )
+            != expected_fit_count
+        ):
+            raise ReportInputError(
+                f"{slice_context} PCA-fit class counts do not sum to fit count"
+            )
+        moment_counts = slice_.get("moment_fit_class_counts")
+        if (
+            count_total(
+                moment_counts, f"{slice_context}.moment_fit_class_counts"
+            )
+            != train_size
+        ):
+            raise ReportInputError(
+                f"{slice_context} moment class counts do not sum to train size"
+            )
+        rank_results = _objects(
+            slice_.get("rank_results"), f"{slice_context}.rank_results"
+        )
+        if [result.get("pca_rank") for result in rank_results] != expected_ranks:
+            raise ReportInputError(
+                f"{slice_context}.rank_results must match config.pca_ranks"
+            )
+        for rank_index, result in enumerate(rank_results):
+            rank_context = f"{slice_context}.rank_results[{rank_index}]"
+            rank = _require_int(result, "pca_rank", rank_context)
+            if (
+                _require_digest(
+                    result, "maximal_pca_basis_sha256", rank_context
+                )
+                != maximal_basis
+            ):
+                raise ReportInputError(
+                    f"{rank_context} does not share the maximal PCA basis"
+                )
+            _require_digest(result, "pca_basis_prefix_sha256", rank_context)
+            if (
+                _require_int(result, "pca_basis_fit_count", rank_context)
+                != expected_fit_count
+                or _require_int(result, "moment_fit_count", rank_context)
+                != train_size
+            ):
+                raise ReportInputError(
+                    f"{rank_context} fit counts do not match the declared banks"
+                )
+            if result.get("moment_fit_class_counts") != moment_counts:
+                raise ReportInputError(
+                    f"{rank_context}.moment_fit_class_counts must match its slice"
+                )
+            ceiling = _require_int(
+                result, "empirical_class_covariance_rank_ceiling", rank_context
+            )
+            if result.get(
+                "rank_exceeds_empirical_class_covariance_ceiling"
+            ) is not (rank > ceiling):
+                raise ReportInputError(
+                    f"{rank_context} covariance-rank flag is inconsistent"
+                )
+            shrinkage = _number(
+                result.get("covariance_shrinkage"),
+                f"{rank_context}.covariance_shrinkage",
+            )
+            if not 0 <= shrinkage <= 1:
+                raise ReportInputError(
+                    f"{rank_context}.covariance_shrinkage must be in [0, 1]"
+                )
+            pooled_variance = _number(
+                result.get(
+                    "pooled_within_class_variance_per_pca_coordinate"
+                ),
+                f"{rank_context}.pooled_within_class_variance_per_pca_coordinate",
+            )
+            isotropic_trace = _number(
+                result.get("trace_matched_isotropic_covariance_trace"),
+                f"{rank_context}.trace_matched_isotropic_covariance_trace",
+            )
+            if pooled_variance <= 0 or not math.isclose(
+                isotropic_trace, rank * pooled_variance, rel_tol=1e-9
+            ):
+                raise ReportInputError(
+                    f"{rank_context} isotropic covariance trace is inconsistent"
+                )
 
 
 def load_manifest(manifest_path: str | Path) -> tuple[dict[str, Any], list[LoadedArtifact]]:
@@ -278,6 +634,13 @@ def load_manifest(manifest_path: str | Path) -> tuple[dict[str, Any], list[Loade
                 f"Model seed mismatch for {input_id!r}: manifest says "
                 f"{expected_seed}, artifact says {actual_seed}"
             )
+        if kind == "resnet" and payload.get("schema_version") == 3:
+            _validate_resnet_v3(
+                payload,
+                context=f"artifact {input_id!r}",
+                epoch=actual_epoch,
+                seed=actual_seed,
+            )
 
         loaded.append(
             LoadedArtifact(
@@ -369,6 +732,7 @@ def _normalise_records(
     context: str,
     forced_distribution: str | None = None,
     default_draw: int | None = None,
+    reject_nontrue_evaluation: bool = False,
 ) -> list[dict[str, Any]]:
     rows = _objects(records, context)
     normalised: list[dict[str, Any]] = []
@@ -377,12 +741,22 @@ def _normalise_records(
         row_context = f"{context}[{index}]"
         evaluation = row.get("eval_distribution")
         if evaluation != "true":
+            if reject_nontrue_evaluation:
+                raise ReportInputError(
+                    f"{row_context}.eval_distribution must be 'true'"
+                )
             continue
-        distribution = (
-            forced_distribution
-            if forced_distribution is not None
-            else _validate_distribution(row.get("train_distribution"), row_context)
-        )
+        if forced_distribution is not None:
+            if row.get("train_distribution") != forced_distribution:
+                raise ReportInputError(
+                    f"{row_context}.train_distribution must be "
+                    f"{forced_distribution!r}"
+                )
+            distribution = forced_distribution
+        else:
+            distribution = _validate_distribution(
+                row.get("train_distribution"), row_context
+            )
         if row.get("draw") is None and default_draw is not None:
             draw = default_draw
         else:
@@ -513,12 +887,26 @@ def _cell_rows(
     for slice_index, slice_ in enumerate(slices):
         slice_context = f"artifact {artifact.id!r}.slices[{slice_index}]"
         cut = _require_int(slice_, "cut", slice_context)
-        if artifact.kind == "cnn":
-            module = f"residual block {cut}"
+        nested_rank_schema = artifact.kind == "cnn" or (
+            artifact.kind == "resnet" and payload.get("schema_version") == 3
+        )
+        if nested_rank_schema:
+            if artifact.kind == "cnn":
+                module = f"residual block {cut}"
+            else:
+                if slice_.get("condition") not in (None, "native"):
+                    raise ReportInputError(
+                        f"{slice_context}.condition must be 'native' when present"
+                    )
+                module = _require_string(slice_, "module", slice_context)
             reference = _normalise_records(
                 slice_.get("reference_records"),
                 context=f"{slice_context}.reference_records",
                 forced_distribution="true",
+                reject_nontrue_evaluation=(
+                    artifact.kind == "resnet"
+                    and payload.get("schema_version") == 3
+                ),
             )
             rank_results = _objects(
                 slice_.get("rank_results"), f"{slice_context}.rank_results"
@@ -534,12 +922,44 @@ def _cell_rows(
                 seen_cells.add(key)
                 coverage, coverage_basis = _coverage(result, rank_context)
                 result_records = _normalise_records(
-                    result.get("records"), context=f"{rank_context}.records"
+                    result.get("records"),
+                    context=f"{rank_context}.records",
+                    reject_nontrue_evaluation=(
+                        artifact.kind == "resnet"
+                        and payload.get("schema_version") == 3
+                    ),
                 )
+                if any(
+                    row["distribution"] == "true" for row in result_records
+                ):
+                    raise ReportInputError(
+                        f"{rank_context}.records must not repeat the shared true "
+                        "reference"
+                    )
                 records = [*reference, *result_records]
                 _validate_cell_series(
                     records, f"artifact {artifact.id!r}, cut {cut}, PCA rank {rank}",
                     require_projected=True,
+                    expected_draws=(
+                        _require_int(
+                            payload["config"],
+                            "surrogate_draws",
+                            f"artifact {artifact.id!r}.config",
+                        )
+                        if artifact.kind == "resnet"
+                        and payload.get("schema_version") == 3
+                        else None
+                    ),
+                    expected_relax_epochs=(
+                        _require_int(
+                            payload["config"],
+                            "relax_epochs",
+                            f"artifact {artifact.id!r}.config",
+                        )
+                        if artifact.kind == "resnet"
+                        and payload.get("schema_version") == 3
+                        else None
+                    ),
                 )
                 cells.append(
                     _cell_metadata(
@@ -611,7 +1031,12 @@ def _cell_rows(
 
 
 def _validate_cell_series(
-    records: Sequence[Mapping[str, Any]], context: str, *, require_projected: bool
+    records: Sequence[Mapping[str, Any]],
+    context: str,
+    *,
+    require_projected: bool,
+    expected_draws: int | None = None,
+    expected_relax_epochs: int | None = None,
 ) -> None:
     by_distribution: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
     for row in records:
@@ -627,15 +1052,28 @@ def _validate_cell_series(
     if not any(_mean_radius(name) is not None for name in by_distribution):
         raise ReportInputError(f"{context} has no mean/noise condition")
 
-    epoch_sets = {
-        distribution: {int(row["relax_epoch"]) for row in rows}
+    coordinate_sets = {
+        distribution: {
+            (int(row["draw"]), int(row["relax_epoch"])) for row in rows
+        }
         for distribution, rows in by_distribution.items()
     }
-    expected_epochs = next(iter(epoch_sets.values()))
-    for distribution, epochs in epoch_sets.items():
-        if epochs != expected_epochs:
+    expected_coordinates = next(iter(coordinate_sets.values()))
+    for distribution, coordinates in coordinate_sets.items():
+        if coordinates != expected_coordinates:
             raise ReportInputError(
-                f"{context} has mismatched relaxation epochs for {distribution!r}"
+                f"{context} has mismatched draw/relaxation grids for "
+                f"{distribution!r}"
+            )
+    if expected_draws is not None and expected_relax_epochs is not None:
+        declared_coordinates = {
+            (draw, epoch)
+            for draw in range(expected_draws)
+            for epoch in range(expected_relax_epochs + 1)
+        }
+        if expected_coordinates != declared_coordinates:
+            raise ReportInputError(
+                f"{context} does not match the declared draw/relaxation grid"
             )
 
 
@@ -659,6 +1097,21 @@ def _cell_metadata(
             if radius is not None
         }
     )
+    pca_fit_count = slice_.get("pca_fit_count")
+    if pca_fit_count is None:
+        pca_fit_count = slice_.get("pca_basis_fit_count")
+    if pca_fit_count is None:
+        pca_fit_count = rank_source.get("pca_basis_fit_count")
+    if pca_fit_count is None:
+        pca_fit_count = artifact.payload["config"].get("pca_fit_size")
+    moment_fit_count = rank_source.get(
+        "moment_fit_count", slice_.get("moment_fit_count")
+    )
+    nested_resnet = (
+        artifact.kind == "resnet"
+        and artifact.payload.get("schema_version") == 3
+    )
+    configured_ranks = artifact.payload["config"].get("pca_ranks")
     return {
         "input_id": artifact.id,
         "kind": artifact.kind,
@@ -672,9 +1125,8 @@ def _cell_metadata(
         "coverage_basis": coverage_basis,
         "representation_shape": slice_.get("representation_shape"),
         "native_dimension": slice_.get("native_dimension"),
-        "pca_fit_count": slice_.get(
-            "pca_fit_count", artifact.payload["config"].get("pca_fit_size")
-        ),
+        "pca_fit_count": pca_fit_count,
+        "moment_fit_count": moment_fit_count,
         "mean_noise_radii": radii,
         "pooled_within_class_variance_per_pca_coordinate": rank_source.get(
             "pooled_within_class_variance_per_pca_coordinate"
@@ -689,6 +1141,15 @@ def _cell_metadata(
         "rank_exceeds_empirical_class_covariance_ceiling": rank_source.get(
             "rank_exceeds_empirical_class_covariance_ceiling"
         ),
+        "maximal_pca_basis_sha256": rank_source.get(
+            "maximal_pca_basis_sha256"
+        ),
+        "pca_basis_prefix_sha256": rank_source.get("pca_basis_prefix_sha256"),
+        "paired_nested_noise": nested_resnet
+        and isinstance(configured_ranks, list)
+        and len(configured_ranks) > 1,
+        "fixed_analysis_bank": nested_resnet
+        and isinstance(artifact.payload.get("analysis_banks"), dict),
     }
 
 
@@ -1151,18 +1612,34 @@ def _render_model_section(
         artifact.format == "legacy_cnn_suffix_statistics"
         for artifact in kind_artifacts
     )
+    has_canonical_resnet = kind == "resnet" and any(
+        artifact.payload.get("schema_version") == 3
+        for artifact in kind_artifacts
+    )
+    has_legacy_resnet = kind == "resnet" and any(
+        artifact.payload.get("schema_version") in {1, 2}
+        for artifact in kind_artifacts
+    )
     intro = (
         "True-data relaxation is the reference. New-format cells include "
         "projected-real replay to isolate information lost at the PCA boundary; "
         "Gaussian and mean-based replay test which retained distributional "
         "structure helps the suffix relearn."
         if kind == "cnn"
-        else
-        "These legacy ResNet sweeps use the same true-evaluation target. Their "
-        "reported PCA coverage is labelled conservatively unless the artifact "
-        "contains an explicit held-out coverage field."
+        else (
+            "The canonical ResNet control uses fingerprinted fixed analysis banks, "
+            "nested PCA ranks, paired noise, projected-real replay, and held-out "
+            "real evaluation. Older flat sweeps remain visible as legacy context."
+            if has_canonical_resnet
+            else
+            "These legacy ResNet sweeps use the same true-evaluation target. Their "
+            "reported PCA coverage is labelled conservatively unless the artifact "
+            "contains an explicit held-out coverage field."
+        )
     )
-    legacy_note = (
+    legacy_notes = []
+    if has_legacy_cnn:
+        legacy_notes.append(
         '<aside class="evidence-note"><strong>Legacy CNN grid.</strong> The prefixes '
         "at different nominal epochs came from separately trained and scheduled "
         "models, with different scheduler horizons and checkpoint hashes. Each "
@@ -1170,14 +1647,18 @@ def _render_model_section(
         "nominal epochs are therefore neither one prefix-training trajectory nor "
         "one continued suffix-training trajectory. PCA coverage in these files is "
         "a legacy fit-bank value, not held-out coverage.</aside>"
-        if has_legacy_cnn
-        else ""
-    )
+        )
+    if has_legacy_resnet:
+        legacy_notes.append(
+            '<aside class="evidence-note"><strong>Legacy ResNet sweeps.</strong> '
+            "Schema-1/2 inputs do not record the fixed-bank, nested-rank, paired-noise, "
+            "and full lineage controls available in the schema-3 artifact.</aside>"
+        )
     return (
         f'<section id="{kind}" class="section">'
         f'<div class="section-heading"><p class="eyebrow">Measured experiment</p>'
         f'<h2>{_esc(architecture)}</h2><p>{_esc(intro)}</p></div>'
-        + legacy_note
+        + "".join(legacy_notes)
         + "".join(run_html)
         + "</section>"
     )
@@ -1207,6 +1688,13 @@ def _completed_controls(
                 "Uses nested leading components from one fitted maximal basis.",
             )
         )
+    if any(cell.get("paired_nested_noise") is True for cell in cells):
+        controls.append(
+            (
+                "Paired rank comparison",
+                "Nested ranks reuse leading coordinates of the same sampled noise banks.",
+            )
+        )
     radii = {
         radius
         for distribution in distributions
@@ -1218,6 +1706,36 @@ def _completed_controls(
             (
                 "Mean-noise radius sweep",
                 "Compares exact centroids with trace-scaled isotropic noise.",
+            )
+        )
+    if any(
+        cell.get("pooled_within_class_variance_per_pca_coordinate") is not None
+        and cell.get("trace_matched_isotropic_covariance_trace") is not None
+        for cell in cells
+    ):
+        controls.append(
+            (
+                "Trace-matched isotropic noise",
+                "Radius one matches the pooled within-class covariance trace in PCA space.",
+            )
+        )
+    if any(
+        isinstance(cell.get("moment_fit_count"), int)
+        and isinstance(cell.get("pca_fit_count"), int)
+        and cell["moment_fit_count"] > cell["pca_fit_count"]
+        for cell in cells
+    ):
+        controls.append(
+            (
+                "Full-bank class moments",
+                "PCA is fitted on its declared subset; class means and covariances use the full analysis bank.",
+            )
+        )
+    if any(cell.get("fixed_analysis_bank") is True for cell in cells):
+        controls.append(
+            (
+                "Fixed analysis bank",
+                "Every ResNet cut and rank reuses the same fingerprinted input realizations.",
             )
         )
     if any(cell["coverage_basis"] == "held-out activations" for cell in cells):
@@ -1242,6 +1760,18 @@ def _coverage_table(cells: Sequence[Mapping[str, Any]]) -> str:
         ),
     ):
         radii = ", ".join(f"{radius:g}" for radius in cell["mean_noise_radii"]) or "1"
+        pca_fit_count = cell.get("pca_fit_count")
+        moment_fit_count = cell.get("moment_fit_count")
+        shrinkage = cell.get("covariance_shrinkage")
+        isotropic_trace = cell.get("trace_matched_isotropic_covariance_trace")
+        shrinkage_text = (
+            _fmt_percent(float(shrinkage)) if shrinkage is not None else "—"
+        )
+        isotropic_trace_text = (
+            f"{float(isotropic_trace):.4g}"
+            if isotropic_trace is not None
+            else "—"
+        )
         rank_flag = ""
         if cell.get("rank_exceeds_empirical_class_covariance_ceiling") is True:
             ceiling = cell.get("empirical_class_covariance_rank_ceiling")
@@ -1257,13 +1787,19 @@ def _coverage_table(cells: Sequence[Mapping[str, Any]]) -> str:
             f'<td>{cell["pca_rank"]}{rank_flag}</td>'
             f'<td>{_fmt_percent(cell["coverage"])}</td>'
             f'<td>{_esc(cell["coverage_basis"])}</td>'
+            f'<td>{_esc(pca_fit_count if pca_fit_count is not None else "—")}</td>'
+            f'<td>{_esc(moment_fit_count if moment_fit_count is not None else "—")}</td>'
+            f"<td>{shrinkage_text}</td>"
+            f"<td>{isotropic_trace_text}</td>"
             f'<td>{_esc(radii)}</td>'
             "</tr>"
         )
     return (
         '<div class="table-scroll"><table><thead><tr>'
         "<th>Model</th><th>Checkpoint epoch</th><th>Cut</th><th>PCA rank</th>"
-        "<th>Variance retained</th><th>Coverage population</th><th>Mean-noise r</th>"
+        "<th>Variance retained</th><th>Coverage population</th>"
+        "<th>PCA-fit n</th><th>Moment-fit n</th><th>Cov. shrinkage</th>"
+        "<th>Isotropic trace</th><th>Mean-noise r</th>"
         "</tr></thead><tbody>"
         + "".join(rows)
         + "</tbody></table></div>"
@@ -1329,6 +1865,74 @@ def _manifest_cards(artifacts: Sequence[LoadedArtifact]) -> str:
             "</dd></div></dl></article>"
         )
     return "".join(cards)
+
+
+def _provenance_details(artifact: LoadedArtifact) -> str:
+    payload = artifact.payload
+    details: list[tuple[str, str]] = [
+        ("Artifact SHA-256", artifact.sha256),
+        ("Artifact schema", str(payload.get("schema_version", "legacy"))),
+        ("Device", str(payload.get("device", "not recorded"))),
+    ]
+    source = _source_identity(
+        payload.get("provenance"),
+        f"artifact {artifact.id!r}.provenance",
+        required=False,
+    )
+    if source is not None:
+        details.append((source[0].title(), source[1]))
+    checkpoint = payload.get("checkpoint")
+    if isinstance(checkpoint, dict) and isinstance(checkpoint.get("sha256"), str):
+        details.append(
+            (
+                "Checkpoint",
+                f"epoch {checkpoint.get('epoch')} · sha256:{checkpoint['sha256']}",
+            )
+        )
+    lineage = payload.get("lineage")
+    if isinstance(lineage, dict):
+        training_source = _source_identity(
+            lineage.get("training_source"),
+            f"artifact {artifact.id!r}.lineage.training_source",
+            required=False,
+        )
+        if training_source is not None:
+            details.append(
+                (
+                    f"Training {training_source[0]}",
+                    training_source[1],
+                )
+            )
+        training_manifest = lineage.get("training_manifest")
+        if isinstance(training_manifest, dict) and isinstance(
+            training_manifest.get("sha256"), str
+        ):
+            details.append(
+                ("Training manifest SHA-256", training_manifest["sha256"])
+            )
+    dataset = payload.get("dataset")
+    if isinstance(dataset, dict):
+        details.append(("Dataset backend", str(dataset.get("backend", "not recorded"))))
+    banks = payload.get("analysis_banks")
+    if isinstance(banks, dict):
+        for split in ("train", "test"):
+            bank = banks.get(split)
+            if isinstance(bank, dict) and isinstance(bank.get("sha256"), str):
+                details.append(
+                    (
+                        f"{split.title()} analysis bank",
+                        f"n={bank.get('count')} · seed={bank.get('seed')} · "
+                        f"sha256:{bank['sha256']}",
+                    )
+                )
+    return (
+        "<dl>"
+        + "".join(
+            f"<div><dt>{_esc(label)}</dt><dd><code>{_esc(value)}</code></dd></div>"
+            for label, value in details
+        )
+        + "</dl>"
+    )
 
 
 def _method_diagram() -> str:
@@ -1589,7 +2193,7 @@ def render_report(
         '<article class="provenance-card">'
         f'<p class="eyebrow">{_esc(artifact.id)}</p>'
         f'<p><strong>{_esc(artifact.relative_path)}</strong></p>'
-        f'<p><code>sha256:{artifact.sha256}</code></p>'
+        f"{_provenance_details(artifact)}"
         "</article>"
         for artifact in artifacts
     )

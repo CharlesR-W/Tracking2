@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 from pathlib import Path
 
 import pytest
 
+from scripts.make_lw_post_manifest import (
+    CANONICAL_RESNET_PATH,
+    canonical_resnet_entries,
+)
 from tracking2.post_report import (
     DEFAULT_OUTPUT,
     GAUSSIAN,
@@ -152,6 +157,177 @@ def _resnet_payload(*, held_out: bool = False) -> dict:
         "slices": [slice_payload],
         "runtime_seconds": 1.0,
     }
+
+
+def _resnet_v3_payload() -> dict:
+    block_names = [
+        "stage1.resblk1",
+        "stage1.resblk2",
+        "stage2.resblk1",
+        "stage2.resblk2",
+        "stage3.resblk1",
+        "stage3.resblk2",
+        "stage4.resblk1",
+        "stage4.resblk2",
+    ]
+    architecture = {
+        "name": "InstrumentedResNet18V2",
+        "width": 4,
+        "block_names": block_names,
+    }
+    checkpoint = {
+        "epoch": 1,
+        "path": "checkpoint_epoch1.pt",
+        "sha256": "2" * 64,
+    }
+    dataset = {
+        "backend": "torchvision",
+        "train": {"source_count": 50000, "source_sha256": "3" * 64},
+        "test": {"source_count": 10000, "source_sha256": "4" * 64},
+    }
+    rank_results = []
+    for rank, coverage in ((2, 0.70), (3, 0.82)):
+        rank_results.append(
+            {
+                "pca_rank": rank,
+                "maximal_pca_basis_sha256": "5" * 64,
+                "pca_basis_prefix_sha256": str(rank) * 64,
+                "pca_basis_fit_count": 6,
+                "pca_basis_fit_class_counts": {"0": 3, "1": 3},
+                "moment_fit_count": 8,
+                "moment_fit_class_counts": {"0": 4, "1": 4},
+                "empirical_class_covariance_rank_ceiling": 3,
+                "rank_exceeds_empirical_class_covariance_ceiling": False,
+                "covariance_shrinkage": 0.05,
+                "pooled_within_class_variance_per_pca_coordinate": 0.25,
+                "trace_matched_isotropic_covariance_trace": rank * 0.25,
+                "held_out_explained_variance_fraction": coverage,
+                "held_out_coverage": {
+                    "total_variance_fraction": coverage,
+                    "within_class_variance_fraction": coverage - 0.05,
+                    "between_class_mean_variance_fraction": 0.90,
+                },
+                "coverage_evaluation": "held-out CIFAR-10 test activation bank",
+                "records": [
+                    *_records("projected_true", 0.45, 0.74),
+                    *_records("gaussian", 0.45, 0.68),
+                    *_records("mean_r0", 0.45, 0.54),
+                    *_records("mean_r1", 0.45, 0.58),
+                ],
+                "moment_diagnostics": [],
+            }
+        )
+    return {
+        "schema_version": 3,
+        "experiment": "resnet18_suffix_statistics_sweep",
+        "status": "MEASURED",
+        "mean_noise_definition": "Trace matched at radius one.",
+        "pca_protocol": "Nested basis and paired maximal noise banks.",
+        "checkpoint": checkpoint,
+        "lineage": {
+            "training_manifest": {
+                "path": "resnet_training.json",
+                "sha256": "6" * 64,
+                "status": "MEASURED",
+                "experiment": "resnet18_training_checkpoints",
+            },
+            "checkpoint": checkpoint,
+            "model_seed": 0,
+            "architecture": architecture,
+            "training_source": {"source_revision": "b" * 40},
+            "dataset_source": {
+                "backend": dataset["backend"],
+                "train": dataset["train"],
+                "test": dataset["test"],
+            },
+        },
+        "dataset": dataset,
+        "analysis_banks": {
+            "definition": "Fixed input banks reused across cuts and ranks.",
+            "train": {"seed": 2_000_000, "count": 8, "sha256": "7" * 64},
+            "test": {"seed": 2_000_001, "count": 4, "sha256": "8" * 64},
+        },
+        "config": {
+            "checkpoint_epoch": 1,
+            "data_backend": "torchvision",
+            "fake_data": False,
+            "train_size": 8,
+            "test_size": 4,
+            "width": 4,
+            "cuts": [3],
+            "seed": 0,
+            "surrogate_draws": 1,
+            "pca_fit_size": 6,
+            "pca_ranks": [2, 3],
+            "mean_noise_radii": [0.0, 1.0],
+            "include_projected_true": True,
+            "true_eval_only": True,
+            "relax_epochs": 1,
+        },
+        "device": "cpu",
+        "provenance": {
+            "source_revision": "a" * 40,
+            "source_archive_sha256": "not recorded",
+        },
+        "architecture": architecture,
+        "module_names": block_names,
+        "slices": [
+            {
+                "cut": 3,
+                "module": "stage2.resblk2",
+                "condition": "native",
+                "representation_shape": [4, 2, 2],
+                "native_dimension": 16,
+                "maximal_pca_rank": 3,
+                "maximal_pca_basis_sha256": "5" * 64,
+                "pca_basis_fit_count": 6,
+                "pca_basis_fit_class_counts": {"0": 3, "1": 3},
+                "moment_fit_count": 8,
+                "moment_fit_class_counts": {"0": 4, "1": 4},
+                "reference_records": _records("true", 0.45, 0.78),
+                "rank_results": rank_results,
+            }
+        ],
+        "runtime_seconds": 1.0,
+    }
+
+
+def _canonical_resnet_entry_payload() -> dict:
+    payload = copy.deepcopy(_resnet_v3_payload())
+    checkpoint = {
+        "epoch": 100,
+        "path": "checkpoint_epoch100.pt",
+        "sha256": "2" * 64,
+    }
+    architecture = {
+        **payload["architecture"],
+        "width": 64,
+    }
+    payload["checkpoint"] = checkpoint
+    payload["lineage"]["checkpoint"] = checkpoint
+    payload["lineage"]["architecture"] = architecture
+    payload["architecture"] = architecture
+    payload["config"].update(
+        {
+            "checkpoint": "checkpoint_epoch100.pt",
+            "training_manifest": "resnet_training.json",
+            "checkpoint_epoch": 100,
+            "train_size": 10000,
+            "test_size": 2000,
+            "batch_size": 128,
+            "width": 64,
+            "cuts": [3, 7],
+            "pca_fit_size": 5000,
+            "pca_ranks": [128, 256, 512],
+            "surrogate_draws": 3,
+            "mean_noise_radii": [1.0],
+            "include_projected_true": True,
+            "true_eval_only": True,
+            "relax_epochs": 5,
+            "relax_learning_rate": 0.01,
+        }
+    )
+    return payload
 
 
 def _legacy_cnn_payload() -> dict:
@@ -329,6 +505,80 @@ def test_new_resnet_held_out_coverage_overrides_legacy_field(tmp_path):
 
     rendered = build_report(manifest_path, tmp_path / "report.html").read_text()
     assert "82.0%" in rendered
+
+
+def test_schema_v3_resnet_loads_normalises_and_renders(tmp_path):
+    manifest_path = _make_manifest(tmp_path, resnet=_resnet_v3_payload())
+    _manifest, artifacts = load_manifest(manifest_path)
+    observations, cells = normalise_artifacts(artifacts)
+
+    resnet_cells = [cell for cell in cells if cell["kind"] == "resnet"]
+    assert [cell["pca_rank"] for cell in resnet_cells] == [2, 3]
+    assert {cell["coverage_basis"] for cell in resnet_cells} == {
+        "held-out activations"
+    }
+    assert all(cell["pca_fit_count"] == 6 for cell in resnet_cells)
+    assert all(cell["moment_fit_count"] == 8 for cell in resnet_cells)
+    assert all(cell["paired_nested_noise"] is True for cell in resnet_cells)
+    assert all(cell["fixed_analysis_bank"] is True for cell in resnet_cells)
+    assert len(
+        [row for row in observations if row["kind"] == "resnet"]
+    ) == 20
+
+    rendered = build_report(manifest_path, tmp_path / "schema-v3.html").read_text()
+    assert "The canonical ResNet control uses fingerprinted fixed analysis banks" in rendered
+    assert "Paired rank comparison" in rendered
+    assert "Trace-matched isotropic noise" in rendered
+    assert "Fixed analysis bank" in rendered
+    assert "Full-bank class moments" in rendered
+    assert "Source Revision" in rendered
+    assert "Checkpoint" in rendered
+
+
+def test_schema_v3_resnet_rejects_missing_provenance_and_invalid_grid(tmp_path):
+    missing_provenance = _resnet_v3_payload()
+    missing_provenance["provenance"] = {
+        "source_revision": "not recorded",
+        "source_archive_sha256": "not recorded",
+    }
+    manifest_path = _make_manifest(tmp_path, resnet=missing_provenance)
+    with pytest.raises(ReportInputError, match="must record a full clean source"):
+        load_manifest(manifest_path)
+
+    invalid_grid = _resnet_v3_payload()
+    invalid_grid["slices"][0]["rank_results"][0]["records"].pop()
+    manifest_path = _make_manifest(tmp_path, resnet=invalid_grid)
+    _manifest, artifacts = load_manifest(manifest_path)
+    with pytest.raises(ReportInputError, match="mismatched draw/relaxation grids"):
+        normalise_artifacts(artifacts)
+
+
+def test_canonical_resnet_entries_accepts_canonical_profile_at_fixed_path(tmp_path):
+    artifact_root = tmp_path / "artifacts"
+    output = artifact_root / "lw_post" / "dashboard_manifest.json"
+    artifact_path = artifact_root / CANONICAL_RESNET_PATH
+    artifact_path.parent.mkdir(parents=True)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    artifact_digest = _write_json(
+        artifact_path, _canonical_resnet_entry_payload()
+    )
+
+    entries = canonical_resnet_entries(artifact_root, output)
+
+    assert entries == [
+        {
+            "id": "resnet-e100-pca-ablation-cuts4-8",
+            "kind": "resnet",
+            "format": "resnet_suffix_statistics",
+            "label": (
+                "ResNet-18 · epoch 100 · nested PCA controls · cuts 4 and 8"
+            ),
+            "path": f"../{CANONICAL_RESNET_PATH}",
+            "sha256": artifact_digest,
+            "checkpoint_epoch": 100,
+            "model_seed": 0,
+        }
+    ]
 
 
 def test_explicit_legacy_cnn_format_builds_and_discloses_limitations(tmp_path):
