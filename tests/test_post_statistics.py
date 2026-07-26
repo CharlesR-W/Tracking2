@@ -138,6 +138,30 @@ def test_relaxation_step_zero_is_common_across_train_distributions():
             == shifted_row["initial_batch_index_sha256"]
         )
 
+    matched_true = _relax_suffix(
+        train_rep=true_train,
+        distribution="true",
+        learning_rate_regime="match_true_initial_update",
+        **common,
+    )
+    update_target = matched_true[0]["matched_first_step_update_norm"]
+    matched_shifted = _relax_suffix(
+        train_rep=shifted_train,
+        distribution="shifted",
+        learning_rate_regime="match_true_initial_update",
+        target_first_step_update_norm=update_target,
+        **common,
+    )
+    assert matched_true[0]["learning_rate_regime"] == (
+        "match_true_initial_update"
+    )
+    assert matched_shifted[0]["matched_first_step_update_norm"] == pytest.approx(
+        update_target
+    )
+    assert matched_shifted[0]["effective_relax_learning_rate"] == pytest.approx(
+        0.01 * matched_shifted[0]["learning_rate_multiplier"]
+    )
+
     reinitialized_common = {
         **common,
         "suffix_initialization": "reinitialized",

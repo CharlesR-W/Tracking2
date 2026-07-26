@@ -5,7 +5,7 @@ import json
 import re
 from pathlib import Path
 
-from scripts.verify_lw_post_artifacts import (
+from verify_lw_post_artifacts import (
     load,
     require_complete_statistics,
 )

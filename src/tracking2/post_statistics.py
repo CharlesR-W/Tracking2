@@ -60,6 +60,7 @@ class PostStatisticsConfig:
     surrogate_draws: int = 1
     true_eval_only: bool = False
     suffix_initialization: str = "warm"
+    learning_rate_regime: str = "fixed_lr"
     relax_epochs: int = 10
     relax_learning_rate: float = 0.01
     seed: int = 0
@@ -260,6 +261,8 @@ def _relax_suffix(
     device: torch.device,
     suffix_initialization: str = "warm",
     initialization_seed: int = 0,
+    learning_rate_regime: str = "fixed_lr",
+    target_first_step_update_norm: float | None = None,
 ) -> list[dict[str, object]]:
     candidate = copy.deepcopy(model)
     if suffix_initialization not in {"warm", "reinitialized"}:
@@ -307,6 +310,41 @@ def _relax_suffix(
         shuffle_seed=shuffle_seed,
         device=device,
     )
+    if learning_rate_regime not in {
+        "fixed_lr",
+        "match_true_initial_update",
+    }:
+        raise ValueError(
+            "learning_rate_regime must be 'fixed_lr' or "
+            "'match_true_initial_update'"
+        )
+    learning_rate_multiplier = 1.0
+    if learning_rate_regime == "match_true_initial_update":
+        if target_first_step_update_norm is None:
+            if distribution != "true":
+                raise ValueError(
+                    "matched-update relaxation requires a true-condition target"
+                )
+            target_first_step_update_norm = float(
+                initial_diagnostics["first_step_update_norm"]
+            )
+        observed_update = float(initial_diagnostics["first_step_update_norm"])
+        learning_rate_multiplier = (
+            target_first_step_update_norm / max(observed_update, 1e-12)
+        )
+        # The clamp is deliberately broad: it guards degenerate zero-gradient
+        # batches without preventing the orders-of-magnitude correction that
+        # motivated this control.
+        learning_rate_multiplier = float(
+            np.clip(learning_rate_multiplier, 1e-3, 1e3)
+        )
+        for group in optimizer.param_groups:
+            group["lr"] = relax_learning_rate * learning_rate_multiplier
+    effective_learning_rate = relax_learning_rate * learning_rate_multiplier
+    matched_update_norm = (
+        float(initial_diagnostics["first_step_update_norm"])
+        * learning_rate_multiplier
+    )
     records: list[dict[str, object]] = []
     for relax_epoch in range(relax_epochs + 1):
         for evaluation_distribution, evaluation_data in evaluation_loaders.items():
@@ -317,6 +355,11 @@ def _relax_suffix(
                     "eval_distribution": evaluation_distribution,
                     "relax_epoch": relax_epoch,
                     "suffix_initialization": suffix_initialization,
+                    "learning_rate_regime": learning_rate_regime,
+                    "base_relax_learning_rate": relax_learning_rate,
+                    "learning_rate_multiplier": learning_rate_multiplier,
+                    "effective_relax_learning_rate": effective_learning_rate,
+                    "matched_first_step_update_norm": matched_update_norm,
                     **initial_diagnostics,
                     **evaluate_suffix(candidate, cut, evaluation_data, device),
                 }
@@ -353,6 +396,14 @@ def run(config: PostStatisticsConfig) -> Path:
         )
     if config.suffix_initialization not in {"warm", "reinitialized"}:
         raise ValueError("suffix_initialization must be 'warm' or 'reinitialized'")
+    if config.learning_rate_regime not in {
+        "fixed_lr",
+        "match_true_initial_update",
+    }:
+        raise ValueError(
+            "learning_rate_regime must be 'fixed_lr' or "
+            "'match_true_initial_update'"
+        )
 
     checkpoint = Path(config.checkpoint)
     output = Path(config.output)
@@ -522,26 +573,29 @@ def run(config: PostStatisticsConfig) -> Path:
 
                 # The true-trained row belongs to each rank because its
                 # deployment evaluations are rank- and draw-specific.
-                records.extend(
-                    _relax_suffix(
-                        model,
-                        cut,
-                        train_rep,
-                        train_labels,
-                        evaluation_sets,
-                        test_labels,
-                        distribution="true",
-                        draw=draw,
-                        batch_size=config.batch_size,
-                        relax_epochs=config.relax_epochs,
-                        relax_learning_rate=config.relax_learning_rate,
-                        shuffle_seed=common_shuffle_seed,
-                        device=device,
-                        suffix_initialization=config.suffix_initialization,
-                        initialization_seed=(
-                            config.seed + 9_000_000 + 1_000 * cut + draw
-                        ),
-                    )
+                true_records = _relax_suffix(
+                    model,
+                    cut,
+                    train_rep,
+                    train_labels,
+                    evaluation_sets,
+                    test_labels,
+                    distribution="true",
+                    draw=draw,
+                    batch_size=config.batch_size,
+                    relax_epochs=config.relax_epochs,
+                    relax_learning_rate=config.relax_learning_rate,
+                    shuffle_seed=common_shuffle_seed,
+                    device=device,
+                    suffix_initialization=config.suffix_initialization,
+                    initialization_seed=(
+                        config.seed + 9_000_000 + 1_000 * cut + draw
+                    ),
+                    learning_rate_regime=config.learning_rate_regime,
+                )
+                records.extend(true_records)
+                true_update_target = float(
+                    true_records[0]["matched_first_step_update_norm"]
                 )
 
                 # Shallow-cut banks are several gigabytes. Materialise and
@@ -567,6 +621,8 @@ def run(config: PostStatisticsConfig) -> Path:
                         initialization_seed=(
                             config.seed + 9_000_000 + 1_000 * cut + draw
                         ),
+                        learning_rate_regime=config.learning_rate_regime,
+                        target_first_step_update_norm=true_update_target,
                     )
                 )
                 del projected_train
@@ -598,6 +654,8 @@ def run(config: PostStatisticsConfig) -> Path:
                             initialization_seed=(
                                 config.seed + 9_000_000 + 1_000 * cut + draw
                             ),
+                            learning_rate_regime=config.learning_rate_regime,
+                            target_first_step_update_norm=true_update_target,
                         )
                     )
                     del gaussian_train
@@ -633,6 +691,8 @@ def run(config: PostStatisticsConfig) -> Path:
                             initialization_seed=(
                                 config.seed + 9_000_000 + 1_000 * cut + draw
                             ),
+                            learning_rate_regime=config.learning_rate_regime,
+                            target_first_step_update_norm=true_update_target,
                         )
                     )
                     del mean_train
@@ -737,7 +797,11 @@ def run(config: PostStatisticsConfig) -> Path:
             "distribution; true-eval-only is reserved for targeted sensitivity "
             "runs. Warm-started suffix relaxation is primary; any reinitialized "
             "suffix run is an explicitly labelled retained-knowledge control, "
-            "with initialization held fixed across distributions within a draw."
+            "with initialization held fixed across distributions within a draw. "
+            "Fixed learning rate is primary. A separately labelled matched-update "
+            "regime rescales each condition's learning rate so its measured first "
+            "SGD update norm matches the paired true-replay update; the multiplier "
+            "and effective learning rate are recorded on every row."
         ),
         "config": asdict(config),
         "dataset": dataset_fingerprints,
@@ -769,6 +833,11 @@ def parse_args() -> PostStatisticsConfig:
         "--suffix-initialization",
         choices=("warm", "reinitialized"),
         default="warm",
+    )
+    parser.add_argument(
+        "--learning-rate-regime",
+        choices=("fixed_lr", "match_true_initial_update"),
+        default="fixed_lr",
     )
     parser.add_argument("--fake-data", action="store_true")
     parser.add_argument("--train-size", type=int, default=50000)
@@ -824,6 +893,7 @@ def parse_args() -> PostStatisticsConfig:
         surrogate_draws=args.surrogate_draws,
         true_eval_only=args.true_eval_only,
         suffix_initialization=args.suffix_initialization,
+        learning_rate_regime=args.learning_rate_regime,
         relax_epochs=args.relax_epochs,
         relax_learning_rate=args.relax_learning_rate,
         seed=args.seed,

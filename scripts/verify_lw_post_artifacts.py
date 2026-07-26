@@ -276,6 +276,7 @@ def require_complete_statistics(
         "seed": expected_seed,
         "device": "cuda",
         "suffix_initialization": "warm",
+        "learning_rate_regime": "fixed_lr",
     }
     for key, expected in expected_protocol.items():
         if artifact["config"].get(key) != expected:
