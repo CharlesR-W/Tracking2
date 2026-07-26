@@ -26,8 +26,8 @@ Manifest schema (version 1)::
       ]
     }
 
-Relative input paths are resolved from the manifest's directory.  The canonical
-report requires at least one measured CNN input and one measured ResNet-18 input.
+Relative input paths are resolved from the manifest's directory. Projection-only
+adequacy inputs are optional and remain separate from suffix-relaxation evidence.
 """
 
 from __future__ import annotations
@@ -56,11 +56,13 @@ MEAN = "#D55E00"
 
 _EXPECTED_EXPERIMENTS = {
     "cnn": ("lw_post_cnn_suffix_statistics", {1, 2}),
+    "cnn_projection": ("lw_post_cnn_projection_adequacy", {1}),
     "resnet": ("resnet18_suffix_statistics_sweep", {1, 2, 3, 4}),
 }
 _EXPECTED_FORMATS = {
     ("cnn", "post_statistics"),
     ("cnn", "legacy_cnn_suffix_statistics"),
+    ("cnn_projection", "cnn_projection_adequacy"),
     ("resnet", "resnet_suffix_statistics"),
 }
 _COMMIT_RE = re.compile(r"^[0-9a-fA-F]{7,64}$")
@@ -69,6 +71,8 @@ _SOURCE_REVISION_RE = re.compile(r"^(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$")
 _GAUSSIAN_SHRINKAGE_RE = re.compile(
     r"^gaussian_shrunk_s(?P<amount>(?:\d+(?:\.\d*)?|\.\d+))$"
 )
+PCA_ADEQUACY_CE_EXCESS_THRESHOLD = 0.05
+PCA_ADEQUACY_KL_THRESHOLD = 0.02
 
 
 class ReportInputError(ValueError):
@@ -164,6 +168,26 @@ def _artifact_epoch(
     if not isinstance(config, dict):
         raise ReportInputError(f"{context}.config must be an object")
     epoch = _require_int(config, "checkpoint_epoch", f"{context}.config")
+    if kind == "cnn_projection":
+        lineage = payload.get("lineage")
+        if not isinstance(lineage, dict):
+            raise ReportInputError(f"{context}.lineage must be an object")
+        checkpoint = lineage.get("checkpoint")
+        if not isinstance(checkpoint, dict):
+            raise ReportInputError(
+                f"{context}.lineage.checkpoint must be an object"
+            )
+        checkpoint_epoch = _require_int(
+            checkpoint, "epoch", f"{context}.lineage.checkpoint"
+        )
+        _require_string(checkpoint, "path", f"{context}.lineage.checkpoint")
+        _require_digest(checkpoint, "sha256", f"{context}.lineage.checkpoint")
+        if checkpoint_epoch != epoch:
+            raise ReportInputError(
+                f"{context} disagrees internally about checkpoint epoch: "
+                f"{checkpoint_epoch} != {epoch}"
+            )
+        return epoch
     has_structured_checkpoint = (
         kind == "cnn" and artifact_format == "post_statistics"
     ) or (kind == "resnet" and payload.get("schema_version") in {3, 4})
@@ -562,6 +586,292 @@ def _validate_resnet_canonical(
                 )
 
 
+def _validate_projection_adequacy(
+    payload: Mapping[str, Any],
+    *,
+    context: str,
+    epoch: int,
+    seed: int,
+) -> None:
+    """Validate the measured PCA-only adequacy gate and its nested-rank grid."""
+
+    config = payload["config"]
+    if config.get("fake_data") is not False:
+        raise ReportInputError(
+            f"{context}.config.fake_data must be false for measured evidence"
+        )
+    if _require_int(config, "seed", f"{context}.config") != seed:
+        raise ReportInputError(f"{context}.config.seed must match the manifest")
+    if _require_int(config, "checkpoint_epoch", f"{context}.config") != epoch:
+        raise ReportInputError(
+            f"{context}.config.checkpoint_epoch must match the manifest"
+        )
+    train_size = _require_int(config, "train_size", f"{context}.config")
+    test_size = _require_int(config, "test_size", f"{context}.config")
+    if train_size < 1 or test_size < 1:
+        raise ReportInputError(
+            f"{context}.config train/test sizes must be positive"
+        )
+    _source_identity(
+        payload.get("provenance"), f"{context}.provenance", required=True
+    )
+
+    lineage = payload.get("lineage")
+    if not isinstance(lineage, dict):
+        raise ReportInputError(f"{context}.lineage must be an object")
+    checkpoint = lineage.get("checkpoint")
+    if not isinstance(checkpoint, dict):
+        raise ReportInputError(f"{context}.lineage.checkpoint must be an object")
+    if _require_int(
+        checkpoint, "epoch", f"{context}.lineage.checkpoint"
+    ) != epoch:
+        raise ReportInputError(
+            f"{context}.lineage.checkpoint.epoch must match the manifest"
+        )
+    _require_string(checkpoint, "path", f"{context}.lineage.checkpoint")
+    _require_digest(checkpoint, "sha256", f"{context}.lineage.checkpoint")
+
+    training_manifest = lineage.get("training_manifest")
+    if not isinstance(training_manifest, dict):
+        raise ReportInputError(
+            f"{context}.lineage.training_manifest must be an object"
+        )
+    _require_string(
+        training_manifest, "path", f"{context}.lineage.training_manifest"
+    )
+    _require_digest(
+        training_manifest, "sha256", f"{context}.lineage.training_manifest"
+    )
+    if (
+        training_manifest.get("status") != "MEASURED"
+        or training_manifest.get("experiment")
+        != "lw_post_cnn_checkpoint_trajectory"
+    ):
+        raise ReportInputError(
+            f"{context}.lineage.training_manifest must identify the measured "
+            "CNN checkpoint trajectory"
+        )
+    _source_identity(
+        training_manifest.get("source_provenance"),
+        f"{context}.lineage.training_manifest.source_provenance",
+        required=True,
+    )
+
+    dataset = payload.get("dataset")
+    if not isinstance(dataset, dict) or dataset.get("backend") == "fake_data":
+        raise ReportInputError(
+            f"{context}.dataset must identify a measured data backend"
+        )
+    if training_manifest.get("dataset") != dataset:
+        raise ReportInputError(
+            f"{context}.lineage training dataset must match the consumed dataset"
+        )
+    splits = dataset.get("splits")
+    if not isinstance(splits, dict):
+        raise ReportInputError(f"{context}.dataset.splits must be an object")
+    for split, expected_count in (
+        ("train", train_size),
+        ("test", test_size),
+    ):
+        split_data = splits.get(split)
+        if not isinstance(split_data, dict):
+            raise ReportInputError(
+                f"{context}.dataset.splits.{split} must be an object"
+            )
+        count = _require_int(
+            split_data, "count", f"{context}.dataset.splits.{split}"
+        )
+        if count != expected_count:
+            raise ReportInputError(
+                f"{context}.dataset.splits.{split}.count must match config"
+            )
+        _require_digest(
+            split_data,
+            "ordered_images_sha256",
+            f"{context}.dataset.splits.{split}",
+        )
+        _require_digest(
+            split_data,
+            "ordered_labels_sha256",
+            f"{context}.dataset.splits.{split}",
+        )
+
+    fit_size = _require_int(config, "pca_fit_size", f"{context}.config")
+    architecture = payload.get("architecture")
+    if not isinstance(architecture, dict):
+        raise ReportInputError(f"{context}.architecture must be an object")
+    widths = config.get("widths")
+    if (
+        architecture.get("name")
+        != "four-block residual CNN with GroupNorm"
+        or not isinstance(widths, list)
+        or architecture.get("widths") != widths
+    ):
+        raise ReportInputError(
+            f"{context}.architecture must match config.widths"
+        )
+    fit_prefix = payload.get("pca_fit_prefix")
+    if not isinstance(fit_prefix, dict):
+        raise ReportInputError(f"{context}.pca_fit_prefix must be an object")
+    if _require_int(
+        fit_prefix, "count", f"{context}.pca_fit_prefix"
+    ) != fit_size:
+        raise ReportInputError(
+            f"{context}.pca_fit_prefix.count must match config.pca_fit_size"
+        )
+    _require_digest(
+        fit_prefix, "ordered_images_sha256", f"{context}.pca_fit_prefix"
+    )
+    _require_digest(
+        fit_prefix, "ordered_labels_sha256", f"{context}.pca_fit_prefix"
+    )
+    if fit_prefix.get("selection") != f"range(0, {fit_size})":
+        raise ReportInputError(
+            f"{context}.pca_fit_prefix.selection must record the ordered prefix"
+        )
+
+    configured_cuts = config.get("cuts")
+    configured_ranks = config.get("pca_ranks")
+    if (
+        not isinstance(configured_cuts, list)
+        or not configured_cuts
+        or any(
+            isinstance(cut, bool) or not isinstance(cut, int) or cut < 1
+            for cut in configured_cuts
+        )
+    ):
+        raise ReportInputError(
+            f"{context}.config.cuts must be a non-empty positive integer array"
+        )
+    if (
+        not isinstance(configured_ranks, list)
+        or not configured_ranks
+        or configured_ranks != sorted(set(configured_ranks))
+        or any(
+            isinstance(rank, bool) or not isinstance(rank, int) or rank < 1
+            for rank in configured_ranks
+        )
+    ):
+        raise ReportInputError(
+            f"{context}.config.pca_ranks must be sorted, unique positive integers"
+        )
+    slices = _objects(payload.get("slices"), f"{context}.slices")
+    if [slice_.get("cut") for slice_ in slices] != configured_cuts:
+        raise ReportInputError(f"{context}.slices must match config.cuts in order")
+
+    for slice_index, slice_ in enumerate(slices):
+        slice_context = f"{context}.slices[{slice_index}]"
+        native_dimension = _require_int(
+            slice_,
+            "activation_flattened_dimension",
+            slice_context,
+        )
+        pca_fit_count = _require_int(
+            slice_, "pca_fit_count", slice_context
+        )
+        if native_dimension < 1 or pca_fit_count != fit_size:
+            raise ReportInputError(
+                f"{slice_context} has inconsistent activation/PCA-fit dimensions"
+            )
+        sample_ceiling = _require_int(
+            slice_, "sample_rank_ceiling", slice_context
+        )
+        activation_ceiling = _require_int(
+            slice_, "activation_dimension_rank_ceiling", slice_context
+        )
+        feasible_ceiling = _require_int(
+            slice_, "maximal_feasible_rank", slice_context
+        )
+        maximal_requested = _require_int(
+            slice_, "maximal_requested_rank", slice_context
+        )
+        if (
+            sample_ceiling != pca_fit_count - 1
+            or activation_ceiling != native_dimension
+            or feasible_ceiling != min(sample_ceiling, activation_ceiling)
+            or maximal_requested != configured_ranks[-1]
+            or maximal_requested > feasible_ceiling
+        ):
+            raise ReportInputError(
+                f"{slice_context} has an inconsistent PCA rank ceiling"
+            )
+        maximal_basis = _require_digest(
+            slice_, "maximal_pca_basis_sha256", slice_context
+        )
+        class_counts = slice_.get("pca_fit_class_counts")
+        if not isinstance(class_counts, dict) or sum(
+            value
+            for value in class_counts.values()
+            if isinstance(value, int) and not isinstance(value, bool)
+        ) != pca_fit_count or any(
+            isinstance(value, bool)
+            or not isinstance(value, int)
+            or value < 0
+            for value in class_counts.values()
+        ):
+            raise ReportInputError(
+                f"{slice_context}.pca_fit_class_counts must sum to the fit count"
+            )
+        rank_results = _objects(
+            slice_.get("rank_results"), f"{slice_context}.rank_results"
+        )
+        if [row.get("pca_rank") for row in rank_results] != configured_ranks:
+            raise ReportInputError(
+                f"{slice_context}.rank_results must match config.pca_ranks"
+            )
+        if rank_results[-1].get("pca_basis_prefix_sha256") != maximal_basis:
+            raise ReportInputError(
+                f"{slice_context} maximal rank must use the maximal PCA basis"
+            )
+        for rank_index, rank_result in enumerate(rank_results):
+            rank_context = f"{slice_context}.rank_results[{rank_index}]"
+            _require_digest(
+                rank_result, "pca_basis_prefix_sha256", rank_context
+            )
+            coverage = rank_result.get("held_out_coverage")
+            if not isinstance(coverage, dict):
+                raise ReportInputError(
+                    f"{rank_context}.held_out_coverage must be an object"
+                )
+            for key in (
+                "total_variance_fraction",
+                "within_class_variance_fraction",
+                "between_class_mean_variance_fraction",
+            ):
+                value = _number(
+                    coverage.get(key),
+                    f"{rank_context}.held_out_coverage.{key}",
+                )
+                if not 0 <= value <= 1.0001:
+                    raise ReportInputError(
+                        f"{rank_context}.held_out_coverage.{key} must be in [0, 1]"
+                    )
+            functional = rank_result.get("step_zero_true_vs_projected")
+            if not isinstance(functional, dict):
+                raise ReportInputError(
+                    f"{rank_context}.step_zero_true_vs_projected must be an object"
+                )
+            for key in ("true_loss", "projected_true_loss"):
+                if _number(
+                    functional.get(key), f"{rank_context}.{key}"
+                ) < 0:
+                    raise ReportInputError(f"{rank_context}.{key} must be non-negative")
+            for key in ("true_accuracy", "projected_true_accuracy"):
+                value = _number(
+                    functional.get(key), f"{rank_context}.{key}"
+                )
+                if not 0 <= value <= 1:
+                    raise ReportInputError(f"{rank_context}.{key} must be in [0, 1]")
+            if _number(
+                functional.get("true_to_projected_predictive_kl"),
+                f"{rank_context}.true_to_projected_predictive_kl",
+            ) < 0:
+                raise ReportInputError(
+                    f"{rank_context}.true_to_projected_predictive_kl "
+                    "must be non-negative"
+                )
+
+
 def load_manifest(manifest_path: str | Path) -> tuple[dict[str, Any], list[LoadedArtifact]]:
     """Load and validate a complete, measured-only input manifest."""
 
@@ -686,6 +996,13 @@ def load_manifest(manifest_path: str | Path) -> tuple[dict[str, Any], list[Loade
                 payload.get("provenance"),
                 f"artifact {input_id!r}.provenance",
                 required=True,
+            )
+        if kind == "cnn_projection":
+            _validate_projection_adequacy(
+                payload,
+                context=f"artifact {input_id!r}",
+                epoch=actual_epoch,
+                seed=actual_seed,
             )
 
         loaded.append(
@@ -952,6 +1269,75 @@ def _normalise_records(
             ),
             "fixed_lr",
         )
+        if lr_regime not in {"fixed_lr", "match_true_initial_update"}:
+            raise ReportInputError(
+                f"{row_context}.learning_rate_regime has unsupported value "
+                f"{lr_regime!r}"
+            )
+        lr_fields: dict[str, float | None] = {}
+        for source_key, target_key in (
+            ("base_relax_learning_rate", "base_learning_rate"),
+            ("learning_rate_multiplier", "learning_rate_multiplier"),
+            ("effective_relax_learning_rate", "effective_learning_rate"),
+            (
+                "matched_first_step_update_norm",
+                "matched_first_step_update_norm",
+            ),
+        ):
+            value = row.get(source_key)
+            if value is None:
+                lr_fields[target_key] = None
+                continue
+            number = _number(value, f"{row_context}.{source_key}")
+            if number < 0 or (
+                source_key == "learning_rate_multiplier" and number == 0
+            ):
+                requirement = (
+                    "positive"
+                    if source_key == "learning_rate_multiplier"
+                    else "non-negative"
+                )
+                raise ReportInputError(
+                    f"{row_context}.{source_key} must be {requirement}"
+                )
+            lr_fields[target_key] = number
+        base_lr = lr_fields["base_learning_rate"]
+        multiplier = lr_fields["learning_rate_multiplier"]
+        effective_lr = lr_fields["effective_learning_rate"]
+        if (
+            base_lr is not None
+            and multiplier is not None
+            and effective_lr is not None
+            and not math.isclose(
+                effective_lr,
+                base_lr * multiplier,
+                rel_tol=1e-8,
+                abs_tol=1e-12,
+            )
+        ):
+            raise ReportInputError(
+                f"{row_context} has inconsistent base/effective learning rates"
+            )
+        if (
+            lr_regime == "fixed_lr"
+            and multiplier is not None
+            and not math.isclose(multiplier, 1.0, rel_tol=1e-9)
+        ):
+            raise ReportInputError(
+                f"{row_context}.learning_rate_multiplier must be 1 for fixed_lr"
+            )
+        if lr_regime == "match_true_initial_update" and any(
+            lr_fields[key] is None
+            for key in (
+                "base_learning_rate",
+                "learning_rate_multiplier",
+                "effective_learning_rate",
+                "matched_first_step_update_norm",
+            )
+        ):
+            raise ReportInputError(
+                f"{row_context} matched-update rows must record LR scale fields"
+            )
         suffix_initialization = row.get("suffix_initialization", "warm")
         if suffix_initialization not in {"warm", "reinitialized"}:
             raise ReportInputError(
@@ -981,6 +1367,7 @@ def _normalise_records(
                 "initial_suffix_weight_norm": suffix_weight_norm,
                 "initial_update_to_weight_ratio": update_to_weight_ratio,
                 "lr_regime": lr_regime,
+                **lr_fields,
             }
         )
     if not normalised:
@@ -1311,8 +1698,18 @@ def _validate_cell_series(
                 f"{distribution!r}"
             )
     if expected_draws is not None and expected_relax_epochs is not None:
+        regimes = {
+            str(row["lr_regime"])
+            for row in records
+            if row["eval_distribution"] == "true"
+        }
+        if len(regimes) != 1:
+            raise ReportInputError(
+                f"{context} must contain exactly one learning-rate regime"
+            )
+        expected_regime = next(iter(regimes))
         declared_coordinates = {
-            (draw, epoch, "fixed_lr")
+            (draw, epoch, expected_regime)
             for draw in range(expected_draws)
             for epoch in range(expected_relax_epochs + 1)
         }
@@ -1584,6 +1981,8 @@ def normalise_artifacts(
     observations: list[dict[str, Any]] = []
     cells: list[dict[str, Any]] = []
     for artifact in artifacts:
+        if artifact.kind == "cnn_projection":
+            continue
         artifact_observations, artifact_cells = _cell_rows(artifact)
         observations.extend(artifact_observations)
         cells.extend(artifact_cells)
@@ -1631,6 +2030,19 @@ def summarise_observations(
             for row in rows
             if row.get("initial_gradient_norm") is not None
         ]
+        lr_diagnostics = {
+            key: [
+                float(row[key])
+                for row in rows
+                if row.get(key) is not None
+            ]
+            for key in (
+                "base_learning_rate",
+                "learning_rate_multiplier",
+                "effective_learning_rate",
+                "matched_first_step_update_norm",
+            )
+        }
         summary.update(
             {
                 "accuracy_mean": fmean(accuracy_values),
@@ -1649,6 +2061,10 @@ def summarise_observations(
                     if initial_gradient_norms
                     else None
                 ),
+                **{
+                    f"{key}_mean": fmean(values) if values else None
+                    for key, values in lr_diagnostics.items()
+                },
                 "draw_count": len(rows),
             }
         )
@@ -2028,7 +2444,7 @@ def _endpoint_bars(rows: Sequence[Mapping[str, Any]]) -> str:
         '<div class="endpoint-extraction">'
         '<div class="arrow" aria-hidden="true">→</div>'
         '<div class="endpoint-panel"><h5>Final relaxation epoch</h5>'
-        '<p class="micro">Independent bars, sorted by measured accuracy.</p>'
+        '<p class="micro">Draw-level ranges, sorted by measured accuracy.</p>'
         + "".join(bars)
         + "</div></div>"
     )
@@ -2088,6 +2504,14 @@ def _render_model_section(
         model_seed = run_artifacts[0].model_seed
         run_rows = [row for row in summaries if row["input_id"] in artifact_ids]
         run_cells = [cell for cell in cells if cell["input_id"] in artifact_ids]
+        recorded_regimes = sorted(
+            {str(row["lr_regime"]) for row in run_rows}
+        )
+        display_regime = (
+            "fixed_lr"
+            if "fixed_lr" in recorded_regimes
+            else recorded_regimes[0]
+        )
         cuts = sorted({int(cell["cut"]) for cell in run_cells})
         ranks = sorted({int(cell["pca_rank"]) for cell in run_cells})
         draw_count = max(int(row["draw_count"]) for row in run_rows)
@@ -2122,7 +2546,7 @@ def _render_model_section(
                 for row in run_rows
                 if int(row["cut"]) == cut and int(row["pca_rank"]) == primary_rank
                 and row["eval_distribution"] == "true"
-                and row["lr_regime"] == "fixed_lr"
+                and row["lr_regime"] == display_regime
             ]
             coverage_note = (
                 f'PCA rank {primary_rank}; coverage '
@@ -2157,7 +2581,8 @@ def _render_model_section(
             f'seed {model_seed} · {len(cuts)} cuts · '
             f'{draw_count} draw{"s" if draw_count != 1 else ""}</span></summary>'
             '<div class="run-intro">'
-            f"<p>{_esc(rank_note)}</p>"
+            f"<p>{_esc(rank_note)} Displayed optimizer regime: "
+            f"<code>{_esc(display_regime)}</code>.</p>"
             "</div>"
             + "".join(chart_cards)
             + "</details>"
@@ -2249,6 +2674,173 @@ def _is_legacy_artifact(artifact: LoadedArtifact) -> bool:
     )
 
 
+def _projection_adequacy_rows(
+    artifacts: Sequence[LoadedArtifact],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for artifact in artifacts:
+        if artifact.kind != "cnn_projection":
+            continue
+        slices = artifact.payload["slices"]
+        shallow_cut = min(int(slice_["cut"]) for slice_ in slices)
+        for slice_ in slices:
+            cut = int(slice_["cut"])
+            for result in slice_["rank_results"]:
+                coverage = result["held_out_coverage"]
+                functional = result["step_zero_true_vs_projected"]
+                ce_excess = float(functional["projected_true_loss"]) - float(
+                    functional["true_loss"]
+                )
+                predictive_kl = float(
+                    functional["true_to_projected_predictive_kl"]
+                )
+                ce_pass = (
+                    abs(ce_excess) <= PCA_ADEQUACY_CE_EXCESS_THRESHOLD
+                )
+                kl_pass = predictive_kl <= PCA_ADEQUACY_KL_THRESHOLD
+                rows.append(
+                    {
+                        "input_id": artifact.id,
+                        "label": artifact.label,
+                        "checkpoint_epoch": artifact.checkpoint_epoch,
+                        "model_seed": artifact.model_seed,
+                        "cut": cut,
+                        "module": f"residual block {cut}",
+                        "is_shallow_cut": cut == shallow_cut,
+                        "representation_shape": slice_.get(
+                            "representation_shape"
+                        ),
+                        "activation_dimension": int(
+                            slice_["activation_flattened_dimension"]
+                        ),
+                        "pca_fit_count": int(slice_["pca_fit_count"]),
+                        "sample_rank_ceiling": int(
+                            slice_["sample_rank_ceiling"]
+                        ),
+                        "maximal_feasible_rank": int(
+                            slice_["maximal_feasible_rank"]
+                        ),
+                        "pca_rank": int(result["pca_rank"]),
+                        "coverage_total": float(
+                            coverage["total_variance_fraction"]
+                        ),
+                        "coverage_within_class": float(
+                            coverage["within_class_variance_fraction"]
+                        ),
+                        "coverage_between_class": float(
+                            coverage[
+                                "between_class_mean_variance_fraction"
+                            ]
+                        ),
+                        "true_loss": float(functional["true_loss"]),
+                        "projected_loss": float(
+                            functional["projected_true_loss"]
+                        ),
+                        "ce_excess": ce_excess,
+                        "true_accuracy": float(
+                            functional["true_accuracy"]
+                        ),
+                        "projected_accuracy": float(
+                            functional["projected_true_accuracy"]
+                        ),
+                        "accuracy_change_pp": 100
+                        * (
+                            float(functional["projected_true_accuracy"])
+                            - float(functional["true_accuracy"])
+                        ),
+                        "predictive_kl": predictive_kl,
+                        "ce_gate_pass": ce_pass,
+                        "kl_gate_pass": kl_pass,
+                        "adequacy_gate_pass": ce_pass and kl_pass,
+                    }
+                )
+    return sorted(
+        rows,
+        key=lambda row: (
+            row["checkpoint_epoch"],
+            row["model_seed"],
+            row["cut"],
+            row["pca_rank"],
+        ),
+    )
+
+
+def _projection_adequacy_table(
+    rows: Sequence[Mapping[str, Any]],
+) -> str:
+    if not rows:
+        return (
+            '<p class="empty-control">No measured PCA-only adequacy artifact '
+            "is loaded in this build.</p>"
+        )
+    body = []
+    for row in rows:
+        gate = "PASS" if row["adequacy_gate_pass"] else "FAIL"
+        ce_gate = "PASS" if row["ce_gate_pass"] else "FAIL"
+        kl_gate = "PASS" if row["kl_gate_pass"] else "FAIL"
+        body.append(
+            "<tr>"
+            f'<td>{row["checkpoint_epoch"]}</td><td>{row["model_seed"]}</td>'
+            f'<td>{_esc(row["module"])}</td>'
+            f'<td class="number">{row["activation_dimension"]:,}</td>'
+            f'<td class="number">{row["pca_fit_count"]:,}</td>'
+            f'<td class="number">{row["maximal_feasible_rank"]:,}</td>'
+            f'<td class="number">{row["pca_rank"]:,}</td>'
+            f'<td class="number">{_fmt_percent(row["coverage_total"])}</td>'
+            f'<td class="number">{_fmt_percent(row["coverage_within_class"])}</td>'
+            f'<td class="number">{float(row["ce_excess"]):+.5f}</td>'
+            f"<td>{ce_gate}</td>"
+            f'<td class="number">{float(row["accuracy_change_pp"]):+.2f} pp</td>'
+            f'<td class="number">{float(row["predictive_kl"]):.5f}</td>'
+            f"<td>{kl_gate}</td>"
+            f'<td><span class="badge {"measured" if gate == "PASS" else "wip"}">'
+            f"{gate}</span></td>"
+            "</tr>"
+        )
+    return (
+        '<div class="table-scroll"><table><thead><tr>'
+        "<th>Checkpoint</th><th>Model seed</th><th>Cut</th>"
+        "<th>Activation coordinates</th><th>PCA-fit n</th>"
+        "<th>Feasible rank ceiling</th><th>PCA rank</th>"
+        "<th>Total coverage</th><th>Within-class coverage</th>"
+        "<th>Projected − true CE</th><th>CE gate (|Δ| ≤ 0.05)</th>"
+        "<th>Projected − true accuracy</th>"
+        "<th>Predictive KL</th><th>KL gate (≤ 0.02)</th>"
+        "<th>Overall adequacy</th>"
+        "</tr></thead><tbody>"
+        + "".join(body)
+        + "</tbody></table></div>"
+    )
+
+
+def _projection_adequacy_callouts(
+    rows: Sequence[Mapping[str, Any]],
+) -> str:
+    callouts: list[str] = []
+    for row in rows:
+        if not row["is_shallow_cut"]:
+            continue
+        rank = int(row["pca_rank"])
+        if rank == 2048 and not row["kl_gate_pass"]:
+            callouts.append(
+                '<aside class="status-panel diagnostic"><strong>SHALLOW '
+                "r = 2,048 FAILS THE KL GATE.</strong><p>For "
+                f'seed {row["model_seed"]} at {_esc(row["module"])}, this rank '
+                "can support only a projected-subspace estimand. It cannot "
+                "justify a claim about the unprojected activation distribution."
+                "</p></aside>"
+            )
+        if rank == 4096 and row["adequacy_gate_pass"]:
+            callouts.append(
+                '<aside class="status-panel measured-result"><strong>SHALLOW '
+                "r = 4,096 PASSES BOTH DECLARED GATES.</strong><p>For "
+                f'seed {row["model_seed"]} at {_esc(row["module"])}, the '
+                "artifact supports using this rank for the full-activation "
+                "estimand under the stated CE and KL thresholds.</p></aside>"
+            )
+    return "".join(callouts)
+
+
 def _endpoint_paired_rows(
     paired_summaries: Sequence[Mapping[str, Any]],
 ) -> list[Mapping[str, Any]]:
@@ -2302,6 +2894,7 @@ def _primary_estimand_table(
         row
         for row in _endpoint_paired_rows(paired_summaries)
         if row.get("loss_excess_mean") is not None
+        and row["lr_regime"] == "fixed_lr"
     ]
     if not endpoints:
         return (
@@ -2646,7 +3239,18 @@ def _gradient_diagnostic_table(
         )
         groups[key][str(row["distribution"])] = row
     ratios: dict[
-        tuple[Any, ...], list[tuple[float, float | None, float | None]]
+        tuple[Any, ...],
+        list[
+            tuple[
+                float,
+                float | None,
+                float | None,
+                float | None,
+                float | None,
+                float | None,
+                float | None,
+            ]
+        ],
     ] = defaultdict(list)
     for key, values in groups.items():
         reference = values.get("true")
@@ -2675,7 +3279,15 @@ def _gradient_diagnostic_table(
                     row["initial_update_to_weight_ratio"]
                 ) / float(reference["initial_update_to_weight_ratio"])
             ratios[key[:-1] + (distribution,)].append(
-                (total_ratio, rms_ratio, update_ratio)
+                (
+                    total_ratio,
+                    rms_ratio,
+                    update_ratio,
+                    row.get("base_learning_rate"),
+                    row.get("learning_rate_multiplier"),
+                    row.get("effective_learning_rate"),
+                    row.get("matched_first_step_update_norm"),
+                )
             )
     if not ratios:
         return '<p class="empty-control">No initial suffix-gradient norms in this build.</p>'
@@ -2705,6 +3317,14 @@ def _gradient_diagnostic_table(
         total_values = [value[0] for value in values]
         rms_values = [value[1] for value in values if value[1] is not None]
         update_values = [value[2] for value in values if value[2] is not None]
+        base_lr_values = [value[3] for value in values if value[3] is not None]
+        multiplier_values = [value[4] for value in values if value[4] is not None]
+        effective_lr_values = [
+            value[5] for value in values if value[5] is not None
+        ]
+        matched_update_values = [
+            value[6] for value in values if value[6] is not None
+        ]
         row_html = (
             "<tr>"
             f'<td>{_esc(_architecture_label(str(kind)))}</td><td>{epoch}</td>'
@@ -2722,6 +3342,17 @@ def _gradient_diagnostic_table(
             if update_values
             else '<td class="number">—</td>'
         )
+        for metric_values, suffix in (
+            (base_lr_values, ""),
+            (multiplier_values, "×"),
+            (effective_lr_values, ""),
+            (matched_update_values, ""),
+        ):
+            row_html += (
+                f'<td class="number">{fmean(metric_values):.5g}{suffix}</td>'
+                if metric_values
+                else '<td class="number">—</td>'
+            )
         row_html += (
             f"<td>{len(values)} paired draw"
             f'{"s" if len(values) != 1 else ""}</td><td>{_esc(regime)}</td>'
@@ -2733,7 +3364,10 @@ def _gradient_diagnostic_table(
         "<th>Checkpoint</th><th>Model seed</th><th>Cut</th><th>Rank</th>"
         "<th>Replay</th>"
         "<th>Total gradient / true</th><th>RMS gradient / true</th>"
-        "<th>Update-to-weight / true</th><th>Uncertainty unit</th><th>LR regime</th>"
+        "<th>Update-to-weight / true</th><th>Base LR</th>"
+        "<th>LR multiplier</th><th>Effective LR</th>"
+        "<th>Matched first-update norm</th>"
+        "<th>Uncertainty unit</th><th>LR regime</th>"
         "</tr></thead><tbody>"
         + "".join(rows)
         + "</tbody></table></div>"
@@ -2786,6 +3420,79 @@ def _projection_diagnostic_table(
         "<th>Predictive KL(true ∥ projected)</th>"
         "</tr></thead><tbody>"
         + "".join(rows)
+        + "</tbody></table></div>"
+    )
+
+
+def _optimizer_regime_outcome_table(
+    paired_summaries: Sequence[Mapping[str, Any]],
+) -> str:
+    endpoints = [
+        row
+        for row in _endpoint_paired_rows(paired_summaries)
+        if row.get("loss_excess_mean") is not None
+    ]
+    context_fields = (
+        "kind",
+        "checkpoint_epoch",
+        "model_seed",
+        "cut",
+        "pca_rank",
+        "distribution",
+    )
+    matched_contexts = {
+        tuple(row[field] for field in context_fields)
+        for row in endpoints
+        if row["lr_regime"] == "match_true_initial_update"
+    }
+    rows = [
+        row
+        for row in endpoints
+        if tuple(row[field] for field in context_fields) in matched_contexts
+        and row["lr_regime"]
+        in {"fixed_lr", "match_true_initial_update"}
+    ]
+    if not rows:
+        return (
+            '<p class="empty-control">No matched-first-update sensitivity '
+            "artifact is loaded in this build.</p>"
+        )
+    body = []
+    for row in sorted(
+        rows,
+        key=lambda item: (
+            item["checkpoint_epoch"],
+            item["model_seed"],
+            item["cut"],
+            item["pca_rank"],
+            _distribution_order(str(item["distribution"])),
+            item["lr_regime"],
+            item["input_id"],
+        ),
+    ):
+        label, _colour, _dash = _distribution_style(
+            str(row["distribution"])
+        )
+        regime = (
+            "Fixed LR intervention"
+            if row["lr_regime"] == "fixed_lr"
+            else "Matched-update sensitivity"
+        )
+        body.append(
+            "<tr>"
+            f'<td>{row["checkpoint_epoch"]}</td><td>{row["model_seed"]}</td>'
+            f'<td>{_esc(row["module"])}</td><td>{row["pca_rank"]}</td>'
+            f"<td>{_esc(label)}</td><td>{_esc(regime)}</td>"
+            f'<td class="number">{_metric_with_range(row, "loss_excess")}</td>'
+            f'<td>{_esc(row["label"])}</td>'
+            "</tr>"
+        )
+    return (
+        '<div class="table-scroll"><table><thead><tr>'
+        "<th>Checkpoint</th><th>Model seed</th><th>Cut</th><th>Rank</th>"
+        "<th>Replay</th><th>Optimizer regime</th><th>Excess loss</th>"
+        "<th>Artifact profile</th></tr></thead><tbody>"
+        + "".join(body)
         + "</tbody></table></div>"
     )
 
@@ -2967,6 +3674,19 @@ def _exact_table(summaries: Sequence[Mapping[str, Any]]) -> str:
             if row.get("loss_mean") is not None
             else "—"
         )
+        lr_text = {
+            key: (
+                f'{float(row[f"{key}_mean"]):.5g}'
+                if row.get(f"{key}_mean") is not None
+                else "—"
+            )
+            for key in (
+                "base_learning_rate",
+                "learning_rate_multiplier",
+                "effective_learning_rate",
+                "matched_first_step_update_norm",
+            )
+        }
         rows.append(
             "<tr>"
             f'<td>{_esc(_architecture_label(str(row["kind"])))}</td>'
@@ -2983,6 +3703,10 @@ def _exact_table(summaries: Sequence[Mapping[str, Any]]) -> str:
             f'{100 * float(row["accuracy_max"]):.3f}%</td>'
             f'<td>{row["draw_count"]}</td>'
             f'<td>{_esc(row["lr_regime"])}</td>'
+            f'<td>{lr_text["base_learning_rate"]}</td>'
+            f'<td>{lr_text["learning_rate_multiplier"]}</td>'
+            f'<td>{lr_text["effective_learning_rate"]}</td>'
+            f'<td>{lr_text["matched_first_step_update_norm"]}</td>'
             "</tr>"
         )
     return (
@@ -2991,6 +3715,8 @@ def _exact_table(summaries: Sequence[Mapping[str, Any]]) -> str:
         "<th>Training distribution</th><th>Evaluation distribution</th>"
         "<th>Relax epoch</th><th>Mean loss</th>"
         "<th>Mean accuracy</th><th>Draw range</th><th>n</th><th>LR regime</th>"
+        "<th>Base LR</th><th>LR multiplier</th><th>Effective LR</th>"
+        "<th>Matched first-update norm</th>"
         "</tr></thead><tbody>"
         + "".join(rows)
         + "</tbody></table></div>"
@@ -3034,6 +3760,22 @@ def _manifest_cards(artifacts: Sequence[LoadedArtifact]) -> str:
             f'<div><dt>Formats</dt><dd>{len({artifact.format for artifact in group})}'
             "</dd></div></dl></article>"
         )
+    projection = [
+        artifact for artifact in artifacts if artifact.kind == "cnn_projection"
+    ]
+    if projection:
+        epochs = sorted({artifact.checkpoint_epoch for artifact in projection})
+        seeds = sorted({artifact.model_seed for artifact in projection})
+        cards.append(
+            '<article class="input-card">'
+            '<p class="eyebrow">CNN PCA adequacy</p>'
+            f'<h3>{len(projection)} hashed gate artifact'
+            f'{"s" if len(projection) != 1 else ""}</h3>'
+            f'<dl><div><dt>Checkpoints</dt><dd>{_esc(", ".join(map(str, epochs)))}</dd></div>'
+            f'<div><dt>Model seeds</dt><dd>{_esc(", ".join(map(str, seeds)))}</dd></div>'
+            '<div><dt>Intervention</dt><dd>Projection only</dd></div>'
+            "</dl></article>"
+        )
     return "".join(cards)
 
 
@@ -3051,7 +3793,10 @@ def _provenance_details(artifact: LoadedArtifact) -> str:
     )
     if source is not None:
         details.append((source[0].title(), source[1]))
+    lineage = payload.get("lineage")
     checkpoint = payload.get("checkpoint")
+    if not isinstance(checkpoint, dict) and isinstance(lineage, dict):
+        checkpoint = lineage.get("checkpoint")
     if isinstance(checkpoint, dict) and isinstance(checkpoint.get("sha256"), str):
         details.append(
             (
@@ -3059,7 +3804,6 @@ def _provenance_details(artifact: LoadedArtifact) -> str:
                 f"epoch {checkpoint.get('epoch')} · sha256:{checkpoint['sha256']}",
             )
         )
-    lineage = payload.get("lineage")
     if isinstance(lineage, dict):
         training_source = _source_identity(
             lineage.get("training_source"),
@@ -3080,6 +3824,19 @@ def _provenance_details(artifact: LoadedArtifact) -> str:
             details.append(
                 ("Training manifest SHA-256", training_manifest["sha256"])
             )
+            training_manifest_source = _source_identity(
+                training_manifest.get("source_provenance"),
+                f"artifact {artifact.id!r}.lineage.training_manifest."
+                "source_provenance",
+                required=False,
+            )
+            if training_manifest_source is not None:
+                details.append(
+                    (
+                        f"Training {training_manifest_source[0]}",
+                        training_manifest_source[1],
+                    )
+                )
     dataset = payload.get("dataset")
     if isinstance(dataset, dict):
         details.append(("Dataset backend", str(dataset.get("backend", "not recorded"))))
@@ -3386,11 +4143,22 @@ def render_report(
     paired_draws = paired_true_eval_contrasts(observations)
     paired_summaries = summarise_paired_contrasts(paired_draws)
 
+    projection_artifacts = [
+        artifact for artifact in artifacts if artifact.kind == "cnn_projection"
+    ]
+    relaxation_artifacts = [
+        artifact for artifact in artifacts if artifact.kind != "cnn_projection"
+    ]
+    projection_rows = _projection_adequacy_rows(projection_artifacts)
     canonical_artifacts = [
-        artifact for artifact in artifacts if not _is_legacy_artifact(artifact)
+        artifact
+        for artifact in relaxation_artifacts
+        if not _is_legacy_artifact(artifact)
     ]
     legacy_artifacts = [
-        artifact for artifact in artifacts if _is_legacy_artifact(artifact)
+        artifact
+        for artifact in relaxation_artifacts
+        if _is_legacy_artifact(artifact)
     ]
     canonical_ids = {artifact.id for artifact in canonical_artifacts}
     legacy_ids = {artifact.id for artifact in legacy_artifacts}
@@ -3418,7 +4186,9 @@ def render_report(
         "to a completed canonical control.</p></article>"
     )
     has_primary = any(
-        row.get("loss_excess_mean") is not None for row in canonical_paired
+        row.get("loss_excess_mean") is not None
+        and row["lr_regime"] == "fixed_lr"
+        for row in canonical_paired
     )
     status_html = (
         '<aside class="status-panel measured-result"><strong>PRIMARY ESTIMAND '
@@ -3453,6 +4223,7 @@ def render_report(
         "exact_summary_rows": summaries,
         "paired_true_evaluation_draw_contrasts": paired_draws,
         "paired_true_evaluation_summaries": paired_summaries,
+        "pca_projection_adequacy_rows": projection_rows,
         "cell_metadata": cells,
     }
     provenance_cards = "".join(
@@ -3504,6 +4275,11 @@ def render_report(
         if any(artifact.kind == kind for artifact in canonical_artifacts)
     )
     legacy_nav = '<a href="#legacy">Legacy appendix</a>' if legacy_artifacts else ""
+    adequacy_nav = (
+        '<a href="#pca-adequacy">PCA adequacy</a>'
+        if projection_artifacts
+        else ""
+    )
 
     return f"""<!doctype html>
 <html lang="en">
@@ -3517,6 +4293,7 @@ def render_report(
 <nav aria-label="Report sections">
   <a href="#overview">Overview</a>
   <a href="#method">Methodology</a>
+  {adequacy_nav}
   <a href="#estimand">Primary estimand</a>
   <a href="#matrix">Full matrix</a>
   <a href="#controls">Controls</a>
@@ -3534,7 +4311,8 @@ def render_report(
     <div class="status-line">
       <span class="badge wip">Work in progress</span>
       <span class="badge measured">Measured inputs only</span>
-      <span>{len(canonical_artifacts)} canonical · {len(legacy_artifacts)} legacy ·
+      <span>{len(canonical_artifacts)} canonical relaxation ·
+        {len(projection_artifacts)} PCA adequacy · {len(legacy_artifacts)} legacy ·
         {len(artifacts)} hashed artifacts · dashboard source base
         <code>{_esc(manifest["source_commit"])}</code></span>
     </div>
@@ -3590,6 +4368,12 @@ def render_report(
           Native coordinates are activation-map entries (channels × height ×
           width), not raw pixels or model parameters, so an early cut can exceed
           ten thousand coordinates.</p></div>
+        <div><h3>PCA adequacy gate</h3><p>The projection-only artifact tests the
+          unchanged suffix before surrogate fitting. A rank passes only when
+          |projected − true cross-entropy| ≤
+          {PCA_ADEQUACY_CE_EXCESS_THRESHOLD:.2f} and predictive KL ≤
+          {PCA_ADEQUACY_KL_THRESHOLD:.2f}. Failure limits downstream claims to
+          the projected-subspace estimand at that rank.</p></div>
         <div><h3>Mean + isotropic noise</h3><p>This is not epsilon jitter. At
           r = 1 its covariance trace matches the pooled average within-class
           covariance trace; radius r scales trace by r².</p></div>
@@ -3609,10 +4393,13 @@ def render_report(
           regime. Summaries average paired draw-level contrasts, not unpaired bars.</p>
       </div>
       <div class="method-notes">
-        <div><h3>Optimizer control</h3><p>The fixed-learning-rate regime is the
-          primary comparison. Initial training loss and suffix-gradient norm expose
-          scale mismatches; any gradient-normalized sensitivity regime is reported
-          separately, never silently pooled.</p></div>
+        <div><h3>Optimizer control</h3><p>Fixed LR is the primary intervention:
+          one optimizer and one learning rate are held constant while the replay
+          distribution changes. Matched-first-update uses a per-condition LR
+          multiplier to equalize the first update norm; it is a scale-control
+          sensitivity, reported separately and never pooled with fixed LR. Large
+          changes in the excess-loss effect size make magnitude claims
+          optimizer-regime-dependent.</p></div>
         <div><h3>Failure criteria</h3><ul class="criteria-list">
           <li>Large projected-real gap: PCA truncation, not moment failure.</li>
           <li>Rank-sensitive conclusion or poor held-out within-class coverage.</li>
@@ -3624,6 +4411,23 @@ def render_report(
     </div>
   </section>
 
+  <section id="pca-adequacy" class="section">
+    <div class="section-heading">
+      <p class="eyebrow">Projection-only gate</p>
+      <h2>Does the PCA rank preserve the suffix function?</h2>
+      <p class="question">Before fitting Gaussian or mean surrogates, does the
+        unchanged suffix behave nearly the same on held-out true and projected
+        activations?</p>
+      <p>PASS requires both |projected − true CE| ≤
+        {PCA_ADEQUACY_CE_EXCESS_THRESHOLD:.2f} and predictive KL ≤
+        {PCA_ADEQUACY_KL_THRESHOLD:.2f}. Coverage is diagnostic, not itself a
+        pass criterion. These ranks are exploratory on the declared held-out
+        population.</p>
+    </div>
+    {_projection_adequacy_callouts(projection_rows)}
+    {_projection_adequacy_table(projection_rows)}
+  </section>
+
   <section id="estimand" class="section">
     <div class="section-heading">
       <p class="eyebrow">Primary result</p>
@@ -3631,8 +4435,9 @@ def render_report(
       <p class="question">At the relaxation endpoint, how much cross-entropy is
         added by training on each surrogate instead of matched real activations?</p>
       <p>Read zero as parity with the paired real-replay baseline. Positive values
-        mean worse held-out real loss. Parentheses are the min–max range across
-        surrogate draws; model-seed uncertainty requires additional checkpoints.</p>
+        mean worse held-out real loss. This table contains the fixed-LR
+        intervention only. Parentheses are the min–max range across surrogate
+        draws; model-seed uncertainty requires additional checkpoints.</p>
     </div>
     {_primary_estimand_table(canonical_paired)}
   </section>
@@ -3674,9 +4479,16 @@ def render_report(
           changed the function presented to the suffix.</p>
         {_projection_diagnostic_table(canonical_cells)}</div>
       <div class="control-block"><h3>Initial suffix-gradient scale</h3>
-        <p>Ratios are paired to real replay at the same cell and draw. A large
-          mismatch motivates a separately labelled optimizer-sensitivity regime.</p>
+        <p>Ratios are paired to real replay at the same cell and draw. Base and
+          effective LR, multiplier, and matched first-update norm expose exactly
+          how the scale-control sensitivity changes the fixed-LR intervention.</p>
         {_gradient_diagnostic_table(canonical_observations)}</div>
+      <div class="control-block"><h3>Optimizer-regime outcome sensitivity</h3>
+        <p>Compare only rows whose checkpoint, seed, cut, rank, replay condition,
+          and artifact profile are substantively matched. Fixed LR remains the
+          intervention; matched-update is a sensitivity. Large effect-size changes
+          make magnitude claims optimizer-regime-dependent.</p>
+        {_optimizer_regime_outcome_table(canonical_paired)}</div>
       <div class="control-block"><h3>Surrogate moment fidelity</h3>
         <p>Generated-bank class means and covariances should match the target
           moments in the declared diagnostic space.</p>

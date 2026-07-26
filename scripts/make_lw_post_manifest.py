@@ -182,6 +182,92 @@ def post_cnn_entries(
     return inputs
 
 
+def explicit_post_cnn_entries(
+    output: Path,
+    artifact_paths: Sequence[Path],
+) -> list[dict[str, object]]:
+    inputs = []
+    for index, artifact_path in enumerate(artifact_paths):
+        payload = json.loads(artifact_path.read_text())
+        config = payload.get("config")
+        if not isinstance(config, dict):
+            raise RuntimeError(f"{artifact_path} config must be an object")
+        epoch = config.get("checkpoint_epoch")
+        seed = config.get("seed")
+        if isinstance(epoch, bool) or not isinstance(epoch, int):
+            raise RuntimeError(f"{artifact_path} lacks checkpoint_epoch")
+        if isinstance(seed, bool) or not isinstance(seed, int):
+            raise RuntimeError(f"{artifact_path} lacks seed")
+        payload = measured_payload(artifact_path, epoch=epoch, seed=seed)
+        if (
+            payload.get("schema_version") != 2
+            or payload.get("experiment") != "lw_post_cnn_suffix_statistics"
+        ):
+            raise RuntimeError(
+                f"{artifact_path} is not a schema-v2 post-facing CNN artifact"
+            )
+        regime = config.get("learning_rate_regime", "fixed_lr")
+        inputs.append(
+            entry(
+                manifest_dir=output.parent,
+                artifact_path=artifact_path,
+                input_id=f"cnn-extra-{index}-s{seed}-e{epoch}",
+                kind="cnn",
+                artifact_format="post_statistics",
+                label=(
+                    f"Four-block CNN · seed {seed} · epoch {epoch} · "
+                    f"{regime} sensitivity"
+                ),
+                epoch=epoch,
+                seed=seed,
+            )
+        )
+    return inputs
+
+
+def projection_adequacy_entries(
+    output: Path,
+    artifact_paths: Sequence[Path],
+) -> list[dict[str, object]]:
+    inputs = []
+    for index, artifact_path in enumerate(artifact_paths):
+        payload = json.loads(artifact_path.read_text())
+        config = payload.get("config")
+        if not isinstance(config, dict):
+            raise RuntimeError(f"{artifact_path} config must be an object")
+        epoch = config.get("checkpoint_epoch")
+        seed = config.get("seed")
+        if isinstance(epoch, bool) or not isinstance(epoch, int):
+            raise RuntimeError(f"{artifact_path} lacks checkpoint_epoch")
+        if isinstance(seed, bool) or not isinstance(seed, int):
+            raise RuntimeError(f"{artifact_path} lacks seed")
+        payload = measured_payload(artifact_path, epoch=epoch, seed=seed)
+        if (
+            payload.get("schema_version") != 1
+            or payload.get("experiment")
+            != "lw_post_cnn_projection_adequacy"
+        ):
+            raise RuntimeError(
+                f"{artifact_path} is not a schema-v1 CNN projection gate"
+            )
+        inputs.append(
+            entry(
+                manifest_dir=output.parent,
+                artifact_path=artifact_path,
+                input_id=f"cnn-projection-{index}-s{seed}-e{epoch}",
+                kind="cnn_projection",
+                artifact_format="cnn_projection_adequacy",
+                label=(
+                    f"Four-block CNN · seed {seed} · epoch {epoch} · "
+                    "PCA-only adequacy gate"
+                ),
+                epoch=epoch,
+                seed=seed,
+            )
+        )
+    return inputs
+
+
 def canonical_resnet_entries(
     artifact_root: Path,
     output: Path,
@@ -292,6 +378,8 @@ def build_manifest(
     resnet_source: str = "none",
     cnn_seeds: Sequence[int] = (0,),
     canonical_resnet_path: Path | None = None,
+    projection_adequacy_paths: Sequence[Path] = (),
+    extra_cnn_paths: Sequence[Path] = (),
 ) -> dict:
     if not COMMIT_RE.fullmatch(source_commit):
         raise ValueError("source_commit must be a 7–64 character hexadecimal id")
@@ -301,6 +389,10 @@ def build_manifest(
         inputs = post_cnn_entries(artifact_root, output, cnn_seeds)
     else:
         raise ValueError("cnn_source must be 'legacy' or 'post'")
+    inputs.extend(explicit_post_cnn_entries(output, extra_cnn_paths))
+    inputs.extend(
+        projection_adequacy_entries(output, projection_adequacy_paths)
+    )
     inputs.extend(
         resnet_entries(
             artifact_root,
@@ -355,6 +447,20 @@ def main() -> None:
         type=Path,
         help="Explicit schema-v3/v4 ResNet artifact; required for new canonical runs.",
     )
+    parser.add_argument(
+        "--cnn-extra-path",
+        type=Path,
+        action="append",
+        default=[],
+        help="Additional measured schema-v2 CNN sensitivity artifact.",
+    )
+    parser.add_argument(
+        "--projection-adequacy-path",
+        type=Path,
+        action="append",
+        default=[],
+        help="Optional measured schema-v1 CNN PCA-only adequacy artifact.",
+    )
     args = parser.parse_args()
     args.output.parent.mkdir(parents=True, exist_ok=True)
     manifest = build_manifest(
@@ -369,6 +475,8 @@ def main() -> None:
             if args.canonical_resnet_path is not None
             else None
         ),
+        [path.resolve() for path in args.projection_adequacy_path],
+        [path.resolve() for path in args.cnn_extra_path],
     )
     args.output.write_text(json.dumps(manifest, indent=2, allow_nan=False) + "\n")
     print(args.output)

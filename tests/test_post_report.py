@@ -10,6 +10,8 @@ import pytest
 from scripts.make_lw_post_manifest import (
     CANONICAL_RESNET_PATH,
     canonical_resnet_entries,
+    explicit_post_cnn_entries,
+    projection_adequacy_entries,
 )
 from tracking2.post_report import (
     DEFAULT_OUTPUT,
@@ -161,7 +163,9 @@ def _resnet_payload(*, held_out: bool = False) -> dict:
     }
 
 
-def _cnn_v2_matrix_payload() -> dict:
+def _cnn_v2_matrix_payload(
+    learning_rate_regime: str = "fixed_lr",
+) -> dict:
     payload = _cnn_payload()
     payload["schema_version"] = 2
     payload["provenance"] = {"source_revision": "a" * 40}
@@ -170,6 +174,7 @@ def _cnn_v2_matrix_payload() -> dict:
             "relax_epochs": 1,
             "true_eval_only": False,
             "gaussian_covariance_shrinkages": [0.0, 0.05],
+            "learning_rate_regime": learning_rate_regime,
         }
     )
     distributions = [
@@ -188,6 +193,11 @@ def _cnn_v2_matrix_payload() -> dict:
     }
     records = []
     for train_distribution in distributions:
+        lr_multiplier = (
+            1.0
+            if learning_rate_regime == "fixed_lr"
+            else 1.0 / (1.0 + train_penalty[train_distribution])
+        )
         for eval_distribution in distributions:
             for relax_epoch in (0, 1):
                 records.append(
@@ -218,6 +228,12 @@ def _cnn_v2_matrix_payload() -> dict:
                         "initial_suffix_weight_norm": 2.0,
                         "first_step_update_to_weight_ratio": 0.01
                         + train_penalty[train_distribution] / 100,
+                        "learning_rate_regime": learning_rate_regime,
+                        "base_relax_learning_rate": 0.01,
+                        "learning_rate_multiplier": lr_multiplier,
+                        "effective_relax_learning_rate": 0.01
+                        * lr_multiplier,
+                        "matched_first_step_update_norm": 0.1,
                     }
                 )
     rank_result = payload["slices"][0]["rank_results"][0]
@@ -451,6 +467,118 @@ def _resnet_v4_payload() -> dict:
     return payload
 
 
+def _projection_adequacy_payload() -> dict:
+    dataset = {
+        "backend": "torchvision",
+        "splits": {
+            "train": {
+                "count": 50000,
+                "ordered_images_sha256": "1" * 64,
+                "ordered_labels_sha256": "2" * 64,
+            },
+            "test": {
+                "count": 10000,
+                "ordered_images_sha256": "3" * 64,
+                "ordered_labels_sha256": "4" * 64,
+            },
+        },
+    }
+    return {
+        "schema_version": 1,
+        "experiment": "lw_post_cnn_projection_adequacy",
+        "status": "MEASURED",
+        "config": {
+            "checkpoint_epoch": 30,
+            "fake_data": False,
+            "seed": 0,
+            "train_size": 50000,
+            "test_size": 10000,
+            "pca_fit_size": 5000,
+            "cuts": [1],
+            "pca_ranks": [2048, 4096],
+            "widths": [32, 64, 128, 128],
+        },
+        "architecture": {
+            "name": "four-block residual CNN with GroupNorm",
+            "widths": [32, 64, 128, 128],
+        },
+        "lineage": {
+            "checkpoint": {
+                "epoch": 30,
+                "path": "checkpoint_epoch30.pt",
+                "sha256": "5" * 64,
+            },
+            "training_manifest": {
+                "path": "training.json",
+                "sha256": "6" * 64,
+                "status": "MEASURED",
+                "experiment": "lw_post_cnn_checkpoint_trajectory",
+                "source_provenance": {"source_revision": "a" * 40},
+                "dataset": dataset,
+            },
+        },
+        "dataset": dataset,
+        "pca_fit_prefix": {
+            "count": 5000,
+            "ordered_images_sha256": "7" * 64,
+            "ordered_labels_sha256": "8" * 64,
+            "selection": "range(0, 5000)",
+        },
+        "provenance": {"source_revision": "b" * 40},
+        "device": "cpu",
+        "slices": [
+            {
+                "cut": 1,
+                "representation_shape": [64, 32, 32],
+                "activation_flattened_dimension": 65536,
+                "pca_fit_count": 5000,
+                "pca_fit_class_counts": {
+                    str(class_id): 500 for class_id in range(10)
+                },
+                "sample_rank_ceiling": 4999,
+                "activation_dimension_rank_ceiling": 65536,
+                "maximal_feasible_rank": 4999,
+                "maximal_requested_rank": 4096,
+                "maximal_pca_basis_sha256": "d" * 64,
+                "rank_results": [
+                    {
+                        "pca_rank": 2048,
+                        "pca_basis_prefix_sha256": "c" * 64,
+                        "held_out_coverage": {
+                            "total_variance_fraction": 0.94,
+                            "within_class_variance_fraction": 0.91,
+                            "between_class_mean_variance_fraction": 0.99,
+                        },
+                        "step_zero_true_vs_projected": {
+                            "true_loss": 0.5,
+                            "true_accuracy": 0.82,
+                            "projected_true_loss": 0.53,
+                            "projected_true_accuracy": 0.81,
+                            "true_to_projected_predictive_kl": 0.025,
+                        },
+                    },
+                    {
+                        "pca_rank": 4096,
+                        "pca_basis_prefix_sha256": "d" * 64,
+                        "held_out_coverage": {
+                            "total_variance_fraction": 0.98,
+                            "within_class_variance_fraction": 0.97,
+                            "between_class_mean_variance_fraction": 0.995,
+                        },
+                        "step_zero_true_vs_projected": {
+                            "true_loss": 0.5,
+                            "true_accuracy": 0.82,
+                            "projected_true_loss": 0.52,
+                            "projected_true_accuracy": 0.815,
+                            "true_to_projected_predictive_kl": 0.015,
+                        },
+                    },
+                ],
+            }
+        ],
+    }
+
+
 def _canonical_resnet_entry_payload() -> dict:
     payload = copy.deepcopy(_resnet_v3_payload())
     checkpoint = {
@@ -579,6 +707,36 @@ def _make_manifest(
         ],
     }
     manifest_path = tmp_path / "manifest.json"
+    _write_json(manifest_path, manifest)
+    return manifest_path
+
+
+def _append_manifest_input(
+    manifest_path: Path,
+    *,
+    payload: dict,
+    input_id: str,
+    kind: str,
+    artifact_format: str,
+    label: str,
+    epoch: int,
+    seed: int,
+) -> Path:
+    artifact_path = manifest_path.parent / f"{input_id}.json"
+    artifact_digest = _write_json(artifact_path, payload)
+    manifest = json.loads(manifest_path.read_text())
+    manifest["inputs"].append(
+        {
+            "id": input_id,
+            "kind": kind,
+            "format": artifact_format,
+            "label": label,
+            "path": artifact_path.name,
+            "sha256": artifact_digest,
+            "checkpoint_epoch": epoch,
+            "model_seed": seed,
+        }
+    )
     _write_json(manifest_path, manifest)
     return manifest_path
 
@@ -779,6 +937,142 @@ def test_schema_v4_resnet_is_canonical_and_requires_complete_matrix(tmp_path):
         normalise_artifacts(artifacts)
 
 
+def test_projection_adequacy_artifact_renders_artifact_driven_rank_gates(tmp_path):
+    manifest_path = _make_manifest(tmp_path)
+    _append_manifest_input(
+        manifest_path,
+        payload=_projection_adequacy_payload(),
+        input_id="cnn-projection-s0-e30",
+        kind="cnn_projection",
+        artifact_format="cnn_projection_adequacy",
+        label="CNN seed 0 epoch 30 projection adequacy",
+        epoch=30,
+        seed=0,
+    )
+    _manifest, artifacts = load_manifest(manifest_path)
+    assert any(artifact.kind == "cnn_projection" for artifact in artifacts)
+
+    rendered = build_report(
+        manifest_path, tmp_path / "projection-adequacy.html"
+    ).read_text()
+    assert "Does the PCA rank preserve the suffix function?" in rendered
+    assert "65,536" in rendered
+    assert "SHALLOW r = 2,048 FAILS THE KL GATE" in rendered
+    assert "only a projected-subspace estimand" in rendered
+    assert "SHALLOW r = 4,096 PASSES BOTH DECLARED GATES" in rendered
+    assert "For seed 0" in rendered
+    assert "0.02500" in rendered
+    assert "0.01500" in rendered
+    assert "pca_projection_adequacy_rows" in rendered
+
+
+def test_projection_adequacy_rejects_bad_lineage_grid_and_numerics(tmp_path):
+    bad_lineage = _projection_adequacy_payload()
+    bad_lineage["lineage"]["training_manifest"]["source_provenance"] = {
+        "source_revision": "not recorded"
+    }
+    lineage_dir = tmp_path / "lineage"
+    lineage_dir.mkdir()
+    manifest_path = _make_manifest(lineage_dir)
+    _append_manifest_input(
+        manifest_path,
+        payload=bad_lineage,
+        input_id="bad-projection-lineage",
+        kind="cnn_projection",
+        artifact_format="cnn_projection_adequacy",
+        label="bad lineage",
+        epoch=30,
+        seed=0,
+    )
+    with pytest.raises(ReportInputError, match="full clean source"):
+        load_manifest(manifest_path)
+
+    bad_grid = _projection_adequacy_payload()
+    bad_grid["slices"][0]["rank_results"].pop()
+    grid_dir = tmp_path / "grid"
+    grid_dir.mkdir()
+    manifest_path = _make_manifest(grid_dir)
+    _append_manifest_input(
+        manifest_path,
+        payload=bad_grid,
+        input_id="bad-projection-grid",
+        kind="cnn_projection",
+        artifact_format="cnn_projection_adequacy",
+        label="bad grid",
+        epoch=30,
+        seed=0,
+    )
+    with pytest.raises(ReportInputError, match="must match config.pca_ranks"):
+        load_manifest(manifest_path)
+
+    bad_numeric = _projection_adequacy_payload()
+    bad_numeric["slices"][0]["rank_results"][0]["held_out_coverage"][
+        "within_class_variance_fraction"
+    ] = 1.5
+    numeric_dir = tmp_path / "numeric"
+    numeric_dir.mkdir()
+    manifest_path = _make_manifest(numeric_dir)
+    _append_manifest_input(
+        manifest_path,
+        payload=bad_numeric,
+        input_id="bad-projection-numeric",
+        kind="cnn_projection",
+        artifact_format="cnn_projection_adequacy",
+        label="bad numeric",
+        epoch=30,
+        seed=0,
+    )
+    with pytest.raises(ReportInputError, match="must be in \\[0, 1\\]"):
+        load_manifest(manifest_path)
+
+
+def test_matched_update_regime_is_separate_optimizer_sensitivity(tmp_path):
+    manifest_path = _make_manifest(
+        tmp_path, cnn=_cnn_v2_matrix_payload("fixed_lr")
+    )
+    _append_manifest_input(
+        manifest_path,
+        payload=_cnn_v2_matrix_payload("match_true_initial_update"),
+        input_id="cnn-matched-update-s0-e1",
+        kind="cnn",
+        artifact_format="post_statistics",
+        label="CNN matched-update scale control",
+        epoch=1,
+        seed=0,
+    )
+    _manifest, artifacts = load_manifest(manifest_path)
+    observations, _cells = normalise_artifacts(artifacts)
+    matched = [
+        row
+        for row in observations
+        if row["lr_regime"] == "match_true_initial_update"
+    ]
+    assert matched
+    assert all(
+        row["base_learning_rate"] == pytest.approx(0.01)
+        and row["learning_rate_multiplier"] is not None
+        and row["effective_learning_rate"]
+        == pytest.approx(
+            row["base_learning_rate"] * row["learning_rate_multiplier"]
+        )
+        and row["matched_first_step_update_norm"] == pytest.approx(0.1)
+        for row in matched
+    )
+
+    rendered = build_report(
+        manifest_path, tmp_path / "optimizer-sensitivity.html"
+    ).read_text()
+    assert "Fixed LR is the primary intervention" in rendered
+    assert "Matched-first-update" in rendered
+    assert "scale-control sensitivity" in rendered
+    assert "magnitude claims optimizer-regime-dependent" in rendered
+    assert "Base LR" in rendered
+    assert "LR multiplier" in rendered
+    assert "Effective LR" in rendered
+    assert "Matched first-update norm" in rendered
+    assert "Matched-update sensitivity" in rendered
+
+
 def test_canonical_resnet_entries_accepts_canonical_profile_at_fixed_path(tmp_path):
     artifact_root = tmp_path / "artifacts"
     output = artifact_root / "lw_post" / "dashboard_manifest.json"
@@ -805,6 +1099,55 @@ def test_canonical_resnet_entries_accepts_canonical_profile_at_fixed_path(tmp_pa
             "model_seed": 0,
         }
     ]
+
+
+def test_manifest_accepts_explicit_projection_and_optimizer_sensitivity_paths(
+    tmp_path,
+):
+    artifact_root = tmp_path / "artifacts"
+    output = artifact_root / "lw_post" / "dashboard_manifest.json"
+    output.parent.mkdir(parents=True)
+    projection_path = (
+        artifact_root / "lw_post" / "projection" / "cnn_projection_adequacy.json"
+    )
+    projection_path.parent.mkdir(parents=True)
+    projection_digest = _write_json(
+        projection_path, _projection_adequacy_payload()
+    )
+    matched_path = (
+        artifact_root / "lw_post" / "matched" / "post_statistics.json"
+    )
+    matched_path.parent.mkdir(parents=True)
+    matched_digest = _write_json(
+        matched_path,
+        _cnn_v2_matrix_payload("match_true_initial_update"),
+    )
+
+    projection_entries = projection_adequacy_entries(
+        output, [projection_path]
+    )
+    sensitivity_entries = explicit_post_cnn_entries(
+        output, [matched_path]
+    )
+    assert projection_entries == [
+        {
+            "id": "cnn-projection-0-s0-e30",
+            "kind": "cnn_projection",
+            "format": "cnn_projection_adequacy",
+            "label": (
+                "Four-block CNN · seed 0 · epoch 30 · "
+                "PCA-only adequacy gate"
+            ),
+            "path": "../lw_post/projection/cnn_projection_adequacy.json",
+            "sha256": projection_digest,
+            "checkpoint_epoch": 30,
+            "model_seed": 0,
+        }
+    ]
+    assert sensitivity_entries[0]["kind"] == "cnn"
+    assert sensitivity_entries[0]["format"] == "post_statistics"
+    assert sensitivity_entries[0]["sha256"] == matched_digest
+    assert "match_true_initial_update" in sensitivity_entries[0]["label"]
 
 
 def test_explicit_legacy_cnn_format_builds_and_discloses_limitations(tmp_path):
