@@ -6,8 +6,10 @@ __pycache__/
 *.pyc
 data/
 artifacts/smoke/
-artifacts/lw_post/**/*.pt
-artifacts/lw_post/**/*.log
+artifacts/**/*.pt
+artifacts/**/*.safetensors
+artifacts/**/*.log
 logs/
 papers/*.txt
 papers/*.pdf
+papers/*.ps.gz

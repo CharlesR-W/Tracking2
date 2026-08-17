@@ -1,4 +1,4 @@
-"""Build the measured-only interactive data appendix for the LW research note.
+"""Build the measured-only interactive ablation appendix for the LW research note.
 
 The builder deliberately does not discover artifacts.  Every input must appear in
 an explicit manifest with a SHA-256 digest and expected checkpoint metadata.  This
@@ -9,7 +9,7 @@ Manifest schema (version 1)::
 
     {
       "schema_version": 1,
-      "title": "Free-Body Diagrams for Neural Networks — Interactive Data Appendix (WIP)",
+      "title": "Free-Body Diagrams for Neural Networks — Interactive Ablation Appendix (WIP)",
       "status": "MEASURED",
       "source_commit": "0123456789abcdef",
       "inputs": [
@@ -45,8 +45,8 @@ from statistics import fmean
 from typing import Any, Iterable, Mapping, Sequence
 
 
-TITLE = "Free-Body Diagrams for Neural Networks — Interactive Data Appendix (WIP)"
-DEFAULT_OUTPUT = "free-body-diagrams-for-neural-networks.html"
+TITLE = "Free-Body Diagrams for Neural Networks — Interactive Ablation Appendix (WIP)"
+DEFAULT_OUTPUT = "LW post/free-body-diagrams-for-neural-networks.html"
 MANIFEST_SCHEMA_VERSION = 1
 
 REAL = "#222222"
@@ -4568,9 +4568,8 @@ def render_report(
   <header id="overview" class="hero">
     <p class="eyebrow">Research note · measured dashboard</p>
     <h1>{_esc(TITLE)}</h1>
-    <p class="lede">How much of a trained suffix's relearning behaviour is explained
-      by low-order, class-conditional activation statistics—and what fails when
-      projection, covariance, or optimization is changed?</p>
+    <p class="lede">Detailed checks behind the CNN result: projection, covariance,
+      mean-noise scale, optimization, longer relaxation, and fresh suffixes.</p>
     <div class="status-line">
       <span class="badge wip">Work in progress</span>
       <span class="badge measured">Measured inputs only</span>
@@ -4584,10 +4583,9 @@ def render_report(
   <section class="section" aria-labelledby="evidence-heading">
     <div class="section-heading">
       <p class="eyebrow">Evidence in this build</p>
-      <h2 id="evidence-heading">A narrow, auditable view</h2>
-      <p class="question">The claim is credible only if the paired true-evaluation
-        loss contrast survives the projection, rank, moment, noise, and optimizer
-        controls below.</p>
+      <h2 id="evidence-heading">Ablations behind the main result</h2>
+      <p class="question">The post reports the robust depth pattern. This appendix
+        shows which technical choices change its size or interpretation.</p>
     </div>
     {status_html}
     <div class="input-grid">{_manifest_cards(artifacts)}</div>
@@ -4616,8 +4614,8 @@ def render_report(
         <div><h3>Suffix initialization</h3><p>Warm-started relaxation is primary.
           Reinitialized suffixes are a separate control stratum and are never
           paired with warm rows as replicates. Reinitialization removes inherited
-          weights, but it does not capacity-match cuts: suffix depth and parameter
-          count still change with cut location.</p></div>
+          weights, but later cuts still leave a different amount of the network
+          to train.</p></div>
         <div><h3>Banks and splits</h3><p>PCA and class moments are fitted only on the
           declared analysis bank. Coverage and outcome evaluation must identify
           their held-out population and bank fingerprints.</p></div>
@@ -4726,7 +4724,7 @@ def render_report(
   <section id="controls" class="section">
     <div class="section-heading">
       <p class="eyebrow">Ablations and diagnostics</p>
-      <h2>What would invalidate the simple interpretation?</h2>
+      <h2>Which details change the result?</h2>
       <p>Control settings are useful only when connected to outcomes. The panels
         below therefore show measured effect estimates where available and state
         plainly when the relevant diagnostic was not recorded.</p>

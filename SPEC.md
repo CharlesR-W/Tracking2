@@ -1,13 +1,40 @@
 # Tracking statistical structure through a deep network
 
 Status: Experiment A and the bounded residual-CNN version of Experiment B are
-implemented on CIFAR-10. Experiment C now repeats B's frozen-interface
-activation-statistics experiment on ResNet-18 and VGG-19 across depth and
-training time. The first C gate uses one training seed and three surrogate draws;
-critical-module transplantation is supporting context at the bottom of C, not
+implemented on CIFAR-10. The July 26 CNN publication battery is complete;
+Experiment C runners and pilots remain outside that canonical evidence surface.
+Critical-module transplantation is supporting context at the bottom of C, not
 its organizing hypothesis. Part D (tangent stability and suffix frequency
-response) and Part E (the GPT-2 sequence-statistics extension) are specified but
-unrun.
+response) remains specified but unrun. Part E has a mechanically valid,
+scientifically negative one-seed diagnostic; redesign and confirmation remain
+future work.
+
+## July 26 publication-protocol amendment
+
+This amendment records the bounded protocol used by the LessWrong post without
+rewriting the broader original design below. The canonical post comparison uses
+three independently trained four-block CNNs (seeds 0, 1, and 2) at epoch 30,
+cuts after blocks 1 and 4, PCA rank 2,048, warm suffixes, one surrogate draw,
+matched first-update norms, and five relaxation epochs. Held-out true-activation
+cross-entropy is primary; accuracy is secondary. The measured dashboard is
+CNN-only and is indexed by `artifacts/lw_post/dashboard_manifest.json`.
+
+The declared PCA gate requires projected-minus-true update-0 cross-entropy of at
+most 0.05 nat and predictive KL of at most 0.02 nat. The shallow rank-2,048 cell
+fails the KL criterion (0.0373), so the three-seed result is a retained-subspace
+comparison rather than a full-space claim. An exploratory seed-0 rank-4,096 cell
+passes the gate and preserves the shallow ordering, but its rank was selected on
+the test population and it is not confirmatory.
+
+Under matched first updates, all three seeds show a robust early-versus-late
+contrast after five epochs. This does not establish that higher moments appear
+later or capacity-match receivers across cuts. Fixed learning rate inflated the
+shallow Gaussian and mean-$r1$ first updates by about 184x and 287x relative to
+true replay; matching reduces the magnitude but preserves the ordering. The
+Gaussian-versus-mean conclusion depends on mean-noise radius. Reinitialization
+and a 20-epoch horizon preserve the qualitative contrast but do not remove the
+receiver-capacity confound. The one-model ResNet trajectory has incomplete
+lineage and is a historical pilot, not an architecture-level replication.
 
 ## 1. Core question
 
@@ -27,34 +54,34 @@ are complementary interventions with which to identify that decomposition.
 
 ## 2. Important correction: what is a cumulant surrogate?
 
-Let \(P(x,y)\) be the true distribution. The relevant statistics are
-**class-conditional** cumulants of a chosen feature vector \(z=T(x)\), not
+Let $P(x,y)$ be the true distribution. The relevant statistics are
+**class-conditional** cumulants of a chosen feature vector $z=T(x)$, not
 unconditional cumulants of raw pixels. Unconditional matching can destroy the
 class signal while still satisfying the nominal constraint.
 
-The phrase "preserve only cumulants through order \(r\)" cannot in general mean
+The phrase "preserve only cumulants through order $r$" cannot in general mean
 setting every higher cumulant to zero. A distribution with an exactly finite
 cumulant-generating polynomial above degree two generally need not exist. Nor is
-the full order-\(r\) cumulant tensor of a 3,072-dimensional CIFAR image estimable.
+the full order-$r$ cumulant tensor of a 3,072-dimensional CIFAR image estimable.
 
 Use one of two well-defined constructions:
 
-- **Maximum-entropy surrogate** \(P_r\): among distributions on a fixed bounded
-  support matching selected class-conditional moments through degree \(r\), choose
+- **Maximum-entropy surrogate** $P_r$: among distributions on a fixed bounded
+  support matching selected class-conditional moments through degree $r$, choose
   the maximum-entropy distribution. This removes structure not forced by the
   constraints without claiming its higher cumulants literally vanish.
-- **Cumulant-controlled generator** \(G_{\le r}(u,y)\): generate from Gaussian
+- **Cumulant-controlled generator** $G_{\le r}(u,y)$: generate from Gaussian
   latents using a Hermite expansion whose coefficients provide controlled
   low-order statistical channels. This gives better causal control but is a model
   family, not a unique projection of CIFAR.
 
-Call these *order-\(r\) surrogates*, not datasets preserving "only" order-\(r\)
+Call these *order-$r$ surrogates*, not datasets preserving "only" order-$r$
 cumulants.
 
 ## 3. One shared experimental object
 
-Construct a family \(P_{\boldsymbol\lambda}\) where independent coordinates of
-\(\boldsymbol\lambda=(\lambda_1,\ldots,\lambda_R)\) control label information in
+Construct a family $P_{\boldsymbol\lambda}$ where independent coordinates of
+$\boldsymbol\lambda=(\lambda_1,\ldots,\lambda_R)$ control label information in
 statistics of increasing Hermite degree. A useful binary task is
 
 $$
@@ -62,26 +89,26 @@ z = \sum_{k=1}^{R}\lambda_k a_k(y) H_k(g_k)v_k + \epsilon,
 \qquad g_k\sim\mathcal N(0,1),
 $$
 
-with orthogonal directions \(v_k\), centered/normalized Hermite polynomials
-\(H_k\), and nuisance noise \(\epsilon\). In practice the exact construction must
+with orthogonal directions $v_k$, centered/normalized Hermite polynomials
+$H_k$, and nuisance noise $\epsilon$. In practice the exact construction must
 be checked empirically because nonlinear mixing can create cross-cumulants.
 
 Two variants are scientifically useful:
 
-- **independent channels:** separate \(g_k,v_k\), testing pure order-wise sample
+- **independent channels:** separate $g_k,v_k$, testing pure order-wise sample
   complexity;
 - **aligned/correlated channels:** shared or correlated latents/directions,
   testing the "sliding down the stairs" acceleration mechanism.
 
-This same \(P_{\boldsymbol\lambda}\) supports static truncation, abrupt switches,
+This same $P_{\boldsymbol\lambda}$ supports static truncation, abrupt switches,
 and sinusoidal forcing. That makes the four ideas parts of one project.
 
 ## 4. Experiment A: distributional-complexity learning
 
 ### A1. Clean causal benchmark (first experiment)
 
-For \(r=1,2,3,4\), define \(P_{\le r}\) by activating only channels through degree
-\(r\). Train identical small MLPs and CNNs on each distribution. At logarithmically
+For $r=1,2,3,4$, define $P_{\le r}$ by activating only channels through degree
+$r$. Train identical small MLPs and CNNs on each distribution. At logarithmically
 spaced checkpoints, evaluate every model on every test distribution:
 
 $$
@@ -91,9 +118,9 @@ $$
 
 The user's two requested curves are slices of this matrix:
 
-- \(L_{\mathrm{true}|r}(t)=M_{R,r}(t)\): true/full-distribution loss for a model
-  trained on order-\(r\) data;
-- \(L_{r|\mathrm{true}}(t)=M_{r,R}(t)\): order-\(r\) loss for a model trained on
+- $L_{\mathrm{true}|r}(t)=M_{R,r}(t)$: true/full-distribution loss for a model
+  trained on order-$r$ data;
+- $L_{r|\mathrm{true}}(t)=M_{r,R}(t)$: order-$r$ loss for a model trained on
   full data.
 
 Plot the whole matrix, because the two slices alone conflate transfer asymmetry,
@@ -106,9 +133,9 @@ $$
 
 Primary tests:
 
-- Does the time at which \(L_{r|\mathrm{true}}\) improves increase with \(r\)?
+- Does the time at which $L_{r|\mathrm{true}}$ improves increase with $r$?
 - Does alignment between low- and high-order channels reduce that delay?
-- Does training on \(P_{\le r}\) help on \(P_R\) beyond a matched sample/entropy
+- Does training on $P_{\le r}$ help on $P_R$ beyond a matched sample/entropy
   baseline?
 
 ### A2. Real-data extension (not the starting point)
@@ -116,15 +143,15 @@ Primary tests:
 Use CIFAR-10 only after A1 works. Compare:
 
 1. class-conditional Gaussian surrogates in a reduced feature space (mean and
-   covariance; the established \(r=2\) case);
+   covariance; the established $r=2$ case);
 2. maximum-entropy surrogates matching selected cubic/quartic statistics; and
 3. a generator with a low-dimensional Hermite bottleneck fitted to CIFAR.
 
-Choose \(T(x)\) before looking at outcomes: e.g. PCA-whitened pixels, fixed
+Choose $T(x)$ before looking at outcomes: e.g. PCA-whitened pixels, fixed
 wavelet coefficients, or frozen random-convolution features. Wavelets are the
 preferred first choice because they preserve spatial scale/locality while keeping
 the statistic set manageable. Run sensitivity across at least two choices of
-\(T\); conclusions are about the selected statistic family, not "all CIFAR
+$T$; conclusions are about the selected statistic family, not "all CIFAR
 cumulants."
 
 Validate every surrogate with held-out estimates of the constrained moments,
@@ -228,13 +255,13 @@ measures the suffix transfer function in a model-Fisher/GGN output metric.
 
 ### Prior local differential formulation (supporting only)
 
-Near a stable optimum with block Hessian \(H\), implicit differentiation gives
+Near a stable optimum with block Hessian $H$, implicit differentiation gives
 
 $$
 J_*(a)=\frac{db^*}{da}=-H_{bb}^{\dagger}H_{ba}.
 $$
 
-Writing \(e=b-b^*(a)\), gradient flow approximately obeys
+Writing $e=b-b^*(a)$, gradient flow approximately obeys
 
 $$
 \dot e=-\eta_b H_{bb}e-J_*(a)\dot a.
@@ -494,15 +521,17 @@ one-step operator is validated. The companion derivation is
 
 ## Experiment E: the Part B suffix-statistics experiment for next-token prediction
 
-**Status: planned / unrun. Every dashboard panel is a labeled MOCKUP until a
-validated artifact is loaded.** The primary Part E experiment is now a direct
-port of Part B: at GPT-2 scratch-training checkpoints, freeze a residual-stream
-prefix, fit mean-only, sequence-Gaussian, and true activation distributions,
-warm-start three matched suffix copies, and collect the full 3x3
-relax-by-evaluate matrix. The NTP-specific changes are complete sequence replay,
-causal masks and positions, sequence covariance, cloned tied-head handling,
-story-level uncertainty, and PCA/leakage validity checks. The concise current
-contract is in [`docs/part_e_gpt2_design.md`](docs/part_e_gpt2_design.md).
+**Status: measured one-seed diagnostic; scientifically negative. Redesign and
+confirmation remain future work.** The repaired schema-v2 50M-token endpoint
+analysis passes adaptive-PCA, projected-replay, fp32-parity, and future-label
+leakage gates. After first-gradient matching, sequence Gaussian does not beat
+mean replay at cuts 0 or 5 and improves only modestly at cut 11. This result is
+mechanically valid but does not support broad sequence-Gaussian sufficiency or a
+multi-seed confirmation run. The direct Part B port freezes a residual-stream
+prefix, fits mean-only, sequence-Gaussian, and true activation distributions,
+warm-starts matched suffix copies, and collects the relax-by-evaluate matrix.
+The concise protocol is in
+[`docs/part_e_gpt2_design.md`](docs/part_e_gpt2_design.md).
 
 The expanded branch design below is retained as a **deferred follow-up**, not as
 part of the first Part E gate. Ordinary continuation, instruction CLM,
@@ -666,7 +695,7 @@ order, not a substitute for the synthetic identifiability checks in steps 1--2
 or the planned Part-D model-Fisher transport measurement.
 
 1. **Static synthetic matrix:** independent versus aligned order-1--4 channels;
-   produce \(M_{s,r}(t)\). This validates the statistical hierarchy.
+   produce $M_{s,r}(t)$. This validates the statistical hierarchy.
 2. **Tangent audit:** one tiny residual MLP, three cuts, checkpoint suffix refits,
    dense full/suffix update Jacobians, and finite-difference validation.
 3. **Distributional response:** drive a small declared transport dictionary;

@@ -6,7 +6,12 @@ import numpy as np
 
 
 def _load_figure_notebook():
-    path = Path(__file__).resolve().parents[1] / "notebooks" / "lw_post_figures.py"
+    path = (
+        Path(__file__).resolve().parents[1]
+        / "LW post"
+        / "notebooks"
+        / "lw_post_figures.py"
+    )
     spec = importlib.util.spec_from_file_location("tracking2_lw_post_figures", path)
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
@@ -20,7 +25,7 @@ def test_measured_control_extraction_uses_endpoint_excess_loss():
     np.testing.assert_allclose(
         data.seed_excess_loss["gaussian"],
         [
-            [0.1195353357315065, -0.010843602180481],
+            [0.11965266590118406, -0.010843602180481],
             [0.2201264202117922, -0.0138656782150269],
             [0.2089612590789796, -0.0127743496894837],
         ],
@@ -28,7 +33,7 @@ def test_measured_control_extraction_uses_endpoint_excess_loss():
     np.testing.assert_allclose(
         data.seed_excess_loss["mean_isotropic"],
         [
-            [0.26762734375, -0.000247576904],
+            [0.2676884841918945, -0.000247576904],
             [0.343427926636, 0.015113926125],
             [0.369777738571, 0.015866825199],
         ],
@@ -45,11 +50,11 @@ def test_measured_optimizer_and_noise_controls_plot_saved_losses():
     data = figures.load_measured_cnn_control_data()
     np.testing.assert_allclose(
         data.optimizer_excess_loss["gaussian"],
-        [0.8383379648208617, 0.1195353357315065],
+        [0.8383379648208617, 0.11965266590118406],
     )
     np.testing.assert_allclose(
         data.optimizer_excess_loss["mean_isotropic"],
-        [2.3465473260879517, 0.26762734375],
+        [2.3465473260879517, 0.2676884841918945],
     )
     np.testing.assert_allclose(
         data.noise_endpoint_loss,

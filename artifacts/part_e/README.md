@@ -26,11 +26,14 @@ without repeating the full 50M-token training trajectory.
 
 ## Interpretation status
 
-This is a measured gate, not a confirmatory result. Minimum PCA coverage was
-87.36%, below the preregistered 90% threshold, and projected-true replay incurred
-up to 0.0655 nats/token excess loss. The sequence-Gaussian proxy also retained a
-substantial and inconsistent true-data excess loss. Keep dashboard Part E marked
-as a mockup until the PCA/covariance design is revised and a valid run replaces it.
+This original gate is measured, but it is not a confirmatory result and must not
+populate the dashboard on its own. Minimum PCA coverage was 87.36%, below the
+preregistered 90% threshold, and projected-true replay incurred up to 0.0655
+nats/token excess loss. The sequence-Gaussian proxy also retained a substantial
+and inconsistent true-data excess loss. The paired schema-v2 diagnostics below
+supersede this gate for the omnibus dashboard, which labels them as a measured,
+scientifically negative one-seed diagnostic. The labelled mockup remains only the
+fallback when either revised artifact is absent.
 
 ## Revised checkpoint-only diagnostics (2026-07-22)
 

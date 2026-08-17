@@ -1,0 +1,1881 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Free-body diagrams for neural networks — talk</title>
+  <style>
+    :root {
+      --night: #111820;
+      --night-2: #172532;
+      --paper: #f7f4ed;
+      --paper-2: #fffdf8;
+      --ink: #162432;
+      --muted: #647383;
+      --hairline: #d7dfe5;
+      --cyan: #0b83bd;
+      --cyan-soft: #dff2fa;
+      --orange: #e67519;
+      --orange-soft: #ffead8;
+      --green: #14896d;
+      --green-soft: #dff4ed;
+      --violet: #7856b8;
+      --violet-soft: #ece5fa;
+      --rose: #c55078;
+      --shadow: 0 22px 70px rgba(18, 32, 44, .14);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: var(--night);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", sans-serif;
+    }
+
+    button { font: inherit; }
+    h1, h2, h3, p { margin: 0; }
+
+    .deck {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: var(--paper);
+    }
+
+    .phase-rail {
+      position: fixed;
+      z-index: 50;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: clamp(56px, 7vh, 76px);
+      padding: clamp(14px, 1.7vh, 20px) clamp(42px, 5.8vw, 104px) 0;
+      color: #62707e;
+      background: rgba(247, 244, 237, .96);
+      border-bottom: 1px solid rgba(22, 36, 50, .08);
+      backdrop-filter: blur(12px);
+    }
+
+    .phase-rail.dark-mode {
+      color: #9fb0bf;
+      background: rgba(17, 24, 32, .95);
+      border-bottom-color: rgba(255, 255, 255, .10);
+    }
+
+    .phase-labels {
+      position: relative;
+      display: block;
+      height: 100%;
+    }
+
+    .phase-track,
+    .phase-fill {
+      position: absolute;
+      top: 28px;
+      left: 0;
+      height: 3px;
+      border-radius: 999px;
+    }
+
+    .phase-track {
+      right: 0;
+      background: currentColor;
+      opacity: .22;
+    }
+
+    .phase-fill {
+      width: var(--phase-width, 0%);
+      background: linear-gradient(90deg, var(--cyan), var(--orange), var(--green));
+      transition: width 220ms ease;
+    }
+
+    .phase-step {
+      position: absolute;
+      top: 0;
+      left: var(--phase-position, 0%);
+      z-index: 2;
+      display: grid;
+      justify-items: center;
+      gap: 8px;
+      width: max-content;
+      transform: translateX(-50%);
+      color: inherit;
+      font-size: clamp(11px, .92vw, 15px);
+      font-weight: 760;
+      letter-spacing: .055em;
+      text-transform: uppercase;
+      transition: color 160ms ease, opacity 160ms ease;
+    }
+
+    .phase-step[data-phase-step="context"] {
+      justify-items: start;
+      transform: none;
+    }
+
+    .phase-step[data-phase-step="todo"] {
+      justify-items: end;
+      transform: translateX(-100%);
+    }
+
+    .phase-step::after {
+      content: "";
+      width: 11px;
+      height: 11px;
+      border: 3px solid currentColor;
+      border-radius: 999px;
+      background: var(--paper);
+    }
+
+    .dark-mode .phase-step::after { background: var(--night); }
+
+    .phase-step.complete,
+    .phase-step.active { color: var(--cyan); }
+    .phase-step.active { opacity: 1; }
+    .phase-step:not(.active):not(.complete) { opacity: .58; }
+    .phase-step.active::after {
+      width: 15px;
+      height: 15px;
+      margin-top: -2px;
+      border-color: currentColor;
+      background: currentColor;
+      box-shadow: 0 0 0 6px color-mix(in srgb, currentColor 18%, transparent);
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: none;
+      grid-template-rows: auto minmax(0, 1fr);
+      gap: clamp(10px, 1.7vh, 22px);
+      padding: clamp(88px, 11vh, 116px) clamp(48px, 5.8vw, 104px)
+        clamp(28px, 4vh, 50px);
+      opacity: 0;
+      transform: translateX(2%);
+      background:
+        radial-gradient(circle at 90% 8%, rgba(11, 131, 189, .07), transparent 24%),
+        linear-gradient(135deg, var(--paper-2), var(--paper));
+      transition: opacity 180ms ease, transform 180ms ease;
+    }
+
+    .slide.active {
+      display: grid;
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    .slide footer { display: none; }
+
+    .slide.visual-only {
+      grid-template-rows: minmax(0, 1fr);
+      padding-top: clamp(82px, 9.5vh, 102px);
+      padding-bottom: clamp(24px, 3vh, 38px);
+    }
+
+    .slide.visual-only header {
+      position: absolute;
+      z-index: 6;
+      top: auto;
+      bottom: clamp(18px, 2.5vh, 30px);
+      right: clamp(38px, 4vw, 72px);
+      display: block;
+    }
+
+    .slide.visual-only .cut-reminder-inline {
+      width: min(14vw, 190px);
+    }
+
+    .slide.visual-only header h2,
+    .slide.visual-only header .kicker {
+      display: none;
+    }
+
+    .slide.visual-only .stage {
+      width: 100%;
+      height: 100%;
+    }
+
+    .slide.visual-only .figure-card {
+      width: 100%;
+      height: 100%;
+    }
+
+    .feature-figure {
+      width: min(92vw, 1540px);
+      height: min(67vh, 680px);
+      justify-self: center;
+      object-fit: contain;
+    }
+
+    .slide-subtext {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: clamp(18px, 1.8vw, 30px);
+      font-weight: 620;
+    }
+
+    .ontology-slide {
+      grid-template-rows: minmax(0, 1fr);
+      padding-top: clamp(82px, 9.5vh, 102px);
+      padding-bottom: clamp(24px, 3vh, 38px);
+    }
+
+    .ontology-story {
+      min-height: 0;
+      display: grid;
+      grid-template-rows: minmax(0, 1fr) minmax(170px, 29vh);
+      gap: clamp(18px, 2.2vh, 28px);
+    }
+
+    .ontology-flow {
+      display: grid;
+      grid-template-columns: 1fr auto 1.2fr auto 1fr auto 1.1fr;
+      align-items: center;
+      gap: clamp(10px, 1.3vw, 22px);
+    }
+
+    .ontology-node {
+      min-height: min(28vh, 260px);
+      display: grid;
+      place-items: center;
+      padding: clamp(18px, 2vw, 34px);
+      border: 1px solid rgba(113, 198, 237, .25);
+      border-radius: 26px;
+      background: rgba(255, 255, 255, .055);
+      color: #f7fbfd;
+      font-size: clamp(21px, 2.15vw, 36px);
+      font-weight: 710;
+      line-height: 1.18;
+      text-align: center;
+    }
+
+    .ontology-node:last-child {
+      border-color: rgba(230, 117, 25, .5);
+      background: rgba(230, 117, 25, .1);
+    }
+
+    .ontology-arrow {
+      color: #71c6ed;
+      font-size: clamp(30px, 3.8vw, 62px);
+      font-weight: 850;
+      white-space: nowrap;
+    }
+
+    .ontology-arrow.question { color: #f19b55; }
+
+    .batterman-row {
+      display: grid;
+      grid-template-columns: auto auto minmax(300px, 1fr);
+      align-items: center;
+      justify-content: center;
+      gap: clamp(18px, 2.2vw, 38px);
+      padding: 0 3vw;
+    }
+
+    .book-cover {
+      display: block;
+      height: min(27vh, 220px);
+      border-radius: 8px;
+      box-shadow: 0 16px 36px rgba(0,0,0,.3);
+    }
+
+    .talk-links {
+      display: grid;
+      gap: 14px;
+      max-width: 620px;
+    }
+
+    .talk-link {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 18px;
+      border: 1px solid rgba(113, 198, 237, .33);
+      border-radius: 15px;
+      color: #dfeaf1;
+      background: rgba(11, 131, 189, .1);
+      font-size: clamp(14px, 1.1vw, 19px);
+      font-weight: 690;
+      line-height: 1.2;
+      text-decoration: none;
+    }
+
+    .talk-link::before {
+      content: "▶";
+      color: #ff3b30;
+      font-size: 1.25em;
+    }
+
+    .talk-link:hover { border-color: #71c6ed; }
+
+    .next-step-image {
+      width: min(92vw, 1500px);
+      height: min(67vh, 590px);
+      object-fit: contain;
+      justify-self: center;
+    }
+
+    .slide.dark {
+      color: #f8fbfd;
+      background:
+        radial-gradient(circle at 78% 24%, rgba(11, 131, 189, .22), transparent 33%),
+        radial-gradient(circle at 20% 85%, rgba(230, 117, 25, .13), transparent 28%),
+        linear-gradient(135deg, #0e1720, #172836 58%, #101b25);
+    }
+
+    .slide.warm {
+      background:
+        radial-gradient(circle at 86% 16%, rgba(230, 117, 25, .12), transparent 30%),
+        linear-gradient(135deg, #fffdfa, #f6efe5);
+    }
+
+    .slide.green-wash {
+      background:
+        radial-gradient(circle at 82% 20%, rgba(20, 137, 109, .12), transparent 30%),
+        linear-gradient(135deg, #fffdfa, #edf5f0);
+    }
+
+    header {
+      min-height: 0;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    .kicker {
+      color: var(--cyan);
+      font-size: clamp(12px, 1vw, 17px);
+      font-weight: 820;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+    }
+
+    .dark .kicker { color: #71c6ed; }
+
+    h1 {
+      max-width: 13ch;
+      font-size: clamp(58px, 7.4vw, 118px);
+      line-height: .92;
+      letter-spacing: -.06em;
+    }
+
+    h2 {
+      max-width: 22ch;
+      font-size: clamp(34px, 4.4vw, 70px);
+      line-height: 1;
+      letter-spacing: -.047em;
+    }
+
+    h3 {
+      font-size: clamp(20px, 2vw, 32px);
+      line-height: 1.08;
+      letter-spacing: -.026em;
+    }
+
+    .stage {
+      min-height: 0;
+      display: grid;
+      align-items: center;
+      justify-items: stretch;
+    }
+
+    .stage.two {
+      grid-template-columns: minmax(0, .84fr) minmax(0, 1.16fr);
+      gap: clamp(24px, 4vw, 72px);
+    }
+
+    .stage.two-even {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: clamp(20px, 2.5vw, 44px);
+    }
+
+    .hero-copy {
+      align-self: center;
+      max-width: 30ch;
+      color: var(--muted);
+      font-size: clamp(20px, 2vw, 34px);
+      line-height: 1.25;
+    }
+
+    .dark .hero-copy { color: #b7c7d4; }
+
+    .accent { color: var(--cyan); }
+    .orange { color: var(--orange); }
+    .green { color: var(--green); }
+    .violet { color: var(--violet); }
+
+    .figure {
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      object-fit: contain;
+      object-position: center;
+    }
+
+    .figure-card {
+      min-height: 0;
+      height: 100%;
+      padding: clamp(8px, .8vw, 14px);
+      overflow: hidden;
+      border: 1px solid var(--hairline);
+      border-radius: 24px;
+      background: white;
+      box-shadow: var(--shadow);
+    }
+
+    .figure-card.flush {
+      padding: 0;
+      border: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .media-stage {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+    }
+
+    .cut-reminder-inline {
+      flex: 0 0 auto;
+      width: min(20vw, 270px);
+      border: 1px solid rgba(22, 36, 50, .14);
+      border-radius: 14px;
+      background: rgba(255, 253, 248, .94);
+      box-shadow: 0 8px 28px rgba(18, 32, 44, .14);
+    }
+
+    .print-only { display: none; }
+    .print-phase-rail { display: none; }
+
+    .visual {
+      width: 100%;
+      height: 100%;
+      max-height: 100%;
+      overflow: visible;
+    }
+
+    .visual text {
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      fill: currentColor;
+    }
+
+    .source {
+      color: var(--muted);
+      font-size: clamp(9px, .78vw, 13px);
+      line-height: 1.3;
+    }
+
+    .dark .source { color: #8fa2b2; }
+
+    footer {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 20px;
+      min-height: 18px;
+      color: var(--muted);
+      font-size: clamp(10px, .82vw, 14px);
+    }
+
+    .dark footer { color: #91a4b4; }
+
+    .slide-no {
+      font-variant-numeric: tabular-nums;
+      letter-spacing: .05em;
+    }
+
+    .tiny-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 11px;
+      border: 1px solid currentColor;
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: clamp(10px, .8vw, 13px);
+      font-weight: 750;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .tiny-chip::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: var(--orange);
+    }
+
+    .title-mark {
+      position: relative;
+      width: min(34vw, 500px);
+      aspect-ratio: 1.22;
+      justify-self: end;
+    }
+
+    .slide.image-only-slide {
+      grid-template-rows: minmax(0, 1fr);
+      gap: 0;
+      padding: clamp(72px, 8.5vh, 90px) clamp(30px, 3.5vw, 60px) 0;
+      background: #070b0f;
+    }
+
+    .kant-pair {
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+      gap: clamp(18px, 2.5vw, 44px);
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .kant-pair img {
+      display: block;
+      height: 100%;
+      min-width: 0;
+      max-width: 48%;
+      object-fit: contain;
+    }
+
+    .closing-cycle {
+      position: absolute;
+      top: 50%;
+      right: 0;
+      display: block;
+      width: 42%;
+      height: auto;
+      transform: translateY(-50%);
+    }
+
+    .closing-stage {
+      position: relative;
+      display: block;
+    }
+
+    .closing-stage > div {
+      position: absolute;
+      inset: 0 auto 0 0;
+      z-index: 2;
+      width: 58%;
+      display: flex;
+      align-items: center;
+    }
+
+    .title-ring {
+      position: absolute;
+      inset: 6%;
+      border: 1px solid rgba(113, 198, 237, .24);
+      border-radius: 50%;
+      transform: rotate(-10deg);
+    }
+
+    .title-ring.r2 { inset: 18%; transform: rotate(16deg); }
+    .title-ring.r3 { inset: 31%; transform: rotate(-28deg); }
+
+    .title-network {
+      position: absolute;
+      inset: 23% 15%;
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      align-items: center;
+      gap: 10px;
+    }
+
+    .title-network span {
+      display: block;
+      height: calc(52px + var(--lift, 0px));
+      border: 2px solid rgba(113, 198, 237, .78);
+      border-radius: 13px;
+      background: rgba(11, 131, 189, .13);
+      transform: translateY(var(--shift, 0px));
+    }
+
+    .title-network span:nth-child(2) { --lift: 24px; --shift: -12px; }
+    .title-network span:nth-child(3) { --lift: 58px; --shift: 10px; }
+    .title-network span:nth-child(4) { --lift: 82px; --shift: -8px; border-color: var(--orange); background: rgba(230,117,25,.14); }
+    .title-network span:nth-child(5) { --lift: 48px; --shift: 15px; }
+    .title-network span:nth-child(6) { --lift: 28px; --shift: -9px; }
+
+    .title-cut {
+      position: absolute;
+      top: 13%;
+      bottom: 13%;
+      left: 54%;
+      border-left: 4px dashed var(--orange);
+    }
+
+    .title-cut::after {
+      content: "μ  Σ  κ₃…";
+      position: absolute;
+      top: 50%;
+      left: 22px;
+      width: max-content;
+      color: #f5b27a;
+      font-family: "STIX Two Text", Georgia, serif;
+      font-size: clamp(20px, 2.1vw, 34px);
+      transform: translateY(-50%);
+    }
+
+    .ladder {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: clamp(28px, 4vw, 72px);
+      align-items: center;
+    }
+
+    .rung {
+      position: relative;
+      display: grid;
+      align-content: center;
+      justify-items: center;
+      min-height: clamp(240px, 38vh, 390px);
+      padding: 22px;
+      border: 1px solid var(--hairline);
+      border-radius: 28px;
+      background: rgba(255,255,255,.78);
+      box-shadow: 0 12px 38px rgba(18,32,44,.07);
+    }
+
+    .rung:not(:last-child)::after {
+      content: "→";
+      position: absolute;
+      top: 50%;
+      right: clamp(-56px, -3.3vw, -36px);
+      z-index: 2;
+      color: var(--muted);
+      font-size: clamp(34px, 3.7vw, 58px);
+      transform: translate(50%, -50%);
+    }
+
+    .rung .symbol {
+      display: grid;
+      place-items: center;
+      width: clamp(100px, 10vw, 160px);
+      height: clamp(100px, 10vw, 160px);
+      border-radius: 50%;
+      font-family: "STIX Two Text", Georgia, serif;
+      font-size: clamp(42px, 5vw, 76px);
+    }
+
+    .rung h3 { margin-top: 20px; }
+    .rung p {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: clamp(14px, 1.2vw, 20px);
+      text-align: center;
+    }
+
+    .rung.real .symbol { color: var(--cyan); background: var(--cyan-soft); }
+    .rung.gaussian .symbol { color: var(--orange); background: var(--orange-soft); }
+    .rung.mean .symbol { color: var(--green); background: var(--green-soft); }
+
+    .endpoint-wrap {
+      height: 100%;
+      min-height: 0;
+      padding: 4px 2px;
+    }
+
+    .control-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(0, .8fr);
+      gap: clamp(26px, 3vw, 48px);
+      align-items: stretch;
+      min-height: 0;
+    }
+
+    .control-card {
+      display: grid;
+      align-content: center;
+      padding: clamp(20px, 2.2vw, 38px);
+      border: 1px solid var(--hairline);
+      border-radius: 26px;
+      background: rgba(255,255,255,.8);
+      box-shadow: 0 12px 38px rgba(18,32,44,.07);
+    }
+
+    .four-ladder {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      align-items: start;
+      gap: 22px;
+    }
+
+    .mini-rung {
+      position: relative;
+      display: grid;
+      justify-items: center;
+      gap: 13px;
+      color: var(--ink);
+      text-align: center;
+    }
+
+    .mini-rung:not(:last-child)::after {
+      content: "→";
+      position: absolute;
+      top: 37px;
+      right: -20px;
+      color: var(--muted);
+      font-size: 25px;
+    }
+
+    .mini-rung .disc {
+      display: grid;
+      place-items: center;
+      width: clamp(62px, 6vw, 92px);
+      height: clamp(62px, 6vw, 92px);
+      border-radius: 50%;
+      font-family: "STIX Two Text", Georgia, serif;
+      font-size: clamp(25px, 2.7vw, 42px);
+      background: var(--cyan-soft);
+      color: var(--cyan);
+    }
+
+    .mini-rung:nth-child(2) .disc { background: var(--violet-soft); color: var(--violet); }
+    .mini-rung:nth-child(3) .disc { background: var(--orange-soft); color: var(--orange); }
+    .mini-rung:nth-child(4) .disc { background: var(--green-soft); color: var(--green); }
+
+    .mini-rung strong {
+      font-size: clamp(13px, 1.1vw, 18px);
+      line-height: 1.15;
+    }
+
+    .mini-rung small {
+      color: var(--muted);
+      font-size: clamp(10px, .83vw, 13px);
+    }
+
+    .equal-heads {
+      display: grid;
+      gap: 16px;
+      align-content: center;
+    }
+
+    .equal-heads .row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .prefix-blocks {
+      display: flex;
+      justify-content: end;
+      gap: 5px;
+    }
+
+    .prefix-blocks span {
+      width: 18px;
+      height: 38px;
+      border: 2px solid var(--cyan);
+      border-radius: 5px;
+      background: var(--cyan-soft);
+    }
+
+    .same-head {
+      width: 50px;
+      height: 50px;
+      border: 3px solid var(--orange);
+      border-radius: 11px;
+      background: var(--orange-soft);
+    }
+
+    .notes {
+      display: none;
+      position: fixed;
+      z-index: 80;
+      right: 22px;
+      bottom: 70px;
+      width: min(480px, 42vw);
+      max-height: 72vh;
+      overflow: auto;
+      padding: 20px 23px;
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 18px;
+      color: #eef6fb;
+      background: rgba(13, 23, 32, .95);
+      box-shadow: 0 18px 60px rgba(0,0,0,.4);
+      font-size: 15px;
+      line-height: 1.42;
+    }
+
+    body.show-notes .slide.active .notes { display: block; }
+    .notes h3 { margin-bottom: 10px; font-size: 18px; }
+    .notes ul { margin: 0; padding-left: 1.2em; }
+    .notes li + li { margin-top: 8px; }
+
+    .controls {
+      position: fixed;
+      z-index: 70;
+      right: 20px;
+      bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px;
+      border-radius: 999px;
+      color: white;
+      background: rgba(13,23,32,.86);
+      opacity: 0;
+      transition: opacity 150ms ease;
+    }
+
+    .controls:hover,
+    .controls:focus-within,
+    .controls-visible .controls { opacity: 1; }
+
+    .controls button {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      padding: 0;
+      border: 0;
+      border-radius: 50%;
+      color: inherit;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .controls button:hover { background: rgba(255,255,255,.14); }
+
+    .slide-count {
+      min-width: 64px;
+      text-align: center;
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .overview {
+      overflow: auto;
+      padding: 4vh 3vw;
+      background: #101923;
+    }
+
+    .overview .slide {
+      position: relative;
+      display: grid;
+      float: left;
+      width: 30vw;
+      height: 16.875vw;
+      min-width: 360px;
+      min-height: 203px;
+      margin: 1vw;
+      padding: 3.2vw 2.2vw 2vw;
+      opacity: 1;
+      transform: none;
+      overflow: hidden;
+      cursor: pointer;
+      box-shadow: 0 10px 32px rgba(0,0,0,.35);
+    }
+
+    .overview .slide:hover { outline: 4px solid #71c6ed; }
+    .overview .slide * { pointer-events: none; }
+    .overview .notes { display: none !important; }
+    .overview .slide h1 { font-size: 3.5vw; }
+    .overview .slide h2 { font-size: 2.4vw; }
+    .overview .phase-rail { display: none; }
+
+    @media (max-aspect-ratio: 4/3) {
+      .stage.two,
+      .stage.two-even,
+      .control-grid { grid-template-columns: 1fr; }
+      .title-mark { width: min(64vw, 680px); justify-self: center; }
+    }
+
+    @media print {
+      @page { size: 13.333in 7.5in; margin: 0; }
+
+      html, body {
+        width: auto;
+        height: auto;
+        overflow: visible;
+        background: white;
+      }
+
+      .deck { width: auto; height: auto; overflow: visible; }
+      .phase-rail { display: none !important; }
+
+      .slide {
+        position: relative;
+        display: grid !important;
+        width: 13.333in;
+        height: 7.5in;
+        padding-top: .68in;
+        page-break-after: always;
+        opacity: 1 !important;
+        transform: none !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      .slide.dark {
+        background-color: #111820 !important;
+      }
+
+      .slide::before { display: none !important; }
+
+      .print-phase-rail {
+        position: absolute;
+        z-index: 20;
+        top: .18in;
+        left: .72in;
+        right: .72in;
+        display: block;
+        height: .33in;
+        color: #71808d;
+      }
+
+      .print-phase-track,
+      .print-phase-fill {
+        position: absolute;
+        top: .25in;
+        left: 0;
+        height: 2px;
+        border-radius: 999px;
+      }
+
+      .print-phase-track {
+        right: 0;
+        background: #c8d0d7;
+      }
+
+      .print-phase-fill {
+        width: var(--slide-progress, 0%);
+        background: linear-gradient(90deg, var(--cyan), var(--orange), var(--green));
+      }
+
+      .print-phase-step {
+        position: absolute;
+        top: 0;
+        left: var(--phase-position, 0%);
+        width: max-content;
+        transform: translateX(-50%);
+        font-size: 7.5pt;
+        font-weight: 780;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+      }
+
+      .print-phase-step::after {
+        content: "";
+        position: absolute;
+        top: .205in;
+        left: 50%;
+        width: 7px;
+        height: 7px;
+        transform: translateX(-50%);
+        border: 2px solid currentColor;
+        border-radius: 50%;
+        background: var(--paper);
+      }
+
+      .dark .print-phase-step::after { background: var(--night); }
+
+      .print-phase-step.complete,
+      .print-phase-step.active { color: var(--cyan); }
+
+      .print-phase-step.active::after {
+        background: var(--cyan);
+      }
+
+      .print-phase-step[data-phase-step="context"] {
+        transform: none;
+      }
+
+      .print-phase-step[data-phase-step="context"]::after {
+        left: 0;
+        transform: none;
+      }
+
+      .print-phase-step[data-phase-step="todo"] {
+        transform: translateX(-100%);
+      }
+
+      .print-phase-step[data-phase-step="todo"]::after {
+        left: 100%;
+      }
+
+      .image-only-slide {
+        padding: .18in .34in 0 !important;
+      }
+
+      .image-only-slide::before { display: none !important; }
+
+      .controls, .notes { display: none !important; }
+      .animated-only { display: none !important; }
+      .print-only { display: block !important; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="phase-rail dark-mode" id="phase-rail" aria-label="Talk progress">
+    <div class="phase-labels">
+      <div class="phase-track"></div>
+      <div class="phase-fill"></div>
+      <div class="phase-step active" data-phase-step="context"><span>Context</span></div>
+      <div class="phase-step" data-phase-step="experiment"><span>Experiment Setup</span></div>
+      <div class="phase-step" data-phase-step="results"><span>Results</span></div>
+      <div class="phase-step" data-phase-step="todo"><span>Next steps</span></div>
+    </div>
+  </nav>
+
+  <main class="deck" aria-live="polite">
+    <section class="slide dark active" data-title="Title" data-phase="context" data-phase-label="Context">
+      <header><span class="kicker">Work in progress</span></header>
+      <div class="stage two">
+        <div>
+          <h1>Free-body diagrams for <span class="accent">neural networks</span></h1>
+          <p class="hero-copy" style="margin-top:30px">Which internal statistics support further learning?</p>
+        </div>
+        <div class="title-mark" aria-hidden="true">
+          <div class="title-ring"></div>
+          <div class="title-ring r2"></div>
+          <div class="title-ring r3"></div>
+          <div class="title-network">
+            <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+          </div>
+          <div class="title-cut"></div>
+        </div>
+      </div>
+      <footer>
+        <span>Charles R-W · Tracking2 · slides assisted by Claude (via Codex)</span>
+        <span class="slide-no">1</span>
+      </footer>
+      <aside class="notes">
+        <h3>0:00–0:30</h3>
+        <ul>
+          <li>This is a work-in-progress experiment inside a larger search for the right variables for neural networks.</li>
+          <li>The concrete question today: at each internal boundary, which statistics support additional learning?</li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="slide dark image-only-slide" data-title="Kant" data-phase="context" data-phase-label="">
+      <div class="kant-pair" aria-label="Two images about Immanuel Kant">
+        <img src="../figures/kant_critique_cover.jpg" alt="Penguin Classics cover of Immanuel Kant's Critique of Pure Reason">
+        <img src="../figures/kant_bros_life.jpg" alt="Meme contrasting Kant's famously regular life with a relaxed cartoon character">
+      </div>
+    </section>
+
+    <section class="slide dark" data-title="Middle-out ontology" data-phase="context" data-phase-label="Context">
+      <header><h2>What are the <span class="accent">right variables</span>?</h2></header>
+      <div class="stage">
+        <svg class="visual" viewBox="0 0 1200 560" role="img" aria-label="A three-scale diagram highlighting a middle-out ontology between parameters and behavior">
+          <defs>
+            <marker id="arrow-cyan" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+              <path d="M0,0 L9,4.5 L0,9 Z" fill="#71c6ed"/>
+            </marker>
+            <filter id="soft-glow">
+              <feGaussianBlur stdDeviation="7" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+
+          <text x="135" y="52" text-anchor="middle" font-size="18" font-weight="780" letter-spacing="2" fill="#91a4b4">MICRO</text>
+          <text x="600" y="52" text-anchor="middle" font-size="18" font-weight="780" letter-spacing="2" fill="#71c6ed">MESO</text>
+          <text x="1065" y="52" text-anchor="middle" font-size="18" font-weight="780" letter-spacing="2" fill="#91a4b4">MACRO</text>
+
+          <rect x="28" y="82" width="214" height="384" rx="28" fill="rgba(255,255,255,.035)" stroke="#52687a"/>
+          <g fill="#8ba0b0" opacity=".76">
+            <circle cx="65" cy="128" r="6"/><circle cx="101" cy="115" r="4"/><circle cx="143" cy="142" r="5"/>
+            <circle cx="190" cy="118" r="7"/><circle cx="78" cy="176" r="5"/><circle cx="121" cy="189" r="7"/>
+            <circle cx="171" cy="174" r="4"/><circle cx="210" cy="203" r="6"/><circle cx="57" cy="225" r="4"/>
+            <circle cx="103" cy="241" r="6"/><circle cx="153" cy="226" r="5"/><circle cx="189" cy="257" r="5"/>
+            <circle cx="65" cy="286" r="7"/><circle cx="118" cy="295" r="4"/><circle cx="165" cy="304" r="6"/>
+            <circle cx="211" cy="288" r="4"/><circle cx="82" cy="342" r="5"/><circle cx="136" cy="348" r="7"/>
+            <circle cx="187" cy="350" r="5"/><circle cx="58" cy="397" r="4"/><circle cx="105" cy="409" r="6"/>
+            <circle cx="158" cy="394" r="5"/><circle cx="207" cy="419" r="7"/>
+          </g>
+          <text x="135" y="505" text-anchor="middle" font-size="21" fill="#aebdca">weights · neurons</text>
+
+          <rect x="330" y="72" width="540" height="410" rx="34" fill="rgba(11,131,189,.08)" stroke="#71c6ed" stroke-width="2.5" filter="url(#soft-glow)"/>
+          <g fill="none" stroke-linecap="round">
+            <path d="M404 169 C474 91, 534 234, 596 159 S728 111, 795 173" stroke="#71c6ed" stroke-width="12" opacity=".85"/>
+            <path d="M402 282 C468 232, 520 345, 593 277 S730 237, 798 289" stroke="#e67519" stroke-width="12" opacity=".85"/>
+            <path d="M402 387 C462 337, 530 441, 598 374 S723 339, 797 395" stroke="#4fc4a6" stroke-width="12" opacity=".85"/>
+          </g>
+          <g fill="#101923" stroke-width="4">
+            <circle cx="431" cy="155" r="18" stroke="#71c6ed"/><circle cx="589" cy="164" r="18" stroke="#71c6ed"/><circle cx="764" cy="158" r="18" stroke="#71c6ed"/>
+            <circle cx="442" cy="270" r="18" stroke="#e67519"/><circle cx="604" cy="270" r="18" stroke="#e67519"/><circle cx="760" cy="280" r="18" stroke="#e67519"/>
+            <circle cx="438" cy="378" r="18" stroke="#4fc4a6"/><circle cx="600" cy="373" r="18" stroke="#4fc4a6"/><circle cx="760" cy="385" r="18" stroke="#4fc4a6"/>
+          </g>
+          <text x="600" y="521" text-anchor="middle" font-size="25" font-weight="720" fill="#dff4fb">stable collective variables</text>
+
+          <rect x="958" y="82" width="214" height="384" rx="28" fill="rgba(255,255,255,.035)" stroke="#52687a"/>
+          <path d="M1000 374 C1030 323, 1058 338, 1082 274 S1122 174, 1142 131" fill="none" stroke="#f3f7fa" stroke-width="5"/>
+          <path d="M1000 389 H1145 M1000 389 V115" fill="none" stroke="#73889a" stroke-width="2"/>
+          <circle cx="1082" cy="274" r="10" fill="#e67519"/>
+          <path d="M1008 195 C1037 206, 1057 184, 1080 195 S1122 219, 1140 198" fill="none" stroke="#71c6ed" stroke-width="4" stroke-dasharray="8 7"/>
+          <text x="1065" y="505" text-anchor="middle" font-size="21" fill="#aebdca">behaviour · capability</text>
+
+          <path d="M258 273 H311" stroke="#71c6ed" stroke-width="3" marker-end="url(#arrow-cyan)"/>
+          <path d="M887 273 H940" stroke="#71c6ed" stroke-width="3" marker-end="url(#arrow-cyan)"/>
+          <text x="600" y="552" text-anchor="middle" font-size="17" fill="#8fa2b2">Batterman: autonomy through universality at the mesoscale</text>
+        </svg>
+      </div>
+      <footer>
+        <span class="source">Batterman, <em>A Middle Way</em> (2021); “Universality and RG Explanations” (2017)</span>
+        <span class="slide-no">2</span>
+      </footer>
+      <aside class="notes">
+        <h3>0:30–1:55</h3>
+        <ul>
+          <li>Bottom-up neuron catalogs and top-down behavioral descriptions can both use the wrong variables.</li>
+          <li>Batterman’s middle-out wager: heterogeneous micro-details can realize autonomous mesoscale regularities; universality tells us which details are irrelevant.</li>
+          <li>For networks, the ontology should be earned by stability, prediction, and intervention—not assumed to be neurons, heads, or agents.</li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="slide" data-title="Weird behaviours" data-phase="context" data-phase-label="Context">
+      <header>
+        <h2>Neural networks keep doing <span class="orange">weird things</span></h2>
+        <span class="tiny-chip">Representative symptoms</span>
+      </header>
+      <div class="stage">
+        <svg class="visual" viewBox="0 0 1200 560" role="img" aria-label="Transformer middle layers depicted as painter strokes that can be skipped, shuffled, or run in parallel">
+          <defs>
+            <marker id="arr-dark" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+              <path d="M0,0 L9,4.5 L0,9 Z" fill="#647383"/>
+            </marker>
+          </defs>
+
+          <rect x="36" y="60" width="1128" height="330" rx="30" fill="#fffdf8" stroke="#d7dfe5"/>
+          <rect x="70" y="93" width="176" height="264" rx="18" fill="#162432"/>
+          <path d="M92 301 Q133 231 169 276 T225 211" fill="none" stroke="#71c6ed" stroke-width="17" stroke-linecap="round"/>
+          <path d="M94 324 Q141 284 224 303" fill="none" stroke="#e67519" stroke-width="11" stroke-linecap="round"/>
+          <circle cx="132" cy="175" r="30" fill="#f3c668"/>
+          <text x="158" y="383" text-anchor="middle" font-size="17" font-weight="760" fill="#647383">START</text>
+
+          <path d="M266 224 H311" stroke="#647383" stroke-width="2.5" marker-end="url(#arr-dark)"/>
+
+          <g transform="translate(322,78)">
+            <rect width="110" height="294" rx="16" fill="#dff2fa" stroke="#0b83bd" stroke-width="2"/>
+            <path d="M19 246 Q52 176 92 214" fill="none" stroke="#0b83bd" stroke-width="13" stroke-linecap="round"/>
+            <text x="55" y="276" text-anchor="middle" font-size="16" font-weight="760" fill="#0b83bd">LOW</text>
+          </g>
+          <g transform="translate(450,78)">
+            <rect width="110" height="294" rx="16" fill="#ffead8" stroke="#e67519" stroke-width="2"/>
+            <path d="M22 204 Q56 149 89 190" fill="none" stroke="#e67519" stroke-width="13" stroke-linecap="round"/>
+            <text x="55" y="276" text-anchor="middle" font-size="16" font-weight="760" fill="#c85c09">MID</text>
+          </g>
+          <g transform="translate(578,78)">
+            <rect width="110" height="294" rx="16" fill="#ece5fa" stroke="#7856b8" stroke-width="2"/>
+            <path d="M18 168 Q54 122 91 159" fill="none" stroke="#7856b8" stroke-width="13" stroke-linecap="round"/>
+            <text x="55" y="276" text-anchor="middle" font-size="16" font-weight="760" fill="#6545a5">MID</text>
+          </g>
+          <g transform="translate(706,78)">
+            <rect width="110" height="294" rx="16" fill="#dff4ed" stroke="#14896d" stroke-width="2"/>
+            <path d="M20 132 Q56 98 90 126" fill="none" stroke="#14896d" stroke-width="13" stroke-linecap="round"/>
+            <text x="55" y="276" text-anchor="middle" font-size="16" font-weight="760" fill="#11745d">MID</text>
+          </g>
+          <g transform="translate(834,78)">
+            <rect width="110" height="294" rx="16" fill="#fbe4ec" stroke="#c55078" stroke-width="2"/>
+            <circle cx="55" cy="112" r="26" fill="#f3c668"/>
+            <text x="55" y="276" text-anchor="middle" font-size="16" font-weight="760" fill="#ad3e64">FINAL</text>
+          </g>
+
+          <path d="M962 224 H1006" stroke="#647383" stroke-width="2.5" marker-end="url(#arr-dark)"/>
+          <rect x="1021" y="93" width="108" height="264" rx="18" fill="#162432"/>
+          <path d="M1043 301 Q1070 235 1108 210" fill="none" stroke="#71c6ed" stroke-width="16" stroke-linecap="round"/>
+          <path d="M1044 324 Q1082 279 1110 299" fill="none" stroke="#e67519" stroke-width="11" stroke-linecap="round"/>
+          <circle cx="1082" cy="175" r="30" fill="#f3c668"/>
+          <text x="1075" y="383" text-anchor="middle" font-size="17" font-weight="760" fill="#647383">OUTPUT</text>
+
+          <g transform="translate(138,455)">
+            <path d="M0 28 H112" stroke="#0b83bd" stroke-width="9" stroke-linecap="round"/>
+            <path d="M43 5 L69 51" stroke="#e67519" stroke-width="6"/>
+            <path d="M69 5 L43 51" stroke="#e67519" stroke-width="6"/>
+            <text x="56" y="86" text-anchor="middle" font-size="18" font-weight="760">SKIP</text>
+          </g>
+          <g transform="translate(515,455)">
+            <path d="M0 10 C25 10 27 47 51 47 S80 10 108 10" fill="none" stroke="#7856b8" stroke-width="7"/>
+            <circle cx="8" cy="10" r="7" fill="#e67519"/><circle cx="54" cy="47" r="7" fill="#14896d"/><circle cx="102" cy="10" r="7" fill="#0b83bd"/>
+            <text x="54" y="86" text-anchor="middle" font-size="18" font-weight="760">SHUFFLE</text>
+          </g>
+          <g transform="translate(891,455)">
+            <path d="M0 28 H35 M35 28 V5 H83 V28 M35 28 V51 H83 V28 M83 28 H118" fill="none" stroke="#14896d" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+            <text x="59" y="86" text-anchor="middle" font-size="18" font-weight="760">PARALLEL</text>
+          </g>
+        </svg>
+      </div>
+      <footer>
+        <span class="source">Sun et al., “Transformer Layers as Painters” (2024) · Bansal, Nakkiran &amp; Barak, model stitching (2021)</span>
+        <span class="slide-no">3</span>
+      </footer>
+      <aside class="notes">
+        <h3>1:55–3:15</h3>
+        <ul>
+          <li>The painters result: lower and final layers are special, but middle layers can show striking uniformity; on some tasks they tolerate skipping, reordering, or parallel execution.</li>
+          <li>Stitching connectivity, mode connectivity, global steering directions, grokking, and redundant circuits are related symptoms: our default layer-by-layer story is not the right explanatory ontology.</li>
+          <li>These are not mechanisms by themselves; they are a class of phenomena a theory should retrodict.</li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="slide dark" data-title="Universality programme" data-phase="context" data-phase-label="Context">
+      <header><h2>Which dynamics survive the details?</h2></header>
+      <div class="stage">
+        <svg class="visual" viewBox="0 0 1200 560" role="img" aria-label="Different architectures, seeds, tasks, and scales flowing through perturbations toward stable mesoscale variables and predictions">
+          <defs>
+            <marker id="arr-light" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+              <path d="M0,0 L9,4.5 L0,9 Z" fill="#71c6ed"/>
+            </marker>
+            <linearGradient id="funnel" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" stop-color="#7856b8" stop-opacity=".35"/>
+              <stop offset=".54" stop-color="#0b83bd" stop-opacity=".26"/>
+              <stop offset="1" stop-color="#14896d" stop-opacity=".18"/>
+            </linearGradient>
+          </defs>
+
+          <g font-size="18" font-weight="760" letter-spacing="1.4">
+            <rect x="38" y="72" width="218" height="74" rx="18" fill="rgba(255,255,255,.055)" stroke="#6b7f90"/>
+            <text x="147" y="117" text-anchor="middle" fill="#c8d5de">ARCHITECTURE</text>
+            <rect x="38" y="174" width="218" height="74" rx="18" fill="rgba(255,255,255,.055)" stroke="#6b7f90"/>
+            <text x="147" y="219" text-anchor="middle" fill="#c8d5de">SEED</text>
+            <rect x="38" y="276" width="218" height="74" rx="18" fill="rgba(255,255,255,.055)" stroke="#6b7f90"/>
+            <text x="147" y="321" text-anchor="middle" fill="#c8d5de">TASK</text>
+            <rect x="38" y="378" width="218" height="74" rx="18" fill="rgba(255,255,255,.055)" stroke="#6b7f90"/>
+            <text x="147" y="423" text-anchor="middle" fill="#c8d5de">SCALE</text>
+          </g>
+
+          <path d="M290 57 L728 168 L728 356 L290 467 Z" fill="url(#funnel)" stroke="#71c6ed" stroke-width="2"/>
+          <g fill="none" stroke-width="4" opacity=".9">
+            <path d="M292 110 C430 106, 482 246, 704 248" stroke="#a889e4"/>
+            <path d="M292 205 C430 207, 494 272, 704 260" stroke="#71c6ed"/>
+            <path d="M292 309 C432 315, 501 245, 704 272" stroke="#e67519"/>
+            <path d="M292 410 C445 418, 509 290, 704 284" stroke="#4fc4a6"/>
+          </g>
+          <text x="505" y="505" text-anchor="middle" font-size="18" font-weight="760" letter-spacing="2" fill="#8fa2b2">PERTURB · COMPARE · COARSE-GRAIN</text>
+
+          <rect x="760" y="117" width="212" height="288" rx="34" fill="rgba(11,131,189,.10)" stroke="#71c6ed" stroke-width="2.5"/>
+          <g fill="none" stroke-linecap="round" stroke-width="10">
+            <path d="M800 194 C836 148, 866 235, 930 188" stroke="#71c6ed"/>
+            <path d="M800 263 C836 219, 874 306, 930 258" stroke="#e67519"/>
+            <path d="M800 331 C836 292, 875 367, 930 327" stroke="#4fc4a6"/>
+          </g>
+          <text x="866" y="445" text-anchor="middle" font-size="21" font-weight="760" fill="#dff4fb">AUTONOMOUS</text>
+          <text x="866" y="471" text-anchor="middle" font-size="21" font-weight="760" fill="#dff4fb">VARIABLES</text>
+
+          <path d="M990 261 H1044" stroke="#71c6ed" stroke-width="3" marker-end="url(#arr-light)"/>
+          <g transform="translate(1062,152)">
+            <circle cx="48" cy="48" r="47" fill="rgba(20,137,109,.14)" stroke="#4fc4a6" stroke-width="2"/>
+            <path d="M22 52 L40 69 L75 29" fill="none" stroke="#4fc4a6" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+            <text x="48" y="127" text-anchor="middle" font-size="17" font-weight="760" fill="#c8d5de">PREDICT</text>
+            <circle cx="48" cy="205" r="47" fill="rgba(230,117,25,.14)" stroke="#e67519" stroke-width="2"/>
+            <path d="M48 169 V241 M12 205 H84" fill="none" stroke="#e67519" stroke-width="8" stroke-linecap="round"/>
+            <text x="48" y="284" text-anchor="middle" font-size="17" font-weight="760" fill="#c8d5de">INTERVENE</text>
+          </g>
+        </svg>
+      </div>
+      <footer>
+        <span>Correct ontology = variables whose dynamics generalise across controlled changes.</span>
+        <span class="slide-no">4</span>
+      </footer>
+      <aside class="notes">
+        <h3>3:15–4:25</h3>
+        <ul>
+          <li>The grand programme is not to collect analogies; it is to ask which dynamics are universal across seed, architecture, task, and scale.</li>
+          <li>A candidate object earns ontological status when it remains predictive under perturbation and improves intervention.</li>
+          <li>Today’s experiment is one narrow probe of the data-like object crossing each layer boundary.</li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="slide warm" data-title="Higher-order structure" data-phase="context" data-phase-label="Context">
+      <header><h2>Where does <span class="orange">higher-order structure</span> matter?</h2></header>
+      <div class="stage">
+        <div class="ladder" aria-label="Real data simplified to class Gaussian data and then class means">
+          <div class="rung real">
+            <div class="symbol">κ<sub>&gt;2</sub></div>
+            <h3>Real</h3>
+            <p>mean · covariance · higher orders</p>
+          </div>
+          <div class="rung gaussian">
+            <div class="symbol">μ, Σ</div>
+            <h3>Gaussian</h3>
+            <p>class mean + covariance</p>
+          </div>
+          <div class="rung mean">
+            <div class="symbol">μ</div>
+            <h3>Mean</h3>
+            <p>class centres + shared noise</p>
+          </div>
+        </div>
+      </div>
+      <footer>
+        <span class="source">Input-level distributional simplicity bias → ask the same question inside the network.</span>
+        <span class="slide-no">5</span>
+      </footer>
+      <aside class="notes">
+        <h3>4:25–5:40</h3>
+        <ul>
+          <li>Now narrow to the specific problem. Means are first-order; covariance is second-order; non-Gaussian dependence lives in higher cumulants.</li>
+          <li>Prior work finds networks often exploit lower-order distributional structure before higher-order structure.</li>
+          <li>The question here is whether the same ladder is useful at internal cuts—and how its importance changes across depth.</li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="slide" data-title="Free-body move" data-phase="experiment" data-phase-label="Experiment Setup">
+      <header><h2>Free body diagrams for neural networks</h2></header>
+      <div class="stage">
+        <div class="figure-card flush feature-figure">
+          <img class="figure feature-figure" src="../figures/fbd_materials_nn_analogy.svg"
+               alt="Free-body diagram analogy for moving cuts through a material and through a neural network">
+        </div>
+      </div>
+      <footer>
+        <span>Methodological analogy: isolate a boundary, measure what crosses it, repeat.</span>
+        <span class="slide-no">6</span>
+      </footer>
+      <aside class="notes">
+        <h3>5:40–6:35</h3>
+        <ul>
+          <li>The free-body move is organizational, not a claim that networks obey continuum mechanics.</li>
+          <li>Cut after a layer; everything before it becomes a data generator for everything after it.</li>
+          <li>Repeat the same measurement across depth to build a local picture.</li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="slide" data-title="Architectures" data-phase="experiment" data-phase-label="Experiment Setup">
+      <header>
+        <div>
+          <h2>two networks: CNN and ResNet-18</h2>
+          <p class="slide-subtext">trained on CIFAR</p>
+        </div>
+      </header>
+      <div class="stage">
+        <div class="figure-card flush feature-figure">
+          <img class="figure feature-figure" src="../figures/cnn_resnet_architectures.svg"
+               alt="Four-block residual CNN and ResNet-18 with measured cuts">
+        </div>
+      </div>
+      <footer>
+        <span>Four-block CNN · normalization-free pre-activation ResNet-18 · CIFAR-10</span>
+        <span class="slide-no">7</span>
+      </footer>
+      <aside class="notes">
+        <h3>6:35–7:20</h3>
+        <ul>
+          <li>The small CNN makes the protocol legible; the ResNet provides eight cuts on one shared training trajectory.</li>
+          <li>At each cut, freeze the prefix and cache its labelled activations.</li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="slide visual-only" data-title="Make activation datasets" data-phase="experiment" data-phase-label="Experiment Setup">
+      <header><h2>Turn one layer into three datasets</h2></header>
+      <div class="stage">
+        <div class="figure-card">
+          <img class="figure" src="../figures/method_make_datasets.svg"
+               alt="A fixed prefix creates real, Gaussian, and mean-plus-shared-noise activation datasets">
+        </div>
+      </div>
+      <footer>
+        <span>Labels stay fixed; internal distributional structure is simplified.</span>
+        <span class="slide-no">8</span>
+      </footer>
+      <aside class="notes">
+        <h3>7:20–8:15</h3>
+        <ul>
+          <li>Real activations keep all observed structure.</li>
+          <li>The class Gaussian matches means and a regularized covariance in PCA space.</li>
+          <li>Mean plus shared noise preserves class centres but removes class-specific covariance.</li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="slide visual-only" data-title="Train and compare" data-phase="experiment" data-phase-label="Experiment Setup">
+      <header><h2>Same suffix. Different internal data.</h2></header>
+      <div class="stage">
+        <div class="figure-card">
+          <img class="figure" src="../figures/method_train_compare.svg"
+               alt="Identical suffix copies train on real, Gaussian, or mean-only activations and are tested on held-out real activations">
+        </div>
+      </div>
+      <footer>
+        <span>Same warm start · same optimizer · same budget · test on held-out real activations</span>
+        <span class="slide-no">9</span>
+      </footer>
+      <aside class="notes">
+        <h3>8:15–9:15</h3>
+        <ul>
+          <li>Clone the suffix three times and give each copy a short burst of further training.</li>
+          <li>Evaluate all copies on held-out real activations.</li>
+          <li>This is not immediate corruption testing: it asks what further learning each simplified dataset supports from the same checkpoint.</li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="slide visual-only" data-title="Depth profile" data-phase="results" data-phase-label="Results">
+      <header><h2>Depth × ordinary training time</h2></header>
+      <div class="stage">
+        <div class="figure-card flush">
+          <img class="figure animated-only" src="../figures/resnet_over_training_time.gif"
+               alt="Animated ResNet accuracy changes across eight cuts and five ordinary-training checkpoints">
+          <img class="figure print-only" src="../figures/resnet_over_training_time_final.png"
+               alt="Final frame of ResNet accuracy changes across eight cuts at epoch 100">
+        </div>
+      </div>
+      <footer>
+        <span>Pause: legend 3 s · checkpoints 1.2 s · final frame 4.5 s</span>
+        <span class="slide-no">10</span>
+      </footer>
+      <aside class="notes">
+        <h3>9:15–11:15</h3>
+        <ul>
+          <li>The opening callouts recap the color encoding; then each frame advances ordinary training time.</li>
+          <li>Read left-to-right as the cut moves deeper. Simplified-data relaxation falls far behind after early cuts but approaches real-data relaxation after late cuts.</li>
+          <li>The contrast already exists at initialization and changes non-monotonically, so this is a depth-by-time map—not yet an onset story.</li>
+          <li>These three draws measure surrogate/minibatch variation, not variation across independently trained ResNets.</li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="slide warm visual-only" data-title="Relaxation time" data-phase="results" data-phase-label="Results">
+      <header>
+        <h2>Watch the suffix relax</h2>
+        <img class="cut-reminder-inline" src="../figures/cut_cnn_block3.svg"
+             alt="Four-block CNN cut after block 3, labelled CUT">
+      </header>
+      <div class="stage">
+        <div class="media-stage">
+          <div class="figure-card flush">
+            <img class="figure animated-only" src="../figures/cnn_relaxation_time.gif"
+                 alt="Animated held-out accuracy through suffix-relaxation time at the cut after CNN block 3">
+            <img class="figure print-only" src="../figures/cnn_relaxation_time_final.png"
+                 alt="Final suffix-relaxation curves at the cut after CNN block 3">
+          </div>
+        </div>
+      </div>
+      <footer>
+        <span>Cut after block 3 · opening callouts 3 s · completed curves 4.5 s</span>
+        <span class="slide-no">11</span>
+      </footer>
+      <aside class="notes">
+        <h3>11:15–12:10</h3>
+        <ul>
+          <li>The opening frame again labels the three trajectories; then the lines grow along suffix-relaxation time.</li>
+          <li>At early ordinary-training checkpoints, all copies improve, but real activations support a larger gain.</li>
+          <li>At later checkpoints, real-data relaxation stays nearly flat while simplified-data relaxation can reduce held-out real accuracy.</li>
+          <li>The tiny network schematic keeps the cut after block 3 visually explicit.</li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="slide green-wash" data-title="Controls" data-phase="todo" data-phase-label="T-do">
+      <header><h2>Separate the data from the suffix</h2></header>
+      <div class="stage control-grid">
+        <div class="control-card">
+          <div class="four-ladder" aria-label="A four-stage control ladder from true data through PCA data, Gaussian data, and mean-only data">
+            <div class="mini-rung">
+              <div class="disc">•••</div>
+              <strong>Full real</strong>
+              <small>all observed structure</small>
+            </div>
+            <div class="mini-rung">
+              <div class="disc">↘</div>
+              <strong>PCA real</strong>
+              <small>projection loss</small>
+            </div>
+            <div class="mini-rung">
+              <div class="disc">Σ</div>
+              <strong>Gaussian</strong>
+              <small>non-Gaussian gap</small>
+            </div>
+            <div class="mini-rung">
+              <div class="disc">μ</div>
+              <strong>Mean</strong>
+              <small>covariance gap</small>
+            </div>
+          </div>
+        </div>
+        <div class="control-card">
+          <div class="equal-heads" aria-label="The same small classifier attached at each network cut">
+            <div class="row"><div class="prefix-blocks"><span></span></div><div class="same-head"></div></div>
+            <div class="row"><div class="prefix-blocks"><span></span><span></span></div><div class="same-head"></div></div>
+            <div class="row"><div class="prefix-blocks"><span></span><span></span><span></span></div><div class="same-head"></div></div>
+            <div class="row"><div class="prefix-blocks"><span></span><span></span><span></span><span></span></div><div class="same-head"></div></div>
+          </div>
+          <h3 style="margin-top:24px;text-align:center">Same head at every cut</h3>
+        </div>
+      </div>
+      <footer>
+        <span>Vary PCA rank · capacity-match receivers · warm start vs reinitialize · independent seeds</span>
+        <span class="slide-no">12</span>
+      </footer>
+      <aside class="notes">
+        <h3>12:10–13:20</h3>
+        <ul>
+          <li>The decisive statistical control inserts PCA-projected real activations before the Gaussian.</li>
+          <li>Full real to PCA real measures discarded directions; PCA real to Gaussian measures non-Gaussian structure in the same subspace; Gaussian to mean isolates class covariance.</li>
+          <li>The decisive architectural control attaches the same receiver at every cut, separating representation geometry from shrinking suffix capacity.</li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="slide visual-only" data-title="Tracking and resolving" data-phase="todo" data-phase-label="Next steps">
+      <header><h2>Then let the internal data move again</h2></header>
+      <div class="stage">
+        <div class="figure-card flush">
+          <img class="next-step-image" src="../figures/tracking_resolving_only.png"
+               alt="Tracking and resolving diagram comparing representation movement with suffix adaptation time">
+        </div>
+      </div>
+      <footer>
+        <span>Two clocks at every cut: representation motion and suffix adaptation.</span>
+        <span class="slide-no">13</span>
+      </footer>
+      <aside class="notes">
+        <h3>13:20–14:10</h3>
+        <ul>
+          <li>Ordinary end-to-end training makes the activation distribution move while the suffix learns.</li>
+          <li>Tracking means staying adapted to that moving distribution; resolving means learning more of the current distribution.</li>
+          <li>The frozen-prefix experiment measures only the resolving side. The longer-term target is a ratio of movement time to adaptation time across depth.</li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="slide dark" data-title="Closing programme" data-phase="todo" data-phase-label="T-do">
+      <header><span class="kicker">The larger wager</span></header>
+      <div class="stage closing-stage">
+        <div>
+          <h1 style="font-size:clamp(54px,6.8vw,108px)">Build the ontology from what <span class="accent">stays predictive</span></h1>
+        </div>
+        <img class="closing-cycle" src="../figures/closing_cycle.svg"
+             alt="Cycle from perturbations to invariant dynamics to mesoscale variables to prediction and intervention">
+      </div>
+      <footer>
+        <span>Today: one operational cut through the distributional dynamics of learning.</span>
+        <span class="slide-no">14</span>
+      </footer>
+      <aside class="notes">
+        <h3>14:10–15:00</h3>
+        <ul>
+          <li>Return to the first diagram: the goal is a middle-out ontology of learned systems, based on stable dynamics rather than convenient parts lists.</li>
+          <li>This experiment treats the activation distribution at each interface as one candidate mesoscale object.</li>
+          <li>The immediate result is descriptive: low-order surrogates support much more similar learning late than early. The next controls determine whether that is a property of the data, the suffix, or both.</li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="slide" data-title="Backup caveats" data-phase="todo" data-phase-label="Backup">
+      <header><span class="kicker" style="color:var(--rose)">Backup</span><h2>Interpretive boundaries</h2></header>
+      <div class="stage">
+        <svg class="visual" viewBox="0 0 1200 540" role="img" aria-label="Four caveats: PCA, capacity, warm start, and statistics">
+          <g transform="translate(45,80)">
+            <rect width="250" height="350" rx="28" fill="#fffdf8" stroke="#d7dfe5"/>
+            <circle cx="125" cy="100" r="60" fill="#ece5fa"/>
+            <path d="M87 77 H163 M87 102 H143 M87 127 H123" stroke="#7856b8" stroke-width="9" stroke-linecap="round"/>
+            <text x="125" y="205" text-anchor="middle" font-size="26" font-weight="780">PCA</text>
+            <text x="125" y="246" text-anchor="middle" font-size="17" fill="#647383">discarded directions</text>
+            <text x="125" y="272" text-anchor="middle" font-size="17" fill="#647383">can mimic an HOC gap</text>
+          </g>
+          <g transform="translate(330,80)">
+            <rect width="250" height="350" rx="28" fill="#fffdf8" stroke="#d7dfe5"/>
+            <circle cx="125" cy="100" r="60" fill="#ffead8"/>
+            <rect x="73" y="66" width="29" height="70" rx="6" fill="#e67519"/><rect x="111" y="53" width="30" height="96" rx="6" fill="#e67519"/><rect x="150" y="77" width="27" height="48" rx="6" fill="#e67519"/>
+            <text x="125" y="205" text-anchor="middle" font-size="26" font-weight="780">CAPACITY</text>
+            <text x="125" y="246" text-anchor="middle" font-size="17" fill="#647383">late cuts leave a</text>
+            <text x="125" y="272" text-anchor="middle" font-size="17" fill="#647383">smaller receiver</text>
+          </g>
+          <g transform="translate(615,80)">
+            <rect width="250" height="350" rx="28" fill="#fffdf8" stroke="#d7dfe5"/>
+            <circle cx="125" cy="100" r="60" fill="#dff2fa"/>
+            <path d="M88 111 A42 42 0 1 0 96 72" fill="none" stroke="#0b83bd" stroke-width="10" stroke-linecap="round"/>
+            <path d="M88 51 L100 78 L70 76" fill="#0b83bd"/>
+            <text x="125" y="205" text-anchor="middle" font-size="26" font-weight="780">WARM START</text>
+            <text x="125" y="246" text-anchor="middle" font-size="17" fill="#647383">retention and new</text>
+            <text x="125" y="272" text-anchor="middle" font-size="17" fill="#647383">learning are mixed</text>
+          </g>
+          <g transform="translate(900,80)">
+            <rect width="250" height="350" rx="28" fill="#fffdf8" stroke="#d7dfe5"/>
+            <circle cx="125" cy="100" r="60" fill="#dff4ed"/>
+            <path d="M77 123 C91 78, 107 137, 123 87 S154 71, 176 112" fill="none" stroke="#14896d" stroke-width="9" stroke-linecap="round"/>
+            <text x="125" y="205" text-anchor="middle" font-size="26" font-weight="780">STATISTICS</text>
+            <text x="125" y="246" text-anchor="middle" font-size="17" fill="#647383">draw uncertainty</text>
+            <text x="125" y="272" text-anchor="middle" font-size="17" fill="#647383">is not seed uncertainty</text>
+          </g>
+        </svg>
+      </div>
+      <footer><span>Measured suffix sufficiency ≠ all information present in the representation.</span><span class="slide-no">B1</span></footer>
+      <aside class="notes">
+        <h3>Backup</h3>
+        <ul>
+          <li>Use if discussion starts treating the result as a clean higher-cumulant measurement.</li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="slide" data-title="Backup CNN over training" data-phase="todo" data-phase-label="Backup">
+      <header><span class="kicker" style="color:var(--rose)">Backup</span><h2>CNN across ordinary training</h2></header>
+      <div class="stage">
+        <div class="figure-card flush">
+          <img class="figure animated-only" src="../figures/cnn_over_training_time.gif"
+               alt="Animated CNN suffix-relaxation effects across ordinary training and four cuts">
+          <img class="figure print-only" src="../figures/cnn_over_training_time_final.png"
+               alt="Final CNN suffix-relaxation effects after 30 ordinary-training epochs">
+        </div>
+      </div>
+      <footer><span>Separate checkpoint runs and scheduler horizons</span><span class="slide-no">B2</span></footer>
+      <aside class="notes">
+        <h3>Backup</h3>
+        <ul>
+          <li>The animation replaces the four cut-specific waterfall panels in the post.</li>
+          <li>These checkpoints come from separate CNN runs and should not be read as one longitudinal model.</li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="slide dark ontology-slide" data-title="Natural ontologies" data-phase="context" data-phase-label="Context">
+      <div class="ontology-story">
+        <div class="ontology-flow" aria-label="From known microscopic laws through unexplained computation to dynamics-led natural ontologies">
+          <div class="ontology-node">Neural networks have known microscopic laws</div>
+          <div class="ontology-arrow">⟶</div>
+          <div class="ontology-node">we do not understand how they compute—or what their representations mean</div>
+          <div class="ontology-arrow">⟶</div>
+          <div class="ontology-node">study dynamics to see how they learn</div>
+          <div class="ontology-arrow question">—?→</div>
+          <div class="ontology-node">let dynamics tell us the natural ontologies</div>
+        </div>
+        <div class="batterman-row">
+          <a href="https://academic.oup.com/book/10652" target="_blank" rel="noreferrer"
+             aria-label="The Devil in the Details by Robert Batterman">
+            <img class="book-cover" src="../figures/batterman_devil_details.jpg"
+                 alt="Cover of The Devil in the Details by Robert Batterman">
+          </a>
+          <a href="https://academic.oup.com/book/41219" target="_blank" rel="noreferrer"
+             aria-label="A Middle Way by Robert Batterman">
+            <img class="book-cover" src="../figures/batterman_middle_way.jpg"
+                 alt="Cover of A Middle Way by Robert Batterman">
+          </a>
+          <div class="talk-links">
+            <a class="talk-link" href="https://www.youtube.com/watch?v=9v_7toCCS1I"
+               target="_blank" rel="noreferrer">
+              Asymptotics, Minimal Models, Multiscale Techniques
+            </a>
+            <a class="talk-link" href="https://www.youtube.com/watch?v=74Y30IVz19I"
+               target="_blank" rel="noreferrer">
+              Methodology, Models, and Mathematics
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide warm visual-only" data-title="Relaxation endpoint summary" data-phase="results" data-phase-label="Results">
+      <header>
+        <img class="cut-reminder-inline" src="../figures/cut_cnn_block3.svg"
+             alt="Four-block CNN cut after block 3, labelled CUT">
+      </header>
+      <div class="stage">
+        <div class="figure-card flush">
+          <img class="figure" src="../figures/cnn_relaxation_endpoint_stacked.png"
+               alt="Stacked signed accuracy changes at the CNN block-3 cut across ordinary-training checkpoints">
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <div class="controls" aria-label="Slide controls">
+    <button id="prev" aria-label="Previous slide" title="Previous (←)">←</button>
+    <span class="slide-count" id="slide-count">1 / 11</span>
+    <button id="next" aria-label="Next slide" title="Next (→)">→</button>
+    <button id="notes-toggle" aria-label="Toggle speaker notes" title="Notes (N)">N</button>
+    <button id="overview-toggle" aria-label="Toggle overview" title="Overview (O)">O</button>
+    <button id="fullscreen-toggle" aria-label="Toggle fullscreen" title="Fullscreen (F)">⛶</button>
+  </div>
+
+  <script>
+    (() => {
+      const order = [
+        "Title",
+        "Natural ontologies",
+        "Kant",
+        "Free-body move",
+        "Architectures",
+        "Make activation datasets",
+        "Train and compare",
+        "Relaxation time",
+        "Relaxation endpoint summary",
+        "Depth profile",
+        "Tracking and resolving",
+      ];
+      const deck = document.querySelector("main.deck");
+      const slides = new Map(
+        [...deck.querySelectorAll(":scope > .slide")].map(slide => [slide.dataset.title, slide])
+      );
+      deck.replaceChildren(...order.map(title => slides.get(title)));
+    })();
+  </script>
+
+  <script>
+    (() => {
+      const deck = document.querySelector(".deck");
+      const slides = [...document.querySelectorAll(".slide")];
+      const count = document.querySelector("#slide-count");
+      const rail = document.querySelector("#phase-rail");
+      const steps = [...document.querySelectorAll("[data-phase-step]")];
+      const phases = ["context", "experiment", "results", "todo"];
+      const phaseLabels = {
+        context: "Context",
+        experiment: "Experiment Setup",
+        results: "Results",
+        todo: "Next steps",
+      };
+      const denominator = Math.max(1, slides.length - 1);
+      const phaseStarts = new Map(
+        phases.map(phase => [
+          phase,
+          Math.max(0, slides.findIndex(slide => slide.dataset.phase === phase)),
+        ])
+      );
+      const phasePosition = phase =>
+        `${100 * phaseStarts.get(phase) / denominator}%`;
+
+      steps.forEach(step => {
+        step.style.setProperty(
+          "--phase-position",
+          phasePosition(step.dataset.phaseStep)
+        );
+      });
+
+      slides.forEach((slide, slideIndex) => {
+        const slidePhaseIndex = phases.indexOf(slide.dataset.phase);
+        const printRail = document.createElement("div");
+        printRail.className = "print-phase-rail";
+        printRail.style.setProperty(
+          "--slide-progress",
+          `${100 * slideIndex / denominator}%`
+        );
+        printRail.innerHTML = `
+          <div class="print-phase-track"></div>
+          <div class="print-phase-fill"></div>
+          ${phases.map((phase, phaseIndex) => `
+            <div class="print-phase-step ${
+              phaseIndex < slidePhaseIndex
+                ? "complete"
+                : phaseIndex === slidePhaseIndex
+                  ? "active"
+                  : ""
+            }" data-phase-step="${phase}"
+               style="--phase-position:${phasePosition(phase)}">
+              ${phaseLabels[phase]}
+            </div>
+          `).join("")}
+        `;
+        slide.prepend(printRail);
+      });
+
+      let index = Math.max(0, Math.min(slides.length - 1,
+        Number.parseInt(location.hash.replace("#/", ""), 10) || 0));
+      let overview = false;
+
+      function setPhase(slide, slideIndex) {
+        const phaseIndex = Math.max(0, phases.indexOf(slide.dataset.phase));
+        rail.style.setProperty(
+          "--phase-width",
+          `${100 * slideIndex / denominator}%`
+        );
+        steps.forEach((step, stepIndex) => {
+          step.classList.toggle("active", stepIndex === phaseIndex);
+          step.classList.toggle("complete", stepIndex < phaseIndex);
+        });
+        rail.classList.toggle("dark-mode", slide.classList.contains("dark"));
+      }
+
+      function show(nextIndex, updateHash = true) {
+        index = Math.max(0, Math.min(slides.length - 1, nextIndex));
+        slides.forEach((slide, i) => slide.classList.toggle("active", i === index));
+        count.textContent = `${index + 1} / ${slides.length}`;
+        setPhase(slides[index], index);
+        document.title = `${slides[index].dataset.title} — Free-body diagrams for neural networks`;
+        if (updateHash) history.replaceState(null, "", `#/${index}`);
+      }
+
+      function move(delta) {
+        if (!overview) show(index + delta);
+      }
+
+      function toggleOverview(force) {
+        overview = typeof force === "boolean" ? force : !overview;
+        deck.classList.toggle("overview", overview);
+        document.body.classList.remove("show-notes");
+        rail.style.display = overview ? "none" : "";
+        if (!overview) show(index, false);
+      }
+
+      function toggleFullscreen() {
+        if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+        else document.exitFullscreen?.();
+      }
+
+      document.querySelector("#prev").addEventListener("click", () => move(-1));
+      document.querySelector("#next").addEventListener("click", () => move(1));
+      document.querySelector("#notes-toggle").addEventListener("click", () => {
+        if (!overview) document.body.classList.toggle("show-notes");
+      });
+      document.querySelector("#overview-toggle").addEventListener("click", () => toggleOverview());
+      document.querySelector("#fullscreen-toggle").addEventListener("click", toggleFullscreen);
+
+      slides.forEach((slide, slideIndex) => {
+        slide.addEventListener("click", event => {
+          if (overview) {
+            index = slideIndex;
+            toggleOverview(false);
+            show(slideIndex);
+          } else if (!event.target.closest("a, button")) {
+            move(1);
+          }
+        });
+      });
+
+      document.addEventListener("keydown", event => {
+        if (["ArrowRight", "ArrowDown", "PageDown", "Enter", " "].includes(event.key)) {
+          event.preventDefault();
+          move(1);
+        } else if (["ArrowLeft", "ArrowUp", "PageUp", "Backspace"].includes(event.key)) {
+          event.preventDefault();
+          move(-1);
+        } else if (event.key === "Home") {
+          show(0);
+        } else if (event.key === "End") {
+          show(slides.length - 1);
+        } else if (event.key.toLowerCase() === "n") {
+          if (!overview) document.body.classList.toggle("show-notes");
+        } else if (event.key.toLowerCase() === "o" || event.key === "Escape" && overview) {
+          toggleOverview();
+        } else if (event.key.toLowerCase() === "f") {
+          toggleFullscreen();
+        }
+      });
+
+      window.addEventListener("hashchange", () => {
+        const requested = Number.parseInt(location.hash.replace("#/", ""), 10);
+        if (Number.isFinite(requested)) show(requested, false);
+      });
+
+      let controlTimer;
+      document.addEventListener("mousemove", () => {
+        document.body.classList.add("controls-visible");
+        clearTimeout(controlTimer);
+        controlTimer = setTimeout(() => document.body.classList.remove("controls-visible"), 1200);
+      });
+
+      show(index, false);
+    })();
+  </script>
+</body>
+</html>

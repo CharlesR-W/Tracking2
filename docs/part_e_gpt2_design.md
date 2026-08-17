@@ -1,8 +1,13 @@
 # Part E design: Part B suffix relaxation for next-token prediction
 
-> **Status: PLANNED / UNRUN.** No Part E model or suffix-relaxation artifact
-> exists. Dashboard panels remain marked **MOCKUP — PLANNED / UNRUN** until a
-> validated measured artifact replaces them.
+> **Status: MEASURED ONE-SEED DIAGNOSTIC / SCIENTIFICALLY NEGATIVE
+> (2026-07-22).** The design below is the original experiment contract. The
+> paired schema-v2 diagnostics in
+> `artifacts/part_e/diagnostic_v2_seed0_20260722/` and
+> `artifacts/part_e/diagnostic_v2_equal_lr_seed0_20260722/` pass the revised
+> mechanical gates, but sequence Gaussian does not consistently outperform the
+> mean-only control. The dashboard renders this measured diagnostic when both
+> artifacts are supplied and otherwise falls back to the labelled mockup.
 
 ## 1. Question
 

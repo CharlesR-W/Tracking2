@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 520" role="img" aria-label="Cycle from perturbations to invariant dynamics to mesoscale variables to prediction and intervention">
+  <defs>
+    <marker id="cycle-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+      <path d="M0,0 L9,4.5 L0,9 Z" fill="#71c6ed"/>
+    </marker>
+  </defs>
+  <circle cx="280" cy="260" r="88" fill="#153849" stroke="#71c6ed" stroke-width="3"/>
+  <g fill="none" stroke="#71c6ed" stroke-width="4">
+    <rect x="221" y="218" width="30" height="84" rx="7"/>
+    <rect x="265" y="198" width="32" height="124" rx="7"/>
+    <rect x="311" y="211" width="31" height="98" rx="7"/>
+  </g>
+  <g fill="none" stroke="#71c6ed" stroke-width="4" marker-end="url(#cycle-arrow)">
+    <path d="M280 76 A184 184 0 0 1 459 214"/>
+    <path d="M469 257 A184 184 0 0 1 330 440"/>
+    <path d="M281 444 A184 184 0 0 1 103 307"/>
+    <path d="M91 260 A184 184 0 0 1 228 83"/>
+  </g>
+  <g font-family="Inter,system-ui,sans-serif" font-size="17" font-weight="780" letter-spacing="1.2" fill="#dfeaf1">
+    <text x="280" y="42" text-anchor="middle">PERTURB</text>
+    <text x="486" y="250" text-anchor="middle">FIND</text>
+    <text x="486" y="274" text-anchor="middle">INVARIANTS</text>
+    <text x="280" y="488" text-anchor="middle">PREDICT</text>
+    <text x="74" y="250" text-anchor="middle">INTERVENE</text>
+  </g>
+  <g font-family="Inter,system-ui,sans-serif" font-size="18" font-weight="760" fill="#dff4fb">
+    <text x="280" y="255" text-anchor="middle">MIDDLE-OUT</text>
+    <text x="280" y="281" text-anchor="middle">ONTOLOGY</text>
+  </g>
+</svg>

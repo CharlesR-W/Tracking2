@@ -1,4 +1,4 @@
-"""Compact presentation-first mockup for the planned Part E experiment.
+"""Render the Part E planned fallback or measured one-seed diagnostic.
 
 Part E is deliberately a direct transformer port of Part B: freeze a prefix,
 fit three activation distributions, warm-start matched suffixes, and collect the

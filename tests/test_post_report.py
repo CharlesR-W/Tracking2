@@ -1202,9 +1202,9 @@ def test_reinitialized_suffix_is_never_merged_with_warm_replicates(tmp_path):
 
     rendered = build_report(
         manifest_path, tmp_path / "reinitialized.html"
-    ).read_text()
+        ).read_text()
     assert "Reinitialized suffixes are a separate control stratum" in rendered
-    assert "does not capacity-match cuts" in rendered
+    assert "later cuts still leave a different amount of the network" in rendered
     assert "warm suffix" in rendered
     assert "reinitialized suffix" in rendered
     optimizer_start = rendered.index(

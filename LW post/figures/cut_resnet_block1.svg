@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="112" viewBox="0 0 520 112" role="img" aria-label="ResNet-18 cut after block 1">
+<style>text{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}.small{font-size:10px;font-weight:700;letter-spacing:.8px}.label{font-size:12px;font-weight:700}</style>
+<rect width="520" height="112" rx="14" fill="#fffdf8"/>
+<path d="M37.00 63 H483.00" stroke="#8493a1" stroke-width="2"/>
+<rect x="57.00" y="42" width="42.00" height="42" rx="7" fill="#dff2fa" stroke="#0b83bd" stroke-width="2"/>
+<text x="78.00" y="68" text-anchor="middle" class="label" fill="#29445e">1</text>
+<rect x="109.00" y="42" width="42.00" height="42" rx="7" fill="#eef1f4" stroke="#a8b2bb" stroke-width="2"/>
+<text x="130.00" y="68" text-anchor="middle" class="label" fill="#29445e">2</text>
+<rect x="161.00" y="42" width="42.00" height="42" rx="7" fill="#eef1f4" stroke="#a8b2bb" stroke-width="2"/>
+<text x="182.00" y="68" text-anchor="middle" class="label" fill="#29445e">3</text>
+<rect x="213.00" y="42" width="42.00" height="42" rx="7" fill="#eef1f4" stroke="#a8b2bb" stroke-width="2"/>
+<text x="234.00" y="68" text-anchor="middle" class="label" fill="#29445e">4</text>
+<rect x="265.00" y="42" width="42.00" height="42" rx="7" fill="#eef1f4" stroke="#a8b2bb" stroke-width="2"/>
+<text x="286.00" y="68" text-anchor="middle" class="label" fill="#29445e">5</text>
+<rect x="317.00" y="42" width="42.00" height="42" rx="7" fill="#eef1f4" stroke="#a8b2bb" stroke-width="2"/>
+<text x="338.00" y="68" text-anchor="middle" class="label" fill="#29445e">6</text>
+<rect x="369.00" y="42" width="42.00" height="42" rx="7" fill="#eef1f4" stroke="#a8b2bb" stroke-width="2"/>
+<text x="390.00" y="68" text-anchor="middle" class="label" fill="#29445e">7</text>
+<rect x="421.00" y="42" width="42.00" height="42" rx="7" fill="#eef1f4" stroke="#a8b2bb" stroke-width="2"/>
+<text x="442.00" y="68" text-anchor="middle" class="label" fill="#29445e">8</text>
+<path d="M104.00 23 V95" stroke="#df6900" stroke-width="3" stroke-dasharray="6 5"/>
+<text x="104.00" y="16" text-anchor="middle" class="small" fill="#b84e00">CUT</text>
+<text x="20" y="105" class="small" fill="#657386">RESNET-18</text>
+</svg>

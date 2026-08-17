@@ -6,40 +6,44 @@ The research design is in `SPEC.md`.
 ## LessWrong research-note companion
 
 The current public-facing thread of the project is
-[*Free-body diagrams for neural networks*](docs/lw_wip_post.md), an explicitly
+[*Free-body diagrams for neural networks*](LW%20post/lw_wip_post.md), an explicitly
 work-in-progress note about applying distributional-simplicity probes at
 internal network cuts.
 
-- [`docs/lw_post_reproduction.md`](docs/lw_post_reproduction.md) gives the
+- [`LW post/`](LW%20post/) collects the draft, outline, handoff, reproduction
+  notes, figures, figure notebooks, interactive appendix, and talk materials.
+- [`LW post/lw_post_reproduction.md`](LW%20post/lw_post_reproduction.md) gives the
   bounded protocol, controls, smoke test, measured run commands, and evidence
   gate.
-- [`free-body-diagrams-for-neural-networks.html`](free-body-diagrams-for-neural-networks.html)
-  is the canonical interactive data appendix, built from
+- [`LW post/free-body-diagrams-for-neural-networks.html`](LW%20post/free-body-diagrams-for-neural-networks.html)
+  is the canonical interactive ablation appendix, built from
   `artifacts/lw_post/dashboard_manifest.json`.
 - `report.html` is the older omnibus research dashboard. It includes planned
   and unrelated surfaces and should not be used as the note's evidence index.
 
-The post-facing dashboard deliberately includes only measured CNN and ResNet
-results. Smoke data, unrun experiments, and mockups fail its evidence gate
-rather than appearing as faded or provisional panels.
+The post-facing dashboard deliberately includes only the measured July 26 CNN
+control battery. ResNet, the older CNN depth-by-time sweep, smoke data, unrun
+experiments, and mockups are outside its evidence manifest. The ResNet and older
+CNN materials remain historical pilots, not support for the post's quantitative
+claims.
 
-Rebuild the current legacy-evidence appendix with:
+Rebuild the appendix from the checked-in, hash-pinned manifest with:
 
 ```bash
-python scripts/make_lw_post_manifest.py \
-  --source-commit 4371d3c --cnn-source legacy
-PYTHONPATH=src python -m tracking2.post_report \
+PYTHONPATH=src .venv/bin/python -m tracking2.post_report \
   artifacts/lw_post/dashboard_manifest.json \
-  --output free-body-diagrams-for-neural-networks.html
+  --output "LW post/free-body-diagrams-for-neural-networks.html"
 ```
 
-After the uninterrupted CNN battery passes
-`scripts/verify_lw_post_artifacts.py`, regenerate with `--cnn-source post` to
-replace the separately scheduled pilot cells and add the completed PCA/noise
-controls. After the schema-v3 ResNet control passes its verifier, add
-`--resnet-source both` to retain the trajectory sweep alongside that control.
-GitHub Pages rebuilds the canonical file from the committed manifest and checks
-it against the tracked HTML before deployment.
+The uninterrupted three-seed CNN battery and its PCA, optimizer-scale,
+mean-noise, covariance, reinitialization, and horizon controls are complete.
+Loading or rebuilding the appendix validates every manifest-listed input hash
+and schema. `scripts/verify_lw_post_artifacts.py` and
+`scripts/run_lw_post_battery.sh` still encode an older rank-512, fixed-LR
+protocol; do not use them to verify or rerun the July 26 publication battery.
+No GPU rerun is required for the current bounded claim. GitHub Pages rebuilds
+the canonical file from the committed manifest and checks it against the
+tracked HTML before deployment.
 
 ## Implemented
 
@@ -61,23 +65,24 @@ it against the tracked HTML before deployment.
   can be integrated into Panel B without rewriting the live dashboard.
 - A single-file Plotly report embedding the full spec and run provenance.
 
-## Planned extensions
+## Planned extensions and measured diagnostics
 
 - Part D freezes a tangent chart at a checkpoint and cut, compares eigenvalues of
   the full update map with the prefix-clamped suffix map, and derives the suffix
   frequency response to transport perturbations of the activation distribution.
   Fisher/GGN supplies the predictive metric; its Schur complement is the ideal
   static-compensation limit, not the stability operator.
-- Part E ports the frozen-interface statistics question to GPT-2 small on
-  TinyStories as a direct Part B replication: matched true/mean/sequence-Gaussian
-  suffix relaxation and a full 3x3 cross-evaluation matrix. Sequence replay,
-  causal masking, tied-head isolation, and PCA/leakage checks are the NTP-specific
-  additions; instruction/SFT/LoRA/RL branches are deferred extensions.
+- Part E has completed a one-seed GPT-2-small/TinyStories diagnostic. Its repaired
+  schema-v2 analysis passes the mechanical replay, adaptive-PCA, parity, and
+  leakage gates, but sequence Gaussian does not consistently beat mean replay.
+  The result is scientifically negative; redesign and any multi-seed extension
+  remain future work.
 
 The relevant design documents are
 [`docs/tangent_model_control_design.md`](docs/tangent_model_control_design.md)
-and [`docs/part_e_gpt2_design.md`](docs/part_e_gpt2_design.md). Both dashboard
-tabs are explicitly labeled as unrun theory/mockup surfaces.
+and [`docs/part_e_gpt2_design.md`](docs/part_e_gpt2_design.md). Part D remains an
+unrun theory/mockup surface; Part E's dashboard section reports the measured
+negative diagnostic while retaining the original design for provenance.
 
 ## Reproduce the bounded pilot
 
@@ -151,7 +156,7 @@ python -m tracking2.report artifacts/confirmatory/results.json --output report.h
 ```
 
 GitHub Pages publishes the measured-only
-`free-body-diagrams-for-neural-networks.html` as the landing report on every
+`LW post/free-body-diagrams-for-neural-networks.html` as the landing report on every
 push to `main`. The older `report.html` is retained at
 `omnibus-report.html`.
 
@@ -201,8 +206,9 @@ Paid runs are separated from smoke tests:
 - `scripts/run_criticality_battery.sh`: resumable 100-epoch battery, defaulting
   to one seed and expandable with `MAX_SEEDS=5` after the gate is accepted.
 
-Neither paid entry point should be launched without explicit approval and a
-fresh check of the remaining RunPod budget.
+RunPod work is pre-approved up to the task's hard $10 cap. Before either paid
+entry point, check active pods and projected cost, and terminate the pod as soon
+as the bounded run finishes. Ask before any action that could exceed $10.
 
 ## Larger-architecture replication (Part C)
 
@@ -276,9 +282,9 @@ analysis are explicitly deferred.
 > model+optimizer+RNG checkpoints at 0M, 4M, 16M, and 50M loss tokens, nine
 > independently reusable checkpoint×cut analysis cells, immutable replay banks,
 > source/config snapshots, and verified hash manifests. See
-> `artifacts/part_e/README.md` before rerunning or deleting anything. The run did
-> not pass the preregistered full-space PCA gate, so the dashboard remains a
-> mockup pending design revision.
+> `artifacts/part_e/README.md` before rerunning or deleting anything. The original
+> gate missed its preregistered PCA target; the repaired schema-v2 endpoint
+> diagnostic below passes its mechanical gates and reports a negative result.
 
 Part E is a direct next-token-prediction replication of Part B. At selected
 GPT-2-small scratch-training checkpoints and residual-stream cuts, it caches
