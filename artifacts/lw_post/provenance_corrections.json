@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "status": "AUDITED",
+  "corrections": [
+    {
+      "recorded_value": "2078fea640cfd578586a833f72ad73ef1a012d28",
+      "intended_commit": "2078fea64937ff7fdd89d11010d2d2ed24b7bfc8",
+      "unique_prefix_evidence": {
+        "prefix": "2078fea",
+        "resolved_commit": "2078fea64937ff7fdd89d11010d2d2ed24b7bfc8"
+      },
+      "source_archive_sha256": "eeee12d5976d1cfd644b8f3758298b259917174798b3be279f34f2c6d37f588f",
+      "source_archive_status": "digest_recorded_archive_not_retained_locally",
+      "affected_locations": [
+        {
+          "path": "measured/cnn_fixed_gate_seed0/cut1_r2048_true_eval_sensitivity.json",
+          "json_pointer": "/provenance/source_revision"
+        }
+      ]
+    },
+    {
+      "recorded_value": "5873b1bc8736e623effd57f83d976366458dedca",
+      "intended_commit": "5873b1bfe329606d6848cdf01d40db3e4ac4f44a",
+      "unique_prefix_evidence": {
+        "prefix": "5873b1b",
+        "resolved_commit": "5873b1bfe329606d6848cdf01d40db3e4ac4f44a"
+      },
+      "source_archive_sha256": "b31c0c452dd999b7dccce8e3cd571eb5a859ba4095d6f5666853a2d01a38280b",
+      "source_archive_status": "digest_recorded_archive_not_retained_locally",
+      "affected_locations": [
+        {
+          "path": "measured/training_manifests/cnn_seed0_training.json",
+          "json_pointer": "/provenance/source_revision"
+        },
+        {
+          "path": "measured/cnn_projection_seed0/cut1_pca_adequacy.json",
+          "json_pointer": "/lineage/training_manifest/source_provenance/source_revision"
+        }
+      ]
+    },
+    {
+      "recorded_value": "13aff88d1d4b09ec84f93e9bc3d37a47cd20962d",
+      "intended_commit": "13aff88de2775df9073dda15c6174bcd5a7ed309",
+      "unique_prefix_evidence": {
+        "prefix": "13aff88",
+        "resolved_commit": "13aff88de2775df9073dda15c6174bcd5a7ed309"
+      },
+      "source_archive_sha256": null,
+      "source_archive_status": "not_applicable_manifest_builder_revision",
+      "affected_locations": [
+        {
+          "path": "dashboard_manifest.json",
+          "json_pointer": "/source_commit"
+        }
+      ]
+    }
+  ]
+}

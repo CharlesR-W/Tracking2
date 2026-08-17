@@ -5,13 +5,18 @@ an explicit manifest with a SHA-256 digest and expected checkpoint metadata.  Th
 keeps a partially copied experiment directory from silently changing the public
 report.
 
-Manifest schema (version 1)::
+Publication manifest schema (version 2)::
 
     {
-      "schema_version": 1,
+      "schema_version": 2,
       "title": "Free-Body Diagrams for Neural Networks — Interactive Ablation Appendix (WIP)",
       "status": "MEASURED",
       "source_commit": "0123456789abcdef",
+      "primary_analysis": {"...": "explicit publication estimand"},
+      "provenance_corrections": {
+        "path": "provenance_corrections.json",
+        "sha256": "..."
+      },
       "inputs": [
         {
           "id": "cnn-epoch-1",
@@ -38,16 +43,18 @@ import html
 import json
 import math
 import re
+import subprocess
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from statistics import fmean
+from statistics import fmean, stdev
 from typing import Any, Iterable, Mapping, Sequence
 
 
 TITLE = "Free-Body Diagrams for Neural Networks — Interactive Ablation Appendix (WIP)"
 DEFAULT_OUTPUT = "LW post/free-body-diagrams-for-neural-networks.html"
-MANIFEST_SCHEMA_VERSION = 1
+MANIFEST_SCHEMA_VERSION = 2
+SUPPORTED_MANIFEST_SCHEMA_VERSIONS = {1, MANIFEST_SCHEMA_VERSION}
 
 REAL = "#222222"
 PROJECTED_REAL = "#737373"
@@ -73,6 +80,10 @@ _GAUSSIAN_SHRINKAGE_RE = re.compile(
 )
 PCA_ADEQUACY_CE_EXCESS_THRESHOLD = 0.05
 PCA_ADEQUACY_KL_THRESHOLD = 0.02
+_AUDITED_CORRECTION_STATUS = "AUDITED"
+_MATCHED_STATUS = "matched"
+_CLIPPED_STATUS = "approximately_matched_clipped"
+_MISMATCH_STATUS = "outside_tolerance"
 
 
 class ReportInputError(ValueError):
@@ -224,6 +235,259 @@ def _source_identity(
             f"{context} must record a full clean source revision or source archive SHA-256"
         )
     return None
+
+
+def _git_repository_root(path: Path) -> Path:
+    candidates = (path.parent, Path.cwd(), Path(__file__).resolve().parents[2])
+    for candidate in candidates:
+        completed = subprocess.run(
+            ["git", "-C", str(candidate), "rev-parse", "--show-toplevel"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if completed.returncode == 0 and completed.stdout.strip():
+            return Path(completed.stdout.strip()).resolve()
+    raise ReportInputError(
+        "Git provenance validation requires a local checkout containing the "
+        "recorded commits"
+    )
+
+
+def _resolve_git_commit(repository: Path, revision: str) -> str | None:
+    completed = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repository),
+            "rev-parse",
+            "--verify",
+            f"{revision}^{{commit}}",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        return None
+    resolved = completed.stdout.strip().lower()
+    return resolved if _SOURCE_REVISION_RE.fullmatch(resolved) else None
+
+
+def _disambiguated_git_objects(repository: Path, prefix: str) -> list[str]:
+    completed = subprocess.run(
+        ["git", "-C", str(repository), "rev-parse", f"--disambiguate={prefix}"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        return []
+    return [line.strip().lower() for line in completed.stdout.splitlines() if line.strip()]
+
+
+def _inside(root: Path, relative_path: str, context: str) -> Path:
+    candidate_relative = Path(relative_path)
+    if candidate_relative.is_absolute():
+        raise ReportInputError(f"{context} must be relative")
+    root = root.resolve()
+    candidate = (root / candidate_relative).resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError as error:
+        raise ReportInputError(f"{context} escapes its evidence directory") from error
+    return candidate
+
+
+def _json_pointer_value(payload: Any, pointer: str, context: str) -> Any:
+    if pointer == "":
+        return payload
+    if not pointer.startswith("/"):
+        raise ReportInputError(f"{context} must be an RFC 6901 JSON pointer")
+    current = payload
+    for raw_token in pointer[1:].split("/"):
+        token = raw_token.replace("~1", "/").replace("~0", "~")
+        if isinstance(current, dict) and token in current:
+            current = current[token]
+        elif isinstance(current, list) and token.isdigit() and int(token) < len(current):
+            current = current[int(token)]
+        else:
+            raise ReportInputError(f"{context} does not resolve")
+    return current
+
+
+def _source_revision_locations(
+    value: Any, pointer: str = ""
+) -> Iterable[tuple[str, str]]:
+    if isinstance(value, dict):
+        for key, child in value.items():
+            escaped = key.replace("~", "~0").replace("/", "~1")
+            child_pointer = f"{pointer}/{escaped}"
+            if key == "source_revision" and isinstance(child, str):
+                yield child_pointer, child
+            yield from _source_revision_locations(child, child_pointer)
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            yield from _source_revision_locations(child, f"{pointer}/{index}")
+
+
+def _load_provenance_corrections(
+    manifest: Mapping[str, Any], manifest_path: Path, repository: Path
+) -> tuple[dict[str, Any] | None, dict[tuple[str, str, str], dict[str, Any]]]:
+    reference = manifest.get("provenance_corrections")
+    if reference is None:
+        return None, {}
+    if not isinstance(reference, dict):
+        raise ReportInputError("manifest.provenance_corrections must be an object")
+    relative_path = _require_string(
+        reference, "path", "manifest.provenance_corrections"
+    )
+    expected_digest = _require_digest(
+        reference, "sha256", "manifest.provenance_corrections"
+    )
+    sidecar_path = _inside(
+        manifest_path.parent,
+        relative_path,
+        "manifest.provenance_corrections.path",
+    )
+    if not sidecar_path.is_file():
+        raise ReportInputError(f"Provenance correction sidecar not found: {sidecar_path}")
+    actual_digest = _sha256(sidecar_path)
+    if actual_digest != expected_digest:
+        raise ReportInputError(
+            "Provenance correction sidecar SHA-256 mismatch: expected "
+            f"{expected_digest}, got {actual_digest}"
+        )
+    payload = _load_json(sidecar_path, context="provenance correction sidecar")
+    if payload.get("schema_version") != 1:
+        raise ReportInputError(
+            "provenance correction sidecar.schema_version must be 1"
+        )
+    if payload.get("status") != _AUDITED_CORRECTION_STATUS:
+        raise ReportInputError(
+            "provenance correction sidecar.status must be exactly 'AUDITED'"
+        )
+    corrections = _objects(
+        payload.get("corrections"), "provenance correction sidecar.corrections"
+    )
+    by_location: dict[tuple[str, str, str], dict[str, Any]] = {}
+    root = sidecar_path.parent
+    for index, correction in enumerate(corrections):
+        context = f"provenance correction sidecar.corrections[{index}]"
+        recorded = _require_string(correction, "recorded_value", context).lower()
+        intended = _require_string(correction, "intended_commit", context).lower()
+        if not _SOURCE_REVISION_RE.fullmatch(recorded):
+            raise ReportInputError(f"{context}.recorded_value must be a full Git hash")
+        if not _SOURCE_REVISION_RE.fullmatch(intended):
+            raise ReportInputError(f"{context}.intended_commit must be a full Git hash")
+        if _resolve_git_commit(repository, recorded) is not None:
+            raise ReportInputError(
+                f"{context}.recorded_value now resolves and must not be corrected"
+            )
+        if _resolve_git_commit(repository, intended) != intended:
+            raise ReportInputError(
+                f"{context}.intended_commit is not a resolvable exact commit"
+            )
+        evidence = correction.get("unique_prefix_evidence")
+        if not isinstance(evidence, dict):
+            raise ReportInputError(f"{context}.unique_prefix_evidence must be an object")
+        prefix = _require_string(
+            evidence, "prefix", f"{context}.unique_prefix_evidence"
+        ).lower()
+        resolved_evidence = _require_string(
+            evidence, "resolved_commit", f"{context}.unique_prefix_evidence"
+        ).lower()
+        if not re.fullmatch(r"[0-9a-f]{7,39}", prefix):
+            raise ReportInputError(
+                f"{context}.unique_prefix_evidence.prefix must have 7–39 hex characters"
+            )
+        if not recorded.startswith(prefix) or not intended.startswith(prefix):
+            raise ReportInputError(
+                f"{context}.unique prefix must be shared by recorded and intended values"
+            )
+        disambiguated = _disambiguated_git_objects(repository, prefix)
+        if (
+            resolved_evidence != intended
+            or _resolve_git_commit(repository, prefix) != intended
+            or disambiguated != [intended]
+        ):
+            raise ReportInputError(
+                f"{context}.unique_prefix_evidence does not uniquely resolve the intended commit"
+            )
+        archive = correction.get("source_archive_sha256")
+        archive_status = _require_string(correction, "source_archive_status", context)
+        if archive is not None and (
+            not isinstance(archive, str) or not _DIGEST_RE.fullmatch(archive)
+        ):
+            raise ReportInputError(
+                f"{context}.source_archive_sha256 must be null or a SHA-256 digest"
+            )
+        if archive is None and archive_status != "not_applicable_manifest_builder_revision":
+            raise ReportInputError(
+                f"{context} may omit an archive digest only for the manifest builder revision"
+            )
+        locations = _objects(
+            correction.get("affected_locations"), f"{context}.affected_locations"
+        )
+        if not locations:
+            raise ReportInputError(f"{context}.affected_locations must not be empty")
+        for location_index, location in enumerate(locations):
+            location_context = f"{context}.affected_locations[{location_index}]"
+            affected_relative = _require_string(location, "path", location_context)
+            json_pointer = _require_string(
+                location, "json_pointer", location_context
+            )
+            affected_path = _inside(root, affected_relative, f"{location_context}.path")
+            if not affected_path.is_file():
+                raise ReportInputError(f"{location_context}.path does not exist")
+            affected_payload = _load_json(affected_path, context=location_context)
+            value = _json_pointer_value(
+                affected_payload, json_pointer, f"{location_context}.json_pointer"
+            )
+            if value != recorded:
+                raise ReportInputError(
+                    f"{location_context} records {value!r}, expected {recorded!r}"
+                )
+            key = (affected_relative, json_pointer, recorded)
+            if key in by_location:
+                raise ReportInputError(
+                    f"Duplicate provenance correction location: {affected_relative}{json_pointer}"
+                )
+            by_location[key] = correction
+    audit = {
+        "path": relative_path,
+        "sha256": actual_digest,
+        **payload,
+    }
+    return audit, by_location
+
+
+def _audit_relative_path(path: Path, audit_root: Path) -> str:
+    try:
+        return path.resolve().relative_to(audit_root.resolve()).as_posix()
+    except ValueError:
+        return path.name
+
+
+def _validate_git_revision(
+    revision: str,
+    *,
+    relative_path: str,
+    json_pointer: str,
+    repository: Path,
+    corrections: Mapping[tuple[str, str, str], Mapping[str, Any]],
+) -> str:
+    revision = revision.lower()
+    resolved = _resolve_git_commit(repository, revision)
+    if resolved is not None:
+        return resolved
+    correction = corrections.get((relative_path, json_pointer, revision))
+    if correction is None:
+        raise ReportInputError(
+            f"Unresolvable Git revision {revision!r} at "
+            f"{relative_path}{json_pointer}; an exact audited correction is required"
+        )
+    return str(correction["intended_commit"]).lower()
 
 
 def _validate_resnet_canonical(
@@ -875,11 +1139,15 @@ def _validate_projection_adequacy(
 def load_manifest(manifest_path: str | Path) -> tuple[dict[str, Any], list[LoadedArtifact]]:
     """Load and validate a complete, measured-only input manifest."""
 
-    path = Path(manifest_path)
+    path = Path(manifest_path).resolve()
+    if not path.is_file():
+        raise ReportInputError(f"Manifest not found: {path}")
     manifest = _load_json(path, context="manifest")
-    if manifest.get("schema_version") != MANIFEST_SCHEMA_VERSION:
+    schema_version = manifest.get("schema_version")
+    if schema_version not in SUPPORTED_MANIFEST_SCHEMA_VERSIONS:
         raise ReportInputError(
-            f"manifest.schema_version must be {MANIFEST_SCHEMA_VERSION}"
+            "manifest.schema_version must be one of "
+            f"{sorted(SUPPORTED_MANIFEST_SCHEMA_VERSIONS)}"
         )
     if manifest.get("title") != TITLE:
         raise ReportInputError(f"manifest.title must be exactly {TITLE!r}")
@@ -890,6 +1158,21 @@ def load_manifest(manifest_path: str | Path) -> tuple[dict[str, Any], list[Loade
         raise ReportInputError(
             "manifest.source_commit must be a 7–64 character hexadecimal commit id"
         )
+    repository = _git_repository_root(path)
+    correction_audit, corrections = _load_provenance_corrections(
+        manifest, path, repository
+    )
+    audit_root = path.parent
+    if correction_audit is not None:
+        audit_root = (path.parent / correction_audit["path"]).resolve().parent
+    manifest_relative = _audit_relative_path(path, audit_root)
+    _validate_git_revision(
+        source_commit,
+        relative_path=manifest_relative,
+        json_pointer="/source_commit",
+        repository=repository,
+        corrections=corrections,
+    )
 
     entries = _objects(manifest.get("inputs"), "manifest.inputs")
     seen_ids: set[str] = set()
@@ -941,6 +1224,16 @@ def load_manifest(manifest_path: str | Path) -> tuple[dict[str, Any], list[Loade
             )
 
         payload = _load_json(artifact_path, context=f"artifact {input_id!r}")
+        artifact_relative = _audit_relative_path(artifact_path, audit_root)
+        for json_pointer, revision in _source_revision_locations(payload):
+            if _SOURCE_REVISION_RE.fullmatch(revision):
+                _validate_git_revision(
+                    revision,
+                    relative_path=artifact_relative,
+                    json_pointer=json_pointer,
+                    repository=repository,
+                    corrections=corrections,
+                )
         if artifact_format == "legacy_cnn_suffix_statistics":
             if payload.get("experiment") is not None or payload.get("schema_version") is not None:
                 raise ReportInputError(
@@ -1021,6 +1314,10 @@ def load_manifest(manifest_path: str | Path) -> tuple[dict[str, Any], list[Loade
 
     if not loaded:
         raise ReportInputError("manifest.inputs must contain measured evidence")
+    if correction_audit is not None:
+        manifest["provenance_correction_audit"] = correction_audit
+    if schema_version == MANIFEST_SCHEMA_VERSION:
+        _validate_primary_analysis(manifest, loaded)
     return manifest, loaded
 
 
@@ -2012,6 +2309,446 @@ def normalise_artifacts(
     return observations, cells
 
 
+def _primary_contract(manifest: Mapping[str, Any]) -> Mapping[str, Any]:
+    contract = manifest.get("primary_analysis")
+    if not isinstance(contract, dict):
+        raise ReportInputError("manifest.primary_analysis must be an object")
+    if contract.get("status") != "MEASURED":
+        raise ReportInputError("manifest.primary_analysis.status must be 'MEASURED'")
+    if contract.get("model_kind") != "cnn":
+        raise ReportInputError("manifest.primary_analysis.model_kind must be 'cnn'")
+    for key in ("checkpoint_epoch", "pca_rank", "relax_epochs"):
+        value = _require_int(contract, key, "manifest.primary_analysis")
+        if value < 0 or (key == "pca_rank" and value < 1):
+            raise ReportInputError(f"manifest.primary_analysis.{key} is invalid")
+    cuts = contract.get("cuts")
+    seeds = contract.get("model_seeds")
+    if (
+        not isinstance(cuts, list)
+        or not cuts
+        or any(isinstance(value, bool) or not isinstance(value, int) for value in cuts)
+        or len(cuts) != len(set(cuts))
+    ):
+        raise ReportInputError(
+            "manifest.primary_analysis.cuts must contain unique integer cuts"
+        )
+    if (
+        not isinstance(seeds, list)
+        or not seeds
+        or any(isinstance(value, bool) or not isinstance(value, int) for value in seeds)
+        or len(seeds) != len(set(seeds))
+    ):
+        raise ReportInputError(
+            "manifest.primary_analysis.model_seeds must contain unique integers"
+        )
+    if contract.get("projection_scope") != "retained_pca_subspace_only":
+        raise ReportInputError(
+            "manifest.primary_analysis.projection_scope must be "
+            "'retained_pca_subspace_only'"
+        )
+    gate_input = contract.get("projection_gate_input_id")
+    if gate_input is not None and (not isinstance(gate_input, str) or not gate_input):
+        raise ReportInputError(
+            "manifest.primary_analysis.projection_gate_input_id must be a non-empty string"
+        )
+    if contract.get("suffix_initialization") not in {"warm", "reinitialized"}:
+        raise ReportInputError(
+            "manifest.primary_analysis.suffix_initialization is unsupported"
+        )
+    if contract.get("learning_rate_regime") not in {
+        "fixed_lr",
+        "match_true_initial_update",
+    }:
+        raise ReportInputError(
+            "manifest.primary_analysis.learning_rate_regime is unsupported"
+        )
+    draws = _require_int(
+        contract, "surrogate_draws_per_model", "manifest.primary_analysis"
+    )
+    if draws < 1:
+        raise ReportInputError(
+            "manifest.primary_analysis.surrogate_draws_per_model must be positive"
+        )
+    ids_by_seed = contract.get("input_ids_by_model_seed")
+    if not isinstance(ids_by_seed, dict):
+        raise ReportInputError(
+            "manifest.primary_analysis.input_ids_by_model_seed must be an object"
+        )
+    expected_seed_keys = {str(seed) for seed in seeds}
+    if set(ids_by_seed) != expected_seed_keys or any(
+        not isinstance(value, str) or not value for value in ids_by_seed.values()
+    ):
+        raise ReportInputError(
+            "manifest.primary_analysis.input_ids_by_model_seed must map every declared seed"
+        )
+    if len(set(ids_by_seed.values())) != len(ids_by_seed):
+        raise ReportInputError(
+            "manifest.primary_analysis must use a distinct input artifact for every seed"
+        )
+    contrasts = _objects(
+        contract.get("contrasts"), "manifest.primary_analysis.contrasts"
+    )
+    if not contrasts:
+        raise ReportInputError("manifest.primary_analysis.contrasts must not be empty")
+    contrast_ids: set[str] = set()
+    for index, contrast in enumerate(contrasts):
+        context = f"manifest.primary_analysis.contrasts[{index}]"
+        contrast_id = _require_string(contrast, "id", context)
+        if contrast_id in contrast_ids:
+            raise ReportInputError(f"Duplicate primary contrast id {contrast_id!r}")
+        contrast_ids.add(contrast_id)
+        minuend = _validate_distribution(
+            contrast.get("minuend_distribution"), f"{context}.minuend_distribution"
+        )
+        subtrahend = _validate_distribution(
+            contrast.get("subtrahend_distribution"),
+            f"{context}.subtrahend_distribution",
+        )
+        if minuend == subtrahend:
+            raise ReportInputError(f"{context} must compare two distributions")
+    uncertainty = contract.get("uncertainty")
+    if not isinstance(uncertainty, dict):
+        raise ReportInputError("manifest.primary_analysis.uncertainty must be an object")
+    expected_uncertainty = {
+        "statistic": "sample_standard_deviation",
+        "independent_unit": "trained_model_seed",
+        "n": len(seeds),
+        "within_model_surrogate_redraw_uncertainty": "not_measured",
+    }
+    if uncertainty != expected_uncertainty:
+        raise ReportInputError(
+            "manifest.primary_analysis.uncertainty must declare sample SD across "
+            "trained model seeds and unmeasured within-model redraw uncertainty"
+        )
+    matching = contract.get("first_update_matching")
+    if not isinstance(matching, dict):
+        raise ReportInputError(
+            "manifest.primary_analysis.first_update_matching must be an object"
+        )
+    tolerance = _number(
+        matching.get("relative_tolerance"),
+        "manifest.primary_analysis.first_update_matching.relative_tolerance",
+    )
+    bounds = matching.get("learning_rate_multiplier_bounds")
+    if not 0 < tolerance < 1:
+        raise ReportInputError("First-update relative tolerance must lie in (0, 1)")
+    if (
+        not isinstance(bounds, list)
+        or len(bounds) != 2
+        or any(isinstance(value, bool) or not isinstance(value, (int, float)) for value in bounds)
+        or not 0 < float(bounds[0]) < float(bounds[1])
+    ):
+        raise ReportInputError(
+            "First-update learning-rate multiplier bounds must be positive and ordered"
+        )
+    if matching.get("clipped_status") != _CLIPPED_STATUS:
+        raise ReportInputError(
+            f"Clipped matched-update rows must use status {_CLIPPED_STATUS!r}"
+        )
+    if matching.get("outside_tolerance_policy") != "reject_primary_display_secondary":
+        raise ReportInputError(
+            "First-update outside-tolerance policy must reject primary rows and "
+            "display secondary rows"
+        )
+    assertion_tolerance = _number(
+        contract.get("headline_assertion_absolute_tolerance"),
+        "manifest.primary_analysis.headline_assertion_absolute_tolerance",
+    )
+    if not 0 < assertion_tolerance <= 0.001:
+        raise ReportInputError("Headline assertion tolerance is out of range")
+    assertions = _objects(
+        contract.get("headline_assertions"),
+        "manifest.primary_analysis.headline_assertions",
+    )
+    expected_assertion_keys = {
+        (int(cut), contrast_id) for cut in cuts for contrast_id in contrast_ids
+    }
+    assertion_keys: set[tuple[int, str]] = set()
+    for index, assertion in enumerate(assertions):
+        context = f"manifest.primary_analysis.headline_assertions[{index}]"
+        cut = _require_int(assertion, "cut", context)
+        contrast_id = _require_string(assertion, "contrast_id", context)
+        mean = _number(assertion.get("mean"), f"{context}.mean")
+        standard_deviation = _number(
+            assertion.get("sample_standard_deviation"),
+            f"{context}.sample_standard_deviation",
+        )
+        if standard_deviation < 0 or not math.isfinite(mean):
+            raise ReportInputError(f"{context} contains an invalid headline value")
+        assertion_keys.add((cut, contrast_id))
+    if assertion_keys != expected_assertion_keys or len(assertion_keys) != len(assertions):
+        raise ReportInputError(
+            "manifest.primary_analysis.headline_assertions must cover every cut/contrast once"
+        )
+    return contract
+
+
+def annotate_first_update_matching(
+    observations: Sequence[Mapping[str, Any]], matching: Mapping[str, Any]
+) -> list[dict[str, Any]]:
+    """Label matched-update rows against their paired true-replay first update."""
+
+    tolerance = float(matching["relative_tolerance"])
+    lower, upper = (
+        float(value) for value in matching["learning_rate_multiplier_bounds"]
+    )
+    context_fields = (
+        "input_id",
+        "kind",
+        "checkpoint_epoch",
+        "model_seed",
+        "cut",
+        "module",
+        "pca_rank",
+        "suffix_initialization",
+        "lr_regime",
+        "draw",
+    )
+    starts: dict[tuple[Any, ...], dict[str, Mapping[str, Any]]] = defaultdict(dict)
+    for row in observations:
+        if (
+            row["eval_distribution"] == "true"
+            and int(row["relax_epoch"]) == 0
+            and row["lr_regime"] == "match_true_initial_update"
+        ):
+            key = tuple(row[field] for field in context_fields)
+            starts[key][str(row["distribution"])] = row
+    statuses: dict[tuple[Any, ...], tuple[str, float | None, bool]] = {}
+    for key, rows in starts.items():
+        reference = rows.get("true")
+        if reference is None:
+            continue
+        reference_norm = reference.get("matched_first_step_update_norm")
+        if reference_norm is None or float(reference_norm) <= 0:
+            raise ReportInputError(
+                "Matched-update true replay must record a positive first-update norm"
+            )
+        for distribution, row in rows.items():
+            value = row.get("matched_first_step_update_norm")
+            multiplier = row.get("learning_rate_multiplier")
+            if value is None or multiplier is None:
+                raise ReportInputError(
+                    "Matched-update rows must record first-update norms and LR multipliers"
+                )
+            relative_error = abs(float(value) / float(reference_norm) - 1.0)
+            clipped = math.isclose(
+                float(multiplier), lower, rel_tol=1e-9, abs_tol=1e-12
+            ) or math.isclose(
+                float(multiplier), upper, rel_tol=1e-9, abs_tol=1e-12
+            )
+            if distribution == "true":
+                status = "reference"
+            elif clipped:
+                status = _CLIPPED_STATUS
+            elif relative_error <= tolerance:
+                status = _MATCHED_STATUS
+            else:
+                status = _MISMATCH_STATUS
+            statuses[key + (distribution,)] = (status, relative_error, clipped)
+    annotated: list[dict[str, Any]] = []
+    for source in observations:
+        row = dict(source)
+        if row["lr_regime"] == "fixed_lr":
+            row.update(
+                {
+                    "first_update_match_status": "not_applicable_fixed_lr",
+                    "first_update_relative_error": None,
+                    "learning_rate_multiplier_clipped": False,
+                }
+            )
+        else:
+            key = tuple(row[field] for field in context_fields) + (
+                str(row["distribution"]),
+            )
+            status = statuses.get(key)
+            if status is None:
+                raise ReportInputError(
+                    "Matched-update trajectory lacks its paired epoch-zero diagnostic"
+                )
+            row.update(
+                {
+                    "first_update_match_status": status[0],
+                    "first_update_relative_error": status[1],
+                    "learning_rate_multiplier_clipped": status[2],
+                }
+            )
+        annotated.append(row)
+    return annotated
+
+
+def primary_analysis_summary(
+    manifest: Mapping[str, Any], observations: Sequence[Mapping[str, Any]]
+) -> dict[str, Any]:
+    """Recompute and assert the exact manifest-declared publication contrasts."""
+
+    contract = _primary_contract(manifest)
+    matching = contract["first_update_matching"]
+    if not all("first_update_match_status" in row for row in observations):
+        observations = annotate_first_update_matching(observations, matching)
+    seeds = [int(seed) for seed in contract["model_seeds"]]
+    cuts = [int(cut) for cut in contract["cuts"]]
+    contrasts = list(contract["contrasts"])
+    ids_by_seed = contract["input_ids_by_model_seed"]
+    seed_rows: list[dict[str, Any]] = []
+    required_distributions = {
+        str(contrast["minuend_distribution"]) for contrast in contrasts
+    } | {str(contrast["subtrahend_distribution"]) for contrast in contrasts}
+    for seed in seeds:
+        input_id = str(ids_by_seed[str(seed)])
+        for cut in cuts:
+            selected = [
+                row
+                for row in observations
+                if row["input_id"] == input_id
+                and row["kind"] == contract["model_kind"]
+                and int(row["checkpoint_epoch"]) == int(contract["checkpoint_epoch"])
+                and int(row["model_seed"]) == seed
+                and int(row["cut"]) == cut
+                and int(row["pca_rank"]) == int(contract["pca_rank"])
+                and row["suffix_initialization"] == contract["suffix_initialization"]
+                and row["lr_regime"] == contract["learning_rate_regime"]
+                and row["eval_distribution"] == "true"
+                and int(row["relax_epoch"]) == int(contract["relax_epochs"])
+                and int(row["draw"]) == 0
+                and row["distribution"] in required_distributions
+            ]
+            by_distribution: dict[str, Mapping[str, Any]] = {}
+            for row in selected:
+                distribution = str(row["distribution"])
+                if distribution in by_distribution:
+                    raise ReportInputError(
+                        "Primary contract would pool duplicate rows for "
+                        f"seed {seed}, cut {cut}, distribution {distribution}"
+                    )
+                by_distribution[distribution] = row
+            if set(by_distribution) != required_distributions:
+                missing = sorted(required_distributions - set(by_distribution))
+                raise ReportInputError(
+                    f"Primary contract is missing seed {seed}, cut {cut} rows: {missing}"
+                )
+            for distribution, row in by_distribution.items():
+                if row["first_update_match_status"] != _MATCHED_STATUS:
+                    raise ReportInputError(
+                        f"Primary row {input_id}, cut {cut}, {distribution} is "
+                        f"{row['first_update_match_status']!r}, not exactly matched "
+                        "within the declared tolerance"
+                    )
+            for contrast in contrasts:
+                minuend = str(contrast["minuend_distribution"])
+                subtrahend = str(contrast["subtrahend_distribution"])
+                minuend_loss = by_distribution[minuend].get("loss")
+                subtrahend_loss = by_distribution[subtrahend].get("loss")
+                if minuend_loss is None or subtrahend_loss is None:
+                    raise ReportInputError("Primary contrast requires held-out loss values")
+                seed_rows.append(
+                    {
+                        "model_seed": seed,
+                        "input_id": input_id,
+                        "cut": cut,
+                        "contrast_id": contrast["id"],
+                        "value": float(minuend_loss) - float(subtrahend_loss),
+                    }
+                )
+    aggregates: list[dict[str, Any]] = []
+    for cut in cuts:
+        for contrast in contrasts:
+            values = [
+                float(row["value"])
+                for row in seed_rows
+                if int(row["cut"]) == cut
+                and row["contrast_id"] == contrast["id"]
+            ]
+            if len(values) != len(seeds):
+                raise ReportInputError("Primary contrast does not contain one row per seed")
+            aggregates.append(
+                {
+                    "cut": cut,
+                    "contrast_id": contrast["id"],
+                    "mean": fmean(values),
+                    "sample_standard_deviation": stdev(values) if len(values) > 1 else 0.0,
+                    "n": len(values),
+                    "seed_values": values,
+                }
+            )
+    aggregate_by_key = {
+        (int(row["cut"]), str(row["contrast_id"])): row for row in aggregates
+    }
+    assertion_tolerance = float(contract["headline_assertion_absolute_tolerance"])
+    for assertion in contract["headline_assertions"]:
+        key = (int(assertion["cut"]), str(assertion["contrast_id"]))
+        actual = aggregate_by_key[key]
+        for metric in ("mean", "sample_standard_deviation"):
+            if not math.isclose(
+                float(actual[metric]),
+                float(assertion[metric]),
+                rel_tol=0.0,
+                abs_tol=assertion_tolerance,
+            ):
+                raise ReportInputError(
+                    f"Primary headline assertion failed for cut {key[0]}, "
+                    f"{key[1]}, {metric}: measured {actual[metric]:.9f}, "
+                    f"declared {assertion[metric]:.9f}"
+                )
+    return {
+        "projection_scope": contract["projection_scope"],
+        "seed_contrasts": seed_rows,
+        "aggregate_contrasts": aggregates,
+    }
+
+
+def _validate_primary_analysis(
+    manifest: Mapping[str, Any], artifacts: Sequence[LoadedArtifact]
+) -> None:
+    contract = _primary_contract(manifest)
+    by_id = {artifact.id: artifact for artifact in artifacts}
+    ids_by_seed = contract["input_ids_by_model_seed"]
+    for seed in contract["model_seeds"]:
+        input_id = str(ids_by_seed[str(seed)])
+        artifact = by_id.get(input_id)
+        if artifact is None or artifact.kind != contract["model_kind"]:
+            raise ReportInputError(f"Primary input {input_id!r} is missing or has wrong kind")
+        config = artifact.payload.get("config", {})
+        expected = {
+            "checkpoint_epoch": contract["checkpoint_epoch"],
+            "seed": seed,
+            "suffix_initialization": contract["suffix_initialization"],
+            "learning_rate_regime": contract["learning_rate_regime"],
+            "relax_epochs": contract["relax_epochs"],
+            "surrogate_draws": contract["surrogate_draws_per_model"],
+        }
+        for key, value in expected.items():
+            if config.get(key) != value:
+                raise ReportInputError(
+                    f"Primary input {input_id!r} config.{key} must be {value!r}"
+                )
+        if not set(contract["cuts"]).issubset(config.get("cuts", [])):
+            raise ReportInputError(f"Primary input {input_id!r} lacks a declared cut")
+        if int(contract["pca_rank"]) not in config.get("pca_ranks", []):
+            raise ReportInputError(f"Primary input {input_id!r} lacks the declared PCA rank")
+    gate_input_id = contract.get("projection_gate_input_id")
+    if gate_input_id is not None:
+        gate = by_id.get(str(gate_input_id))
+        if gate is None or gate.kind != "cnn_projection":
+            raise ReportInputError("Primary projection gate input is missing")
+        gate_rows = _projection_adequacy_rows([gate])
+        shallow = [
+            row
+            for row in gate_rows
+            if int(row["cut"]) == min(contract["cuts"])
+            and int(row["pca_rank"]) == int(contract["pca_rank"])
+        ]
+        if len(shallow) != 1 or shallow[0]["adequacy_gate_pass"]:
+            raise ReportInputError(
+                "The declared retained-subspace scope requires the measured shallow "
+                "rank gate that currently fails full-function adequacy"
+            )
+    observations, _cells = normalise_artifacts(artifacts)
+    annotated = annotate_first_update_matching(
+        observations, contract["first_update_matching"]
+    )
+    primary_analysis_summary(manifest, annotated)
+
+
 _SUMMARY_KEYS = (
     "input_id",
     "kind",
@@ -2924,7 +3661,46 @@ def _percentage_point_with_range(
     return text + " pp"
 
 
-def _primary_estimand_table(
+def _primary_analysis_table(summary: Mapping[str, Any]) -> str:
+    labels = {
+        "gaussian_minus_projected_true": "Gaussian − projected true",
+        "mean_r1_minus_gaussian": "Mean r = 1 − Gaussian",
+    }
+    rows = []
+    for row in summary["aggregate_contrasts"]:
+        seed_values = ", ".join(
+            f"s{seed}: {float(value):+.6f}"
+            for seed, value in zip(
+                sorted(
+                    seed_row["model_seed"]
+                    for seed_row in summary["seed_contrasts"]
+                    if seed_row["cut"] == row["cut"]
+                    and seed_row["contrast_id"] == row["contrast_id"]
+                ),
+                row["seed_values"],
+            )
+        )
+        rows.append(
+            "<tr>"
+            f'<td>After block {int(row["cut"])}</td>'
+            f'<td>{_esc(labels.get(str(row["contrast_id"]), row["contrast_id"]))}</td>'
+            f'<td class="number">{float(row["mean"]):+.6f} ± '
+            f'{float(row["sample_standard_deviation"]):.6f}</td>'
+            f'<td>{_esc(seed_values)}</td>'
+            f'<td>{int(row["n"])} trained CNN seeds</td>'
+            "</tr>"
+        )
+    return (
+        '<div class="table-scroll"><table><thead><tr>'
+        "<th>Cut</th><th>Declared contrast</th>"
+        "<th>Mean ± sample SD (nats/example)</th><th>Individual seed contrasts</th>"
+        "<th>Independent unit</th></tr></thead><tbody>"
+        + "".join(rows)
+        + "</tbody></table></div>"
+    )
+
+
+def _fixed_lr_sensitivity_table(
     paired_summaries: Sequence[Mapping[str, Any]],
 ) -> str:
     endpoints = [
@@ -2936,10 +3712,8 @@ def _primary_estimand_table(
     ]
     if not endpoints:
         return (
-            '<aside class="status-panel diagnostic"><strong>PRIMARY LOSS '
-            "ESTIMAND NOT RECORDED.</strong> These inputs can show accuracy "
-            "trajectories, but cannot support the declared paired cross-entropy "
-            "contrast.</aside>"
+            '<p class="empty-control">No fixed-learning-rate optimizer-shock '
+            "sensitivity rows are loaded in this build.</p>"
         )
     rows = []
     for row in sorted(
@@ -3482,20 +4256,7 @@ def _gradient_diagnostic_table(
             row["draw"],
         )
         groups[key][str(row["distribution"])] = row
-    ratios: dict[
-        tuple[Any, ...],
-        list[
-            tuple[
-                float,
-                float | None,
-                float | None,
-                float | None,
-                float | None,
-                float | None,
-                float | None,
-            ]
-        ],
-    ] = defaultdict(list)
+    ratios: dict[tuple[Any, ...], list[tuple[Any, ...]]] = defaultdict(list)
     for key, values in groups.items():
         reference = values.get("true")
         if reference is None or float(reference["initial_gradient_norm"]) <= 0:
@@ -3531,6 +4292,9 @@ def _gradient_diagnostic_table(
                     row.get("learning_rate_multiplier"),
                     row.get("effective_learning_rate"),
                     row.get("matched_first_step_update_norm"),
+                    row.get("first_update_match_status"),
+                    row.get("first_update_relative_error"),
+                    row.get("learning_rate_multiplier_clipped"),
                 )
             )
     if not ratios:
@@ -3570,6 +4334,19 @@ def _gradient_diagnostic_table(
         matched_update_values = [
             value[6] for value in values if value[6] is not None
         ]
+        match_statuses = {value[7] for value in values if value[7] is not None}
+        relative_errors = [value[8] for value in values if value[8] is not None]
+        clipped = any(bool(value[9]) for value in values)
+        if match_statuses == {_MATCHED_STATUS}:
+            match_status = "exactly matched within declared tolerance"
+        elif match_statuses == {_CLIPPED_STATUS} or clipped:
+            match_status = "approximately matched / clipped"
+        elif match_statuses == {_MISMATCH_STATUS}:
+            match_status = "outside declared matching tolerance"
+        elif regime == "fixed_lr":
+            match_status = "fixed LR; matching not attempted"
+        else:
+            match_status = "not evaluated (legacy manifest)"
         row_html = (
             "<tr>"
             f'<td>{_esc(_architecture_label(str(kind)))}</td><td>{epoch}</td>'
@@ -3600,6 +4377,10 @@ def _gradient_diagnostic_table(
                 else '<td class="number">—</td>'
             )
         row_html += (
+            f'<td>{_esc(match_status)}</td>'
+            f'<td class="number">'
+            f'{("—" if not relative_errors else f"{100 * fmean(relative_errors):.3f}%")}'
+            "</td>"
             f"<td>{len(values)} paired draw"
             f'{"s" if len(values) != 1 else ""}</td><td>{_esc(regime)}</td>'
             "</tr>"
@@ -3613,6 +4394,7 @@ def _gradient_diagnostic_table(
         "<th>Update-to-weight / true</th><th>Base LR</th>"
         "<th>LR multiplier</th><th>Effective LR</th>"
         "<th>Matched first-update norm</th>"
+        "<th>First-update match status</th><th>Relative error vs true</th>"
         "<th>Uncertainty unit</th><th>LR regime</th>"
         "</tr></thead><tbody>"
         + "".join(rows)
@@ -3729,9 +4511,9 @@ def _optimizer_regime_outcome_table(
             str(row["distribution"])
         )
         regime = (
-            "Fixed LR intervention"
+            "Fixed-LR optimizer-shock sensitivity"
             if row["lr_regime"] == "fixed_lr"
-            else "Matched-update sensitivity"
+            else "Matched-first-update primary regime"
         )
         body.append(
             "<tr>"
@@ -4039,6 +4821,65 @@ def _manifest_cards(artifacts: Sequence[LoadedArtifact]) -> str:
             "</dl></article>"
         )
     return "".join(cards)
+
+
+def _provenance_correction_table(manifest: Mapping[str, Any]) -> str:
+    audit = manifest.get("provenance_correction_audit")
+    if not isinstance(audit, dict):
+        return (
+            '<p class="empty-control">No provenance corrections are declared; '
+            "all recorded Git revisions resolved directly.</p>"
+        )
+    rows = []
+    for correction in audit.get("corrections", []):
+        locations = ", ".join(
+            f'{location["path"]}{location["json_pointer"]}'
+            for location in correction["affected_locations"]
+        )
+        archive = correction.get("source_archive_sha256")
+        archive_text = (
+            f"sha256:{archive} · {correction['source_archive_status']}"
+            if archive is not None
+            else str(correction["source_archive_status"])
+        )
+        rows.append(
+            "<tr>"
+            f'<td><code>{_esc(correction["recorded_value"])}</code></td>'
+            f'<td><code>{_esc(correction["intended_commit"])}</code></td>'
+            f'<td><code>{_esc(correction["unique_prefix_evidence"]["prefix"])}</code></td>'
+            f'<td>{_esc(locations)}</td><td><code>{_esc(archive_text)}</code></td>'
+            "</tr>"
+        )
+    return (
+        '<aside class="status-panel diagnostic"><strong>AUDITED PROVENANCE '
+        "CORRECTIONS APPLIED.</strong><p>Raw result JSON is unchanged. Each mistyped "
+        "full hash failed Git resolution; the shared short prefix resolved uniquely "
+        "to the intended local commit. Recorded source-archive digests are disclosed "
+        "but the archives are not retained locally.</p></aside>"
+        '<div class="table-scroll"><table><thead><tr><th>Recorded value</th>'
+        "<th>Applied commit</th><th>Unique prefix</th><th>Affected JSON locations</th>"
+        "<th>Archive evidence</th></tr></thead><tbody>"
+        + "".join(rows)
+        + "</tbody></table></div>"
+    )
+
+
+def _manifest_source_display(manifest: Mapping[str, Any]) -> str:
+    recorded = str(manifest["source_commit"])
+    audit = manifest.get("provenance_correction_audit")
+    if isinstance(audit, dict):
+        for correction in audit.get("corrections", []):
+            if correction.get("recorded_value") != recorded:
+                continue
+            if any(
+                location.get("json_pointer") == "/source_commit"
+                for location in correction.get("affected_locations", [])
+            ):
+                return (
+                    f"{recorded} → {correction['intended_commit']} "
+                    "(audited correction)"
+                )
+    return recorded
 
 
 def _provenance_details(artifact: LoadedArtifact) -> str:
@@ -4401,6 +5242,14 @@ def render_report(
     """Render validated artifacts as one self-contained HTML document."""
 
     observations, cells = normalise_artifacts(artifacts)
+    primary_summary: dict[str, Any] | None = None
+    primary_contract: Mapping[str, Any] | None = None
+    if manifest.get("schema_version") == MANIFEST_SCHEMA_VERSION:
+        primary_contract = _primary_contract(manifest)
+        observations = annotate_first_update_matching(
+            observations, primary_contract["first_update_matching"]
+        )
+        primary_summary = primary_analysis_summary(manifest, observations)
     summaries = summarise_observations(observations)
     paired_draws = paired_true_eval_contrasts(observations)
     paired_summaries = summarise_paired_contrasts(paired_draws)
@@ -4447,24 +5296,26 @@ def render_report(
         "<p>The measured legacy evidence remains below, but it is not promoted "
         "to a completed canonical control.</p></article>"
     )
-    has_primary = any(
-        row.get("loss_excess_mean") is not None
-        and row["lr_regime"] == "fixed_lr"
-        and row["suffix_initialization"] == "warm"
-        for row in canonical_paired
-    )
+    has_primary = primary_summary is not None
     status_html = (
         '<aside class="status-panel measured-result"><strong>PRIMARY ESTIMAND '
-        "AVAILABLE.</strong><p>The canonical artifacts record paired, draw-level "
-        "true-evaluation cross-entropy contrasts. Accuracy remains a secondary "
-        "readout.</p></aside>"
+        "AVAILABLE.</strong><p>The explicit contract selects one five-epoch, "
+        "matched-first-update artifact for each of three independently trained "
+        "CNN seeds. Fixed-LR and reinitialized-suffix rows are excluded rather "
+        "than pooled.</p></aside>"
         if has_primary
         else
         '<aside class="status-panel diagnostic"><strong>DIAGNOSTIC BUILD.</strong>'
-        "<p>The loaded canonical artifacts do not yet record the paired "
-        "cross-entropy estimand. Accuracy-only trajectories are descriptive and "
-        "cannot settle the main claim.</p></aside>"
+        "<p>This version-1 compatibility manifest has no explicit publication "
+        "contract. Its rows remain diagnostic and are not promoted to the "
+        "three-seed headline.</p></aside>"
     )
+    primary_result_html = (
+        _primary_analysis_table(primary_summary)
+        if primary_summary is not None
+        else _fixed_lr_sensitivity_table(canonical_paired)
+    )
+    source_display = _manifest_source_display(manifest)
     embedded = {
         "manifest": manifest,
         "inputs": [
@@ -4486,6 +5337,7 @@ def render_report(
         "exact_summary_rows": summaries,
         "paired_true_evaluation_draw_contrasts": paired_draws,
         "paired_true_evaluation_summaries": paired_summaries,
+        "primary_analysis_summary": primary_summary,
         "pca_projection_adequacy_rows": projection_rows,
         "cell_metadata": cells,
     }
@@ -4576,7 +5428,7 @@ def render_report(
       <span>{len(canonical_artifacts)} canonical relaxation ·
         {len(projection_artifacts)} PCA adequacy · {len(legacy_artifacts)} legacy ·
         {len(artifacts)} hashed artifacts · dashboard source base
-        <code>{_esc(manifest["source_commit"])}</code></span>
+        <code>{_esc(source_display)}</code></span>
     </div>
   </header>
 
@@ -4651,21 +5503,24 @@ def render_report(
           as independent confirmation.</p></div>
       </div>
       <div class="equation-box">
-        <div class="equation">Δ<sub>true|r</sub>(t, ℓ, u) =
-          L<sub>true eval</sub>(suffix trained on r) −
-          L<sub>true eval</sub>(suffix trained on true)</div>
-        <p>The primary estimand is this paired cross-entropy excess loss at matched
-          checkpoint t, cut ℓ, PCA rank, draw u, minibatch order, and learning-rate
-          regime. Summaries average paired draw-level contrasts, not unpaired bars.</p>
+        <div class="equation">Δ<sub>G</sub>(ℓ, s) =
+          L<sub>true eval</sub>(G; ℓ, s) −
+          L<sub>true eval</sub>(projected true; ℓ, s), &nbsp;
+          Δ<sub>M</sub>(ℓ, s) =
+          L<sub>true eval</sub>(mean-r1; ℓ, s) −
+          L<sub>true eval</sub>(G; ℓ, s)</div>
+        <p>The primary estimands are paired within trained model seed s and cut ℓ
+          at the exact manifest-selected endpoint. Aggregation occurs only after
+          each seed-level contrast is formed; optimizer regimes, suffix
+          initializations, and sensitivity artifacts are never pooled.</p>
       </div>
       <div class="method-notes">
-        <div><h3>Optimizer control</h3><p>Fixed LR is the primary intervention:
-          one optimizer and one learning rate are held constant while the replay
-          distribution changes. Matched-first-update uses a per-condition LR
-          multiplier to equalize the first update norm; it is a scale-control
-          sensitivity, reported separately and never pooled with fixed LR. Large
-          changes in the excess-loss effect size make magnitude claims
-          optimizer-regime-dependent.</p></div>
+        <div><h3>Optimizer control</h3><p>Matched first updates are primary: a
+          per-condition LR multiplier targets the true-replay first-update norm,
+          with a declared 1% relative tolerance. Fixed LR is an optimizer-shock
+          sensitivity because replay conditions can produce very different
+          initial gradient scales. The regimes are reported separately and never
+          pooled.</p></div>
         <div><h3>Failure criteria</h3><ul class="criteria-list">
           <li>Large projected-real gap: PCA truncation, not moment failure.</li>
           <li>Rank-sensitive conclusion or poor held-out within-class coverage.</li>
@@ -4699,13 +5554,16 @@ def render_report(
       <p class="eyebrow">Primary result</p>
       <h2>Paired true-evaluation excess loss</h2>
       <p class="question">At the relaxation endpoint, how much cross-entropy is
-        added by training on each surrogate instead of matched real activations?</p>
-      <p>Read zero as parity with the paired real-replay baseline. Positive values
-        mean worse held-out real loss. This table contains warm-started,
-        fixed-LR intervention rows only. Parentheses are the min–max range across surrogate
-        draws; model-seed uncertainty requires additional checkpoints.</p>
+        added by Gaussian replay relative to projected real replay, and by the
+        radius-one mean family relative to Gaussian replay?</p>
+      <p>These are the manifest-declared epoch-30, cuts 1 and 4, PCA-rank 2,048,
+        warm-suffix, matched-first-update endpoints after five replay epochs.
+        Values are mean ± sample SD across three independently trained CNN seeds;
+        each seed has one surrogate draw, so within-model redraw uncertainty was
+        not measured. Rank-2,048 conclusions are limited to the retained PCA
+        subspace because the shallow projection gate fails full-function adequacy.</p>
     </div>
-    {_primary_estimand_table(canonical_paired)}
+    {primary_result_html}
   </section>
 
   <section id="matrix" class="section">
@@ -4758,10 +5616,15 @@ def render_report(
         {_gradient_diagnostic_table(canonical_observations)}</div>
       <div class="control-block"><h3>Optimizer-regime outcome sensitivity</h3>
         <p>Compare only rows whose checkpoint, seed, cut, rank, replay condition,
-          and artifact profile are substantively matched. Fixed LR remains the
-          intervention; matched-update is a sensitivity. Large effect-size changes
-          make magnitude claims optimizer-regime-dependent.</p>
+          and artifact profile are substantively matched. Matched first updates
+          are the primary regime; fixed LR is the optimizer-shock sensitivity.
+          Large effect-size changes make magnitude claims optimizer-regime-dependent.</p>
         {_optimizer_regime_outcome_table(canonical_paired)}</div>
+      <div class="control-block"><h3>Fixed-LR optimizer-shock sensitivity</h3>
+        <p>These warm-suffix rows deliberately hold the nominal learning rate
+          fixed. They are secondary and are never pooled with the matched-update
+          primary analysis.</p>
+        {_fixed_lr_sensitivity_table(canonical_paired)}</div>
       <div class="control-block"><h3>Surrogate moment fidelity</h3>
         <p>Generated-bank class means and covariances should match the target
           moments in the declared diagnostic space.</p>
@@ -4796,14 +5659,15 @@ def render_report(
     <details class="data-details">
       <summary><span>Provenance and input hashes</span>
         <span class="summary-meta">{len(artifacts)} verified inputs</span></summary>
+      {_provenance_correction_table(manifest)}
       <div class="provenance-grid">{provenance_cards}</div>
     </details>
-    <p class="footer-note">Manifest schema {MANIFEST_SCHEMA_VERSION}. This report
+    <p class="footer-note">Manifest schema {manifest.get("schema_version")}. This report
       rejects missing files, digest mismatches, non-measured statuses, fake-data
-      configurations, unsupported experiments, and checkpoint metadata mismatches.
-      The manifest commit identifies the dashboard branch base, not experiment
-      lineage. Where legacy artifacts do not record their generating code revision,
-      their SHA-256 digests identify the exact evidence files used here.</p>
+      configurations, unsupported experiments, checkpoint metadata mismatches,
+      unresolvable Git revisions without an exact audited correction, and any
+      primary-contract or headline mismatch. The manifest commit identifies the
+      dashboard branch base, not experiment lineage.</p>
   </section>
 </main>
 <script id="embedded-data" type="application/json">{_safe_script_json(embedded)}</script>
@@ -4851,7 +5715,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Build the measured-only interactive appendix for the LW post."
     )
-    parser.add_argument("manifest", help="Path to the version-1 input manifest")
+    parser.add_argument("manifest", help="Path to the version-2 publication manifest")
     parser.add_argument(
         "--output",
         default=DEFAULT_OUTPUT,

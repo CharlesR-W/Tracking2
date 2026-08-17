@@ -9,6 +9,7 @@ from typing import Sequence
 
 
 TITLE = "Free-Body Diagrams for Neural Networks — Interactive Ablation Appendix (WIP)"
+MANIFEST_SCHEMA_VERSION = 2
 COMMIT_RE = re.compile(r"^[0-9a-fA-F]{7,64}$")
 SOURCE_REVISION_RE = re.compile(r"^(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$")
 DIGEST_RE = re.compile(r"^[0-9a-fA-F]{64}$")
@@ -25,6 +26,81 @@ CANONICAL_RESNET_PATH = (
     "lw_post/resnet_ablations_seed0/"
     "nested_ranks_epoch100_cuts4_8/resnet_suffix_statistics.json"
 )
+
+
+def publication_primary_analysis() -> dict[str, object]:
+    """Return the explicit July 26 publication estimand and its assertions."""
+
+    return {
+        "status": "MEASURED",
+        "model_kind": "cnn",
+        "checkpoint_epoch": 30,
+        "cuts": [1, 4],
+        "pca_rank": 2048,
+        "projection_scope": "retained_pca_subspace_only",
+        "projection_gate_input_id": "cnn-projection-0-s0-e30",
+        "suffix_initialization": "warm",
+        "learning_rate_regime": "match_true_initial_update",
+        "relax_epochs": 5,
+        "model_seeds": [0, 1, 2],
+        "input_ids_by_model_seed": {
+            "0": "cnn-extra-2-s0-e30",
+            "1": "cnn-extra-6-s1-e30",
+            "2": "cnn-extra-7-s2-e30",
+        },
+        "surrogate_draws_per_model": 1,
+        "contrasts": [
+            {
+                "id": "gaussian_minus_projected_true",
+                "minuend_distribution": "gaussian_empirical",
+                "subtrahend_distribution": "projected_true",
+            },
+            {
+                "id": "mean_r1_minus_gaussian",
+                "minuend_distribution": "mean_r1",
+                "subtrahend_distribution": "gaussian_empirical",
+            },
+        ],
+        "uncertainty": {
+            "statistic": "sample_standard_deviation",
+            "independent_unit": "trained_model_seed",
+            "n": 3,
+            "within_model_surrogate_redraw_uncertainty": "not_measured",
+        },
+        "first_update_matching": {
+            "relative_tolerance": 0.01,
+            "learning_rate_multiplier_bounds": [0.001, 1000.0],
+            "clipped_status": "approximately_matched_clipped",
+            "outside_tolerance_policy": "reject_primary_display_secondary",
+        },
+        "headline_assertion_absolute_tolerance": 0.0000005,
+        "headline_assertions": [
+            {
+                "cut": 1,
+                "contrast_id": "gaussian_minus_projected_true",
+                "mean": 0.182913,
+                "sample_standard_deviation": 0.055069,
+            },
+            {
+                "cut": 1,
+                "contrast_id": "mean_r1_minus_gaussian",
+                "mean": 0.144051,
+                "sample_standard_deviation": 0.019072,
+            },
+            {
+                "cut": 4,
+                "contrast_id": "gaussian_minus_projected_true",
+                "mean": -0.012495,
+                "sample_standard_deviation": 0.001530,
+            },
+            {
+                "cut": 4,
+                "contrast_id": "mean_r1_minus_gaussian",
+                "mean": 0.022739,
+                "sample_standard_deviation": 0.010517,
+            },
+        ],
+    }
 
 
 def digest(path: Path) -> str:
@@ -348,19 +424,10 @@ def resnet_entries(
 ) -> list[dict[str, object]]:
     inputs: list[dict[str, object]] = []
     if source in {"legacy", "both"}:
-        for epoch, relative_path in LEGACY_RESNET_PATHS.items():
-            inputs.append(
-                entry(
-                    manifest_dir=output.parent,
-                    artifact_path=artifact_root / relative_path,
-                    input_id=f"resnet-e{epoch}",
-                    kind="resnet",
-                    artifact_format="resnet_suffix_statistics",
-                    label=f"ResNet-18 · legacy epoch {epoch}",
-                    epoch=epoch,
-                    seed=0,
-                )
-            )
+        raise RuntimeError(
+            "The legacy ResNet discovery mode is deprecated and archive-only; "
+            "it cannot be added to the publication manifest."
+        )
     if source in {"canonical", "both"}:
         inputs.extend(canonical_resnet_entries(artifact_root, output, canonical_path))
     if source not in {"none", "legacy", "canonical", "both"}:
@@ -380,13 +447,17 @@ def build_manifest(
     canonical_resnet_path: Path | None = None,
     projection_adequacy_paths: Sequence[Path] = (),
     extra_cnn_paths: Sequence[Path] = (),
+    provenance_corrections_path: Path | None = None,
 ) -> dict:
     if not COMMIT_RE.fullmatch(source_commit):
         raise ValueError("source_commit must be a 7–64 character hexadecimal id")
     if cnn_source == "none":
         inputs = []
     elif cnn_source == "legacy":
-        inputs = legacy_cnn_entries(artifact_root, output)
+        raise RuntimeError(
+            "The legacy CNN discovery mode is deprecated and archive-only; "
+            "publication manifests must use explicit measured input paths."
+        )
     elif cnn_source == "post":
         inputs = post_cnn_entries(artifact_root, output, cnn_seeds)
     else:
@@ -403,13 +474,21 @@ def build_manifest(
             canonical_resnet_path,
         )
     )
-    return {
-        "schema_version": 1,
+    manifest = {
+        "schema_version": MANIFEST_SCHEMA_VERSION,
         "title": TITLE,
         "status": "MEASURED",
         "source_commit": source_commit,
+        "primary_analysis": publication_primary_analysis(),
         "inputs": inputs,
     }
+    if provenance_corrections_path is not None:
+        relative_path = provenance_corrections_path.relative_to(output.parent)
+        manifest["provenance_corrections"] = {
+            "path": relative_path.as_posix(),
+            "sha256": digest(provenance_corrections_path),
+        }
+    return manifest
 
 
 def main() -> None:
@@ -427,11 +506,11 @@ def main() -> None:
     parser.add_argument("--source-commit", required=True)
     parser.add_argument(
         "--cnn-source",
-        choices=("none", "legacy", "post"),
+        choices=("none", "post"),
         default="post",
         help=(
-            "Select no implicit CNN inputs, the legacy pilot grid, or the "
-            "verified uninterrupted-run battery."
+            "Select no implicit CNN inputs or the verified uninterrupted-run "
+            "battery. Legacy pilots are archive-only."
         ),
     )
     parser.add_argument(
@@ -443,9 +522,9 @@ def main() -> None:
     )
     parser.add_argument(
         "--resnet-source",
-        choices=("none", "legacy", "canonical", "both"),
+        choices=("none", "canonical"),
         default="none",
-        help="Omit ResNet, select legacy sweeps, an explicit canonical input, or both.",
+        help="Omit ResNet or select an explicit canonical input; legacy sweeps are archive-only.",
     )
     parser.add_argument(
         "--canonical-resnet-path",
@@ -466,6 +545,12 @@ def main() -> None:
         default=[],
         help="Optional measured schema-v1 CNN PCA-only adequacy artifact.",
     )
+    parser.add_argument(
+        "--provenance-corrections",
+        type=Path,
+        default=Path("artifacts/lw_post/provenance_corrections.json"),
+        help="Audited correction sidecar for mistyped source revisions.",
+    )
     args = parser.parse_args()
     args.output.parent.mkdir(parents=True, exist_ok=True)
     manifest = build_manifest(
@@ -482,6 +567,7 @@ def main() -> None:
         ),
         [path.resolve() for path in args.projection_adequacy_path],
         [path.resolve() for path in args.cnn_extra_path],
+        args.provenance_corrections.resolve(),
     )
     args.output.write_text(json.dumps(manifest, indent=2, allow_nan=False) + "\n")
     print(args.output)

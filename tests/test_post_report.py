@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -22,12 +23,28 @@ from tracking2.post_report import (
     REAL,
     TITLE,
     ReportInputError,
+    annotate_first_update_matching,
     build_report,
     load_manifest,
     main,
     normalise_artifacts,
     paired_true_eval_contrasts,
+    primary_analysis_summary,
     summarise_paired_contrasts,
+)
+
+
+GIT_HEAD = subprocess.run(
+    ["git", "rev-parse", "HEAD"],
+    check=True,
+    capture_output=True,
+    text=True,
+).stdout.strip()
+CANONICAL_MANIFEST = (
+    Path(__file__).resolve().parents[1]
+    / "artifacts"
+    / "lw_post"
+    / "dashboard_manifest.json"
 )
 
 
@@ -170,7 +187,7 @@ def _cnn_v2_matrix_payload(
 ) -> dict:
     payload = _cnn_payload()
     payload["schema_version"] = 2
-    payload["provenance"] = {"source_revision": "a" * 40}
+    payload["provenance"] = {"source_revision": GIT_HEAD}
     payload["config"].update(
         {
             "relax_epochs": 1,
@@ -393,7 +410,7 @@ def _resnet_v3_payload() -> dict:
             "checkpoint": checkpoint,
             "model_seed": 0,
             "architecture": architecture,
-            "training_source": {"source_revision": "b" * 40},
+            "training_source": {"source_revision": GIT_HEAD},
             "dataset_source": {
                 "backend": dataset["backend"],
                 "train": dataset["train"],
@@ -425,7 +442,7 @@ def _resnet_v3_payload() -> dict:
         },
         "device": "cpu",
         "provenance": {
-            "source_revision": "a" * 40,
+            "source_revision": GIT_HEAD,
             "source_archive_sha256": "not recorded",
         },
         "architecture": architecture,
@@ -558,7 +575,7 @@ def _projection_adequacy_payload() -> dict:
                 "sha256": "6" * 64,
                 "status": "MEASURED",
                 "experiment": "lw_post_cnn_checkpoint_trajectory",
-                "source_provenance": {"source_revision": "a" * 40},
+                "source_provenance": {"source_revision": GIT_HEAD},
                 "dataset": dataset,
             },
         },
@@ -569,7 +586,7 @@ def _projection_adequacy_payload() -> dict:
             "ordered_labels_sha256": "8" * 64,
             "selection": "range(0, 5000)",
         },
-        "provenance": {"source_revision": "b" * 40},
+        "provenance": {"source_revision": GIT_HEAD},
         "device": "cpu",
         "slices": [
             {
@@ -727,7 +744,7 @@ def _make_manifest(
         "schema_version": 1,
         "title": TITLE,
         "status": "MEASURED",
-        "source_commit": "deadbeef",
+        "source_commit": GIT_HEAD,
         "inputs": [
             {
                 "id": "cnn-epoch-1",
@@ -964,7 +981,8 @@ def test_schema_v2_cnn_retains_full_matrix_and_primary_loss_estimand(tmp_path):
     assert empirical_endpoint["loss_excess_mean"] == pytest.approx(0.12)
 
     rendered = build_report(manifest_path, tmp_path / "schema-v2.html").read_text()
-    assert "PRIMARY ESTIMAND AVAILABLE" in rendered
+    assert "DIAGNOSTIC BUILD" in rendered
+    assert "version-1 compatibility manifest" in rendered
     assert "Full train × evaluation loss matrix" in rendered
     assert "Gaussian · empirical covariance" in rendered
     assert "Gaussian · 5% spherical shrinkage" in rendered
@@ -984,7 +1002,7 @@ def test_schema_v4_resnet_is_canonical_and_requires_complete_matrix(tmp_path):
     assert len(resnet_observations) == 2 * 6 * 6 * 2
 
     rendered = build_report(manifest_path, tmp_path / "schema-v4.html").read_text()
-    assert "PRIMARY ESTIMAND AVAILABLE" in rendered
+    assert "DIAGNOSTIC BUILD" in rendered
     assert "Canonical measured evidence" in rendered
     assert "Legacy: ResNet-18" not in rendered
     assert "Gaussian · 5% spherical shrinkage" in rendered
@@ -1122,7 +1140,8 @@ def test_matched_update_regime_is_separate_optimizer_sensitivity(tmp_path):
     rendered = build_report(
         manifest_path, tmp_path / "optimizer-sensitivity.html"
     ).read_text()
-    assert "Fixed LR is the primary intervention" in rendered
+    assert "Matched first updates are primary" in rendered
+    assert "fixed LR is the optimizer-shock sensitivity" in rendered
     assert "Matched-first-update" in rendered
     assert "scale-control sensitivity" in rendered
     assert "magnitude claims optimizer-regime-dependent" in rendered
@@ -1130,7 +1149,7 @@ def test_matched_update_regime_is_separate_optimizer_sensitivity(tmp_path):
     assert "LR multiplier" in rendered
     assert "Effective LR" in rendered
     assert "Matched first-update norm" in rendered
-    assert "Matched-update sensitivity" in rendered
+    assert "Matched-first-update primary regime" in rendered
 
 
 def test_noise_radius_reversal_is_artifact_driven_and_prominent(tmp_path):
@@ -1303,12 +1322,168 @@ def test_manifest_can_use_only_explicit_measured_inputs(tmp_path):
     manifest = build_manifest(
         tmp_path / "unused",
         output,
-        "a" * 40,
+        GIT_HEAD,
         cnn_source="none",
         extra_cnn_paths=[matched_path],
     )
     assert len(manifest["inputs"]) == 1
     assert manifest["inputs"][0]["format"] == "post_statistics"
+
+
+def test_publication_builder_rejects_archive_only_discovery_modes(tmp_path):
+    output = tmp_path / "dashboard_manifest.json"
+    with pytest.raises(RuntimeError, match="legacy CNN discovery mode"):
+        build_manifest(tmp_path, output, GIT_HEAD, cnn_source="legacy")
+    with pytest.raises(RuntimeError, match="legacy ResNet discovery mode"):
+        build_manifest(
+            tmp_path,
+            output,
+            GIT_HEAD,
+            cnn_source="none",
+            resnet_source="legacy",
+        )
+
+
+def test_unresolvable_git_hash_requires_exact_audited_correction(tmp_path):
+    manifest_path = _make_manifest(tmp_path)
+    manifest = json.loads(manifest_path.read_text())
+    replacement = "0" if GIT_HEAD[20] != "0" else "1"
+    recorded = GIT_HEAD[:20] + replacement + GIT_HEAD[21:]
+    manifest["source_commit"] = recorded
+    _write_json(manifest_path, manifest)
+
+    with pytest.raises(ReportInputError, match="Unresolvable Git revision"):
+        load_manifest(manifest_path)
+
+    sidecar_path = tmp_path / "provenance_corrections.json"
+    sidecar_digest = _write_json(
+        sidecar_path,
+        {
+            "schema_version": 1,
+            "status": "AUDITED",
+            "corrections": [
+                {
+                    "recorded_value": recorded,
+                    "intended_commit": GIT_HEAD,
+                    "unique_prefix_evidence": {
+                        "prefix": GIT_HEAD[:12],
+                        "resolved_commit": GIT_HEAD,
+                    },
+                    "source_archive_sha256": None,
+                    "source_archive_status": (
+                        "not_applicable_manifest_builder_revision"
+                    ),
+                    "affected_locations": [
+                        {
+                            "path": manifest_path.name,
+                            "json_pointer": "/source_commit",
+                        }
+                    ],
+                }
+            ],
+        },
+    )
+    manifest = json.loads(manifest_path.read_text())
+    manifest["provenance_corrections"] = {
+        "path": sidecar_path.name,
+        "sha256": sidecar_digest,
+    }
+    _write_json(manifest_path, manifest)
+
+    loaded_manifest, _artifacts = load_manifest(manifest_path)
+    audit = loaded_manifest["provenance_correction_audit"]
+    assert audit["corrections"][0]["recorded_value"] == recorded
+    assert audit["corrections"][0]["intended_commit"] == GIT_HEAD
+
+
+def test_publication_contract_recomputes_headlines_without_pooling(tmp_path):
+    manifest, artifacts = load_manifest(CANONICAL_MANIFEST)
+    observations, _cells = normalise_artifacts(artifacts)
+    summary = primary_analysis_summary(manifest, observations)
+    aggregates = {
+        (row["cut"], row["contrast_id"]): row
+        for row in summary["aggregate_contrasts"]
+    }
+    assert aggregates[(1, "gaussian_minus_projected_true")]["mean"] == pytest.approx(
+        0.18291344839731857
+    )
+    assert aggregates[(1, "gaussian_minus_projected_true")][
+        "sample_standard_deviation"
+    ] == pytest.approx(0.05506913979079249)
+    assert aggregates[(1, "mean_r1_minus_gaussian")]["mean"] == pytest.approx(
+        0.1440512680689494
+    )
+    assert aggregates[(1, "mean_r1_minus_gaussian")][
+        "sample_standard_deviation"
+    ] == pytest.approx(0.019072251608814983)
+    assert aggregates[(4, "gaussian_minus_projected_true")]["mean"] == pytest.approx(
+        -0.012494543361663854
+    )
+    assert aggregates[(4, "mean_r1_minus_gaussian")]["mean"] == pytest.approx(
+        0.0227389348347982
+    )
+    assert {
+        row["input_id"] for row in summary["seed_contrasts"]
+    } == {
+        "cnn-extra-2-s0-e30",
+        "cnn-extra-6-s1-e30",
+        "cnn-extra-7-s2-e30",
+    }
+    seed_zero_shallow = next(
+        row
+        for row in summary["seed_contrasts"]
+        if row["model_seed"] == 0
+        and row["cut"] == 1
+        and row["contrast_id"] == "gaussian_minus_projected_true"
+    )
+    assert seed_zero_shallow["value"] == pytest.approx(0.11965266590118406)
+    assert summary["projection_scope"] == "retained_pca_subspace_only"
+
+    annotated = annotate_first_update_matching(
+        observations, manifest["primary_analysis"]["first_update_matching"]
+    )
+    radius_zero = next(
+        row
+        for row in annotated
+        if row["input_id"] == "cnn-extra-2-s0-e30"
+        and row["cut"] == 1
+        and row["distribution"] == "mean_r0"
+        and row["eval_distribution"] == "true"
+        and row["relax_epoch"] == 0
+    )
+    assert radius_zero["first_update_match_status"] == (
+        "approximately_matched_clipped"
+    )
+    assert radius_zero["learning_rate_multiplier_clipped"] is True
+    assert radius_zero["first_update_relative_error"] == pytest.approx(
+        0.09463195693378723
+    )
+
+    first = build_report(CANONICAL_MANIFEST, tmp_path / "first.html")
+    second = build_report(CANONICAL_MANIFEST, tmp_path / "second.html")
+    assert first.read_bytes() == second.read_bytes()
+    rendered = first.read_text()
+    for value in (
+        "+0.182913 ± 0.055069",
+        "+0.144051 ± 0.019072",
+        "-0.012495 ± 0.001530",
+        "+0.022739 ± 0.010517",
+    ):
+        assert value in rendered
+    assert "approximately matched / clipped" in rendered
+    assert "9.463%" in rendered
+    assert "Fixed-LR optimizer-shock sensitivity" in rendered
+    assert "retained PCA" in rendered
+    assert "AUDITED PROVENANCE CORRECTIONS APPLIED" in rendered
+
+
+def test_publication_headline_assertions_fail_on_drift():
+    manifest, artifacts = load_manifest(CANONICAL_MANIFEST)
+    observations, _cells = normalise_artifacts(artifacts)
+    altered = copy.deepcopy(manifest)
+    altered["primary_analysis"]["headline_assertions"][0]["mean"] += 0.01
+    with pytest.raises(ReportInputError, match="headline assertion failed"):
+        primary_analysis_summary(altered, observations)
 
 
 def test_explicit_legacy_cnn_format_builds_and_discloses_limitations(tmp_path):

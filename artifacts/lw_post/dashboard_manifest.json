@@ -1,8 +1,88 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "title": "Free-Body Diagrams for Neural Networks \u2014 Interactive Ablation Appendix (WIP)",
   "status": "MEASURED",
   "source_commit": "13aff88d1d4b09ec84f93e9bc3d37a47cd20962d",
+  "primary_analysis": {
+    "status": "MEASURED",
+    "model_kind": "cnn",
+    "checkpoint_epoch": 30,
+    "cuts": [
+      1,
+      4
+    ],
+    "pca_rank": 2048,
+    "projection_scope": "retained_pca_subspace_only",
+    "projection_gate_input_id": "cnn-projection-0-s0-e30",
+    "suffix_initialization": "warm",
+    "learning_rate_regime": "match_true_initial_update",
+    "relax_epochs": 5,
+    "model_seeds": [
+      0,
+      1,
+      2
+    ],
+    "input_ids_by_model_seed": {
+      "0": "cnn-extra-2-s0-e30",
+      "1": "cnn-extra-6-s1-e30",
+      "2": "cnn-extra-7-s2-e30"
+    },
+    "surrogate_draws_per_model": 1,
+    "contrasts": [
+      {
+        "id": "gaussian_minus_projected_true",
+        "minuend_distribution": "gaussian_empirical",
+        "subtrahend_distribution": "projected_true"
+      },
+      {
+        "id": "mean_r1_minus_gaussian",
+        "minuend_distribution": "mean_r1",
+        "subtrahend_distribution": "gaussian_empirical"
+      }
+    ],
+    "uncertainty": {
+      "statistic": "sample_standard_deviation",
+      "independent_unit": "trained_model_seed",
+      "n": 3,
+      "within_model_surrogate_redraw_uncertainty": "not_measured"
+    },
+    "first_update_matching": {
+      "relative_tolerance": 0.01,
+      "learning_rate_multiplier_bounds": [
+        0.001,
+        1000.0
+      ],
+      "clipped_status": "approximately_matched_clipped",
+      "outside_tolerance_policy": "reject_primary_display_secondary"
+    },
+    "headline_assertion_absolute_tolerance": 5e-07,
+    "headline_assertions": [
+      {
+        "cut": 1,
+        "contrast_id": "gaussian_minus_projected_true",
+        "mean": 0.182913,
+        "sample_standard_deviation": 0.055069
+      },
+      {
+        "cut": 1,
+        "contrast_id": "mean_r1_minus_gaussian",
+        "mean": 0.144051,
+        "sample_standard_deviation": 0.019072
+      },
+      {
+        "cut": 4,
+        "contrast_id": "gaussian_minus_projected_true",
+        "mean": -0.012495,
+        "sample_standard_deviation": 0.00153
+      },
+      {
+        "cut": 4,
+        "contrast_id": "mean_r1_minus_gaussian",
+        "mean": 0.022739,
+        "sample_standard_deviation": 0.010517
+      }
+    ]
+  },
   "inputs": [
     {
       "id": "cnn-extra-0-s0-e30",
@@ -94,5 +174,9 @@
       "checkpoint_epoch": 30,
       "model_seed": 0
     }
-  ]
+  ],
+  "provenance_corrections": {
+    "path": "provenance_corrections.json",
+    "sha256": "92f0a43886523843699578ebbf460e9e14a36353743ade2df880f7ee2658700a"
+  }
 }
