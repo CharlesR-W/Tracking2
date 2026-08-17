@@ -11,15 +11,18 @@ work-in-progress note about applying distributional-simplicity probes at
 internal network cuts.
 
 - [`LW post/`](LW%20post/) collects the draft, outline, handoff, reproduction
-  notes, figures, figure notebooks, interactive appendix, and talk materials.
+  notes, exactly five current figures, their measured-only generator, and the
+  interactive appendix. Delivered-talk and preliminary assets are under
+  [`LW post/deprecated/`](LW%20post/deprecated/).
 - [`LW post/lw_post_reproduction.md`](LW%20post/lw_post_reproduction.md) gives the
   bounded protocol, controls, smoke test, measured run commands, and evidence
   gate.
 - [`LW post/free-body-diagrams-for-neural-networks.html`](LW%20post/free-body-diagrams-for-neural-networks.html)
   is the canonical interactive ablation appendix, built from
   `artifacts/lw_post/dashboard_manifest.json`.
-- `report.html` is the older omnibus research dashboard. It includes planned
-  and unrelated surfaces and should not be used as the note's evidence index.
+- [`deprecated/2026-07-omnibus/report.html`](deprecated/2026-07-omnibus/report.html)
+  is the older omnibus research dashboard. It includes planned and unrelated
+  surfaces, is not the note's evidence index, and is not published by Pages.
 
 The post-facing dashboard deliberately includes only the measured July 26 CNN
 control battery. ResNet, the older CNN depth-by-time sweep, smoke data, unrun
@@ -38,12 +41,13 @@ PYTHONPATH=src .venv/bin/python -m tracking2.post_report \
 The uninterrupted three-seed CNN battery and its PCA, optimizer-scale,
 mean-noise, covariance, reinitialization, and horizon controls are complete.
 Loading or rebuilding the appendix validates every manifest-listed input hash
-and schema. `scripts/verify_lw_post_artifacts.py` and
-`scripts/run_lw_post_battery.sh` still encode an older rank-512, fixed-LR
-protocol; do not use them to verify or rerun the July 26 publication battery.
-No GPU rerun is required for the current bounded claim. GitHub Pages rebuilds
-the canonical file from the committed manifest and checks it against the
-tracked HTML before deployment.
+and schema. Run `scripts/verify_lw_post_publication.py` for the complete
+checked-in publication gate. The old rank-512 runner and verifier are isolated
+under `scripts/deprecated/lw_post/`; do not use them to verify or rerun the July
+26 publication battery. No GPU rerun is required for the current bounded claim.
+GitHub Pages rebuilds the canonical file from the committed manifest, checks it
+against the tracked HTML, and publishes only that appendix plus the five current
+figures.
 
 ## Implemented
 
@@ -99,11 +103,13 @@ uv sync --extra dev
   --checkpoints 0 1 3 --refit-steps 20 --refit-batches 4 \
   --fisher-samples 8 --device cpu
 .venv/bin/python -m tracking2.report \
-  artifacts/cifar_pilot_seed0/results.json --output report.html
+  artifacts/cifar_pilot_seed0/results.json \
+  --output /tmp/tracking2-omnibus-report.html
 ```
 
-The pilot artifact remains available as a feasibility check. The report is built
-from the five-seed confirmatory artifact once the battery has completed.
+The original tracked pilot is archived at
+`deprecated/2026-07-omnibus/artifacts/cifar_pilot_seed0/`. New runs should use a
+fresh output directory and must not overwrite the archive.
 
 ## Frozen-prefix suffix-statistics pilots
 
@@ -135,12 +141,13 @@ Render the measured triptychs by passing the three artifacts in chronological
 order to `--suffix-statistics`; the report also sorts them by checkpoint:
 
 ```bash
-.venv/bin/python -m tracking2.report artifacts/confirmatory/results.json \
+.venv/bin/python -m tracking2.report \
+  deprecated/2026-07-omnibus/artifacts/confirmatory/results.json \
   --suffix-statistics \
-  artifacts/suffix_statistics/t0_cut3_full_seed0/suffix_statistics.json \
-  artifacts/suffix_statistics/t1_cut3_full_seed0/suffix_statistics.json \
-  artifacts/suffix_statistics/t5_cut3_full_seed0/suffix_statistics.json \
-  --output report.html
+  deprecated/2026-07-omnibus/artifacts/suffix_statistics/t0_cut3_full_seed0/suffix_statistics.json \
+  deprecated/2026-07-omnibus/artifacts/suffix_statistics/t1_cut3_full_seed0/suffix_statistics.json \
+  deprecated/2026-07-omnibus/artifacts/suffix_statistics/t5_cut3_full_seed0/suffix_statistics.json \
+  --output /tmp/tracking2-omnibus-report.html
 ```
 
 ## Confirmatory battery
@@ -152,13 +159,14 @@ CUDA machine, then combine and render the seed artifacts with:
 ```bash
 python scripts/aggregate_results.py artifacts/confirmatory/seed*/results.json \
   --output artifacts/confirmatory/results.json
-python -m tracking2.report artifacts/confirmatory/results.json --output report.html
+python -m tracking2.report artifacts/confirmatory/results.json \
+  --output /tmp/tracking2-omnibus-report.html
 ```
 
 GitHub Pages publishes the measured-only
 `LW post/free-body-diagrams-for-neural-networks.html` as the landing report on every
-push to `main`. The older `report.html` is retained at
-`omnibus-report.html`.
+push to `main`, together with exactly the five post figures. It does not publish
+the archived omnibus dashboard.
 
 ## Critical-module Panel B
 
@@ -186,7 +194,8 @@ The aggregate artifact is the Panel B integration contract:
 - `recoveries`: downstream-only recovery trajectories for selected modules;
 - `training`: intact-model checkpoint performance for the heatmap reference.
 
-Neither the experiment nor aggregation code modifies `report.html`.
+Neither the experiment nor aggregation code modifies the archived omnibus
+dashboard.
 
 The complete bounded smoke ladder is `bash scripts/run_criticality_smokes.sh`.
 It runs unit invariants, a tiny learned-signal/classifier-reset positive control,
@@ -197,7 +206,8 @@ default and therefore cannot be mistaken for measured project results.
 The isolated dashboard proposal is
 `MOCKUP/criticality_panel_b_MOCKUP.html`. Every schematic figure is titled and
 watermarked `MOCKUP` and has an interpretation guide. It is deliberately not
-connected to `report.html` while Panel B is being edited concurrently.
+connected to the archived omnibus dashboard while Panel B is being edited
+concurrently.
 
 Paid runs are separated from smoke tests:
 
@@ -237,15 +247,16 @@ bash scripts/run_vgg_suffix_statistics.sh
 Render Part B plus every available C checkpoint artifact together:
 
 ```bash
-python -m tracking2.report artifacts/confirmatory/results.json \
+python -m tracking2.report \
+  deprecated/2026-07-omnibus/artifacts/confirmatory/results.json \
   --suffix-statistics \
-    artifacts/suffix_statistics/t0_cut3_full_seed0/suffix_statistics.json \
-    artifacts/suffix_statistics/t{1,5,10,20,30}_cut{1,2,3,4}_full_seed0/suffix_statistics.json \
+    deprecated/2026-07-omnibus/artifacts/suffix_statistics/t0_cut3_full_seed0/suffix_statistics.json \
+    deprecated/2026-07-omnibus/artifacts/suffix_statistics/t{1,5,10,20,30}_cut{1,2,3,4}_full_seed0/suffix_statistics.json \
   --resnet-suffix-statistics artifacts/c_architecture_statistics/resnet/*/resnet_suffix_statistics.json \
   --vgg-suffix-statistics artifacts/c_architecture_statistics/vgg/*/vgg_suffix_statistics.json \
   --resnet-criticality artifacts/resnet_criticality/seed0/resnet_criticality.json \
-  --criticality artifacts/criticality/results.json \
-  --output report.html
+  --criticality deprecated/2026-07-omnibus/artifacts/criticality/results.json \
+  --output /tmp/tracking2-omnibus-report.html
 ```
 
 The ResNet and VGG views lead with bars showing accuracy change from the common

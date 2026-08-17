@@ -9,6 +9,9 @@ artifacts/smoke/
 artifacts/**/*.pt
 artifacts/**/*.safetensors
 artifacts/**/*.log
+deprecated/**/artifacts/**/*.pt
+deprecated/**/artifacts/**/*.safetensors
+deprecated/**/artifacts/**/*.log
 logs/
 papers/*.txt
 papers/*.pdf

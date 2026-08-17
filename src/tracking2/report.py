@@ -1732,7 +1732,12 @@ def build_report(
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("results", type=Path)
-    parser.add_argument("--output", type=Path, default=Path("report.html"))
+    parser.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+        help="Explicit output path; the archived omnibus report is immutable.",
+    )
     parser.add_argument("--spec", type=Path, default=Path("SPEC.md"))
     parser.add_argument("--criticality", type=Path)
     parser.add_argument("--suffix-statistics", type=Path, nargs="+")

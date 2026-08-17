@@ -1,18 +1,19 @@
 """Publication figures for the Tracking2 LessWrong research note.
 
-This is a Jupytext-style notebook: editors can run the ``# %%`` cells, or the
-whole suite can be rendered with:
+This is a Jupytext-style notebook: editors can run the ``# %%`` cells. Running
+the file with no flags regenerates only the two measured publication panels:
 
     .venv/bin/python "LW post/notebooks/lw_post_figures.py"
 
-Result plots read saved JSON artifacts only.  In particular, this file never
-imports model or training code.  The canonical CNN checkpoint animation is
-rendered only when the new one-run checkpoint battery is present and passes
-provenance checks.  A legacy, explicitly watermarked fallback can be requested
-with ``--allow-legacy-cnn-checkpoints``. The revised measured-only blog panels
-are rendered without any legacy fallback via:
+Result plots read saved JSON artifacts only. In particular, this file never
+imports model or training code. Historical figures require the explicit
+``--legacy-full-suite`` flag, read only from the physical omnibus archive, and
+write only under ``LW post/deprecated/figures``. A legacy, explicitly
+watermarked CNN fallback can additionally be requested with
+``--allow-legacy-cnn-checkpoints``.
 
-    .venv/bin/python "LW post/notebooks/lw_post_figures.py" --measured-cnn-only
+    .venv/bin/python "LW post/notebooks/lw_post_figures.py" \
+      --legacy-full-suite --allow-legacy-cnn-checkpoints
 """
 
 # %%
@@ -51,7 +52,11 @@ from PIL import Image
 
 # %% Paths and one shared visual grammar
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-FIGURE_DIR = PROJECT_ROOT / "LW post" / "figures"
+PUBLICATION_FIGURE_DIR = PROJECT_ROOT / "LW post" / "figures"
+DEPRECATED_FIGURE_DIR = PROJECT_ROOT / "LW post" / "deprecated" / "figures"
+OMNIBUS_ARTIFACT_ROOT = (
+    PROJECT_ROOT / "deprecated" / "2026-07-omnibus" / "artifacts"
+)
 MEASURED_RESULT_ROOT = PROJECT_ROOT / "artifacts" / "lw_post" / "measured"
 
 INK = "#262626"
@@ -651,11 +656,15 @@ def load_measured_cnn_horizon(
 
 
 def legacy_cnn_artifact(epoch: int, cut: int) -> dict:
+    run_name = (
+        f"t0_batch0_cut{cut}_full_seed0"
+        if epoch == 0
+        else f"t{epoch}_cut{cut}_full_seed0"
+    )
     path = (
-        PROJECT_ROOT
-        / "artifacts"
+        OMNIBUS_ARTIFACT_ROOT
         / "suffix_statistics"
-        / f"t{epoch}_cut{cut}_full_seed0"
+        / run_name
         / "suffix_statistics.json"
     )
     artifact = load_json(path)
@@ -747,8 +756,8 @@ def load_one_run_cnn_changes(
     if missing:
         joined = "\n  ".join(str(path) for path in missing)
         raise FigureDataError(
-            "The canonical CNN checkpoint figure is data-blocked. Run "
-            "scripts/run_lw_post_battery.sh; missing:\n  " + joined
+            "The historical one-run CNN checkpoint figure is data-blocked; "
+            "the old runner is deprecated. Missing:\n  " + joined
         )
     training = load_json(training_path)
     require_measured(training, training_path)
@@ -839,13 +848,16 @@ def load_legacy_cnn_changes() -> dict[int, dict[str, np.ndarray]]:
 
 def load_resnet_changes() -> dict[int, dict[str, np.ndarray]]:
     paths = {
-        0: PROJECT_ROOT
-        / "artifacts/resnet_suffix_statistics/seed0-epoch0/resnet_suffix_statistics.json",
-        1: PROJECT_ROOT
-        / "artifacts/resnet_suffix_statistics/seed0-epoch1/resnet_suffix_statistics.json",
-        5: PROJECT_ROOT / "artifacts/resnet_suffix_statistics/seed0-epoch5.json",
-        20: PROJECT_ROOT / "artifacts/resnet_suffix_statistics/seed0-epoch20.json",
-        100: PROJECT_ROOT / "artifacts/resnet_suffix_statistics/seed0-epoch100.json",
+        0: OMNIBUS_ARTIFACT_ROOT
+        / "resnet_suffix_statistics/seed0-epoch0/resnet_suffix_statistics.json",
+        1: OMNIBUS_ARTIFACT_ROOT
+        / "resnet_suffix_statistics/seed0-epoch1/resnet_suffix_statistics.json",
+        5: OMNIBUS_ARTIFACT_ROOT
+        / "resnet_suffix_statistics/seed0-epoch5.json",
+        20: OMNIBUS_ARTIFACT_ROOT
+        / "resnet_suffix_statistics/seed0-epoch20.json",
+        100: OMNIBUS_ARTIFACT_ROOT
+        / "resnet_suffix_statistics/seed0-epoch100.json",
     }
     result: dict[int, dict[str, np.ndarray]] = {}
     for epoch, path in paths.items():
@@ -1947,7 +1959,9 @@ def cnn_epoch1_relaxation_frame(
     return fig
 
 
-def render_cnn_epoch1_relaxation() -> tuple[list[Path], dict[str, object]]:
+def render_cnn_epoch1_relaxation(
+    output_dir: Path = DEPRECATED_FIGURE_DIR,
+) -> tuple[list[Path], dict[str, object]]:
     trajectories = load_epoch1_cnn_trajectories()
     frames = [
         figure_to_image(cnn_epoch1_relaxation_frame(epoch, trajectories))
@@ -1958,8 +1972,8 @@ def render_cnn_epoch1_relaxation() -> tuple[list[Path], dict[str, object]]:
             cnn_epoch1_relaxation_frame(10, trajectories, callout=True)
         )
     )
-    gif_path = FIGURE_DIR / "cnn_relaxation_time.gif"
-    final_path = FIGURE_DIR / "cnn_relaxation_time_final.png"
+    gif_path = output_dir / "cnn_relaxation_time.gif"
+    final_path = output_dir / "cnn_relaxation_time_final.png"
     save_gif(frames, GIF_DURATIONS_RELAXATION, gif_path)
     frames[-1].save(final_path)
     return [gif_path, final_path], verify_gif(
@@ -2307,6 +2321,7 @@ def render_depth_checkpoint_gif(
     output_stem: str,
     durations: Sequence[int],
     legacy_fallback: bool = False,
+    output_dir: Path = DEPRECATED_FIGURE_DIR,
 ) -> tuple[list[Path], dict[str, object]]:
     frames = [
         figure_to_image(
@@ -2330,8 +2345,8 @@ def render_depth_checkpoint_gif(
             )
         )
     )
-    gif_path = FIGURE_DIR / f"{output_stem}.gif"
-    final_path = FIGURE_DIR / f"{output_stem}_final.png"
+    gif_path = output_dir / f"{output_stem}.gif"
+    final_path = output_dir / f"{output_stem}_final.png"
     save_gif(frames, durations, gif_path)
     frames[-1].save(final_path)
     return [gif_path, final_path], verify_gif(gif_path, durations)
@@ -2954,6 +2969,7 @@ def measured_cnn_horizon_figure(
 
 def render_measured_cnn_blog_figures(
     result_root: Path | None = None,
+    output_dir: Path = PUBLICATION_FIGURE_DIR,
 ) -> list[Path]:
     """Render the two publication PNGs from staged measured artifacts only."""
     control_data = load_measured_cnn_control_data(result_root)
@@ -2961,63 +2977,66 @@ def render_measured_cnn_blog_figures(
     outputs: list[Path] = []
     outputs += save_figure(
         measured_cnn_controls_figure(control_data),
-        [FIGURE_DIR / "cnn_measured_controls.png"],
+        [output_dir / "cnn_measured_controls.png"],
         dpi=200,
     )
     outputs += save_figure(
         measured_cnn_horizon_figure(horizon_data),
-        [FIGURE_DIR / "cnn_measured_horizon.png"],
+        [output_dir / "cnn_measured_horizon.png"],
         dpi=200,
     )
     return outputs
 
 
 # %% Main suite
-def render_static_suite() -> list[Path]:
-    FIGURE_DIR.mkdir(parents=True, exist_ok=True)
+def render_static_suite(
+    output_dir: Path = DEPRECATED_FIGURE_DIR,
+) -> list[Path]:
+    """Render historical explanatory figures into the archive only."""
+    output_dir.mkdir(parents=True, exist_ok=True)
     outputs: list[Path] = []
     outputs += save_figure(
         conceptual_internal_cut_figure(),
-        [FIGURE_DIR / "conceptual_internal_cut.svg"],
+        [output_dir / "conceptual_internal_cut.svg"],
     )
     outputs += save_figure(
         class_conditioned_pushforward_pca_figure(),
-        [FIGURE_DIR / "class_conditioned_pushforward_pca.svg"],
+        [output_dir / "class_conditioned_pushforward_pca.svg"],
     )
     outputs += save_figure(
         training_comparison_figure(),
-        [FIGURE_DIR / "method_train_compare.svg"],
+        [output_dir / "method_train_compare.svg"],
     )
     outputs += save_figure(
         architecture_overview_figure(),
-        [FIGURE_DIR / "cnn_resnet_architectures.svg"],
+        [output_dir / "cnn_resnet_architectures.svg"],
     )
     for cut in range(1, 5):
         outputs += save_figure(
             cut_schematic_figure("cnn", cut),
-            [FIGURE_DIR / f"cut_cnn_block{cut}.svg"],
+            [output_dir / f"cut_cnn_block{cut}.svg"],
         )
     for cut in (1, 2, 8):
         outputs += save_figure(
             cut_schematic_figure("resnet", cut),
-            [FIGURE_DIR / f"cut_resnet_block{cut}.svg"],
+            [output_dir / f"cut_resnet_block{cut}.svg"],
         )
     outputs += save_figure(
         curve_to_endpoint_bridge_figure(),
-        [FIGURE_DIR / "curve_to_endpoint_bridge.png"],
+        [output_dir / "curve_to_endpoint_bridge.png"],
     )
     outputs += save_figure(
         cnn_endpoint_bands_figure(),
         [
-            FIGURE_DIR / "cnn_relaxation_endpoint_bands.png",
-            FIGURE_DIR / "cnn_relaxation_endpoint_stacked.png",
+            output_dir / "cnn_relaxation_endpoint_bands.png",
+            output_dir / "cnn_relaxation_endpoint_stacked.png",
         ],
     )
     outputs += save_figure(
         tracking_resolving_figure(),
         [
-            FIGURE_DIR / "tracking_resolving.svg",
-            FIGURE_DIR / "tracking_resolving_only.png",
+            output_dir / "tracking_resolving.svg",
+            output_dir / "tracking_resolving_only.png",
         ],
     )
     return outputs
@@ -3025,6 +3044,7 @@ def render_static_suite() -> list[Path]:
 
 def render_ablation_if_available(
     result_root: Path | None = None,
+    output_dir: Path = DEPRECATED_FIGURE_DIR,
 ) -> tuple[list[Path], str | None]:
     root = result_root or (
         PROJECT_ROOT / "artifacts" / "lw_post" / "cnn_statistics_seed0"
@@ -3037,13 +3057,30 @@ def render_ablation_if_available(
         return [], str(exc)
     outputs = save_figure(
         figure,
-        [FIGURE_DIR / "cnn_pca_noise_ablations.png"],
+        [output_dir / "cnn_pca_noise_ablations.png"],
     )
     return outputs, None
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--measured-cnn-only",
+        action="store_true",
+        help=(
+            "Explicit alias for the default: render only the two measured CNN "
+            "panels into LW post/figures."
+        ),
+    )
+    mode.add_argument(
+        "--legacy-full-suite",
+        action="store_true",
+        help=(
+            "Render the archived historical suite from archived inputs into "
+            "LW post/deprecated/figures."
+        ),
+    )
     parser.add_argument(
         "--allow-legacy-cnn-checkpoints",
         action="store_true",
@@ -3058,28 +3095,34 @@ def main() -> None:
         help="Fail instead of reporting a data-blocked ablation figure.",
     )
     parser.add_argument(
-        "--measured-cnn-only",
-        action="store_true",
-        help=(
-            "Render only cnn_measured_controls.png and "
-            "cnn_measured_horizon.png from artifacts/lw_post/measured."
-        ),
-    )
-    parser.add_argument(
         "--static-only",
         action="store_true",
-        help="Render the static post figures without loading checkpoint GIF data.",
+        help=(
+            "With --legacy-full-suite, render archived static figures without "
+            "loading checkpoint GIF data."
+        ),
     )
     args = parser.parse_args()
 
-    if args.measured_cnn_only:
+    legacy_only_flags = (
+        args.allow_legacy_cnn_checkpoints,
+        args.require_ablations,
+        args.static_only,
+    )
+    if not args.legacy_full_suite and any(legacy_only_flags):
+        parser.error(
+            "--allow-legacy-cnn-checkpoints, --require-ablations, and "
+            "--static-only require --legacy-full-suite"
+        )
+
+    if not args.legacy_full_suite:
         outputs = render_measured_cnn_blog_figures()
         print("Rendered measured CNN figures:")
         for path in outputs:
             print(f"  {path.relative_to(PROJECT_ROOT)}")
         return
 
-    outputs = render_static_suite()
+    outputs = render_static_suite(DEPRECATED_FIGURE_DIR)
     if args.static_only:
         print("Rendered static figures:")
         for path in outputs:
@@ -3088,7 +3131,9 @@ def main() -> None:
 
     gif_reports: list[dict[str, object]] = []
 
-    relaxation_outputs, relaxation_report = render_cnn_epoch1_relaxation()
+    relaxation_outputs, relaxation_report = render_cnn_epoch1_relaxation(
+        DEPRECATED_FIGURE_DIR
+    )
     outputs += relaxation_outputs
     gif_reports.append(relaxation_report)
 
@@ -3099,6 +3144,7 @@ def main() -> None:
         epochs=RESNET_CHECKPOINTS,
         output_stem="resnet_common_baseline_over_training_time_ARCHIVE",
         durations=GIF_DURATIONS_RESNET_CHECKPOINTS,
+        output_dir=DEPRECATED_FIGURE_DIR,
     )
     outputs += resnet_outputs
     gif_reports.append(resnet_report)
@@ -3117,6 +3163,7 @@ def main() -> None:
                 output_stem="cnn_common_baseline_over_training_time_ARCHIVE",
                 durations=GIF_DURATIONS_CNN_CHECKPOINTS,
                 legacy_fallback=True,
+                output_dir=DEPRECATED_FIGURE_DIR,
             )
             outputs += cnn_outputs
             gif_reports.append(cnn_report)
@@ -3127,11 +3174,14 @@ def main() -> None:
             epochs=CNN_CHECKPOINTS,
             output_stem="cnn_common_baseline_over_training_time_ARCHIVE",
             durations=GIF_DURATIONS_CNN_CHECKPOINTS,
+            output_dir=DEPRECATED_FIGURE_DIR,
         )
         outputs += cnn_outputs
         gif_reports.append(cnn_report)
 
-    ablation_outputs, ablation_blocker = render_ablation_if_available()
+    ablation_outputs, ablation_blocker = render_ablation_if_available(
+        output_dir=DEPRECATED_FIGURE_DIR
+    )
     outputs += ablation_outputs
     if ablation_blocker:
         blocked.append(ablation_blocker)

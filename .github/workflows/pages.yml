@@ -22,14 +22,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Build measured-only data appendix
         run: |
-          mkdir _site
+          PYTHONPATH=src python scripts/verify_lw_post_publication.py --profile committed
+          mkdir -p _site/figures
           PYTHONPATH=src python -m tracking2.post_report \
             artifacts/lw_post/dashboard_manifest.json \
             --output _site/index.html
           cmp _site/index.html "LW post/free-body-diagrams-for-neural-networks.html"
-          cp report.html _site/omnibus-report.html
+          cp "LW post/figures/class_conditioned_pushforward_pca.svg" _site/figures/
+          cp "LW post/figures/conceptual_internal_cut.svg" _site/figures/
+          cp "LW post/figures/cnn_measured_controls.png" _site/figures/
+          cp "LW post/figures/cnn_measured_horizon.png" _site/figures/
+          cp "LW post/figures/tracking_resolving.svg" _site/figures/
       - uses: actions/configure-pages@v5
         with:
           enablement: true

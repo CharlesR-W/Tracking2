@@ -1,12 +1,13 @@
-"""Jupytext-style notebook for the Tracking2 talk/post animations.
+"""Archived Jupytext-style notebook for the delivered Tracking2 talk animations.
 
 Run the cells interactively in an editor that understands ``# %%`` cells, or:
 
-    python "LW post/notebooks/animate_training_dynamics.py"
+    python "LW post/deprecated/notebooks/animate_training_dynamics.py"
 
-The notebook reads measured JSON artifacts and writes publication assets into
-``LW post/figures``. GIF timing is deliberate: three seconds to orient, one second
-per time step, then a six-second explanatory hold.
+The notebook reads historical JSON artifacts from the July omnibus archive and
+writes only archival assets into ``LW post/deprecated/figures``. GIF timing is
+deliberate: three seconds to orient, one second per time step, then a six-second
+explanatory hold.
 """
 
 # %%
@@ -27,8 +28,11 @@ from PIL import Image
 
 
 # %%
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-FIGURE_DIR = PROJECT_ROOT / "LW post" / "figures"
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+OMNIBUS_ARTIFACT_ROOT = (
+    PROJECT_ROOT / "deprecated" / "2026-07-omnibus" / "artifacts"
+)
+FIGURE_DIR = PROJECT_ROOT / "LW post" / "deprecated" / "figures"
 FIGURE_DIR.mkdir(parents=True, exist_ok=True)
 
 INK = "#243f65"
@@ -308,13 +312,16 @@ def gif_badge(fig: plt.Figure) -> None:
 
 # %%
 RESNET_PATHS = {
-    0: PROJECT_ROOT
-    / "artifacts/resnet_suffix_statistics/seed0-epoch0/resnet_suffix_statistics.json",
-    1: PROJECT_ROOT
-    / "artifacts/resnet_suffix_statistics/seed0-epoch1/resnet_suffix_statistics.json",
-    5: PROJECT_ROOT / "artifacts/resnet_suffix_statistics/seed0-epoch5.json",
-    20: PROJECT_ROOT / "artifacts/resnet_suffix_statistics/seed0-epoch20.json",
-    100: PROJECT_ROOT / "artifacts/resnet_suffix_statistics/seed0-epoch100.json",
+    0: OMNIBUS_ARTIFACT_ROOT
+    / "resnet_suffix_statistics/seed0-epoch0/resnet_suffix_statistics.json",
+    1: OMNIBUS_ARTIFACT_ROOT
+    / "resnet_suffix_statistics/seed0-epoch1/resnet_suffix_statistics.json",
+    5: OMNIBUS_ARTIFACT_ROOT
+    / "resnet_suffix_statistics/seed0-epoch5.json",
+    20: OMNIBUS_ARTIFACT_ROOT
+    / "resnet_suffix_statistics/seed0-epoch20.json",
+    100: OMNIBUS_ARTIFACT_ROOT
+    / "resnet_suffix_statistics/seed0-epoch100.json",
 }
 
 
@@ -493,8 +500,8 @@ training_frames[-1].save(
 # %%
 CNN_CHECKPOINTS = [0, 1, 5, 10, 20, 30]
 CNN_PATHS = {
-    epoch: PROJECT_ROOT
-    / f"artifacts/suffix_statistics/t{epoch}_cut3_full_seed0/suffix_statistics.json"
+    epoch: OMNIBUS_ARTIFACT_ROOT
+    / f"suffix_statistics/t{epoch}_cut3_full_seed0/suffix_statistics.json"
     for epoch in CNN_CHECKPOINTS
 }
 
@@ -667,9 +674,9 @@ def cnn_training_changes() -> dict[str, dict[str, np.ndarray]]:
         per_distribution = {"true": [], "gaussian": [], "mean": []}
         for cut in range(1, 5):
             artifact = load_json(
-                PROJECT_ROOT
+                OMNIBUS_ARTIFACT_ROOT
                 / (
-                    "artifacts/suffix_statistics/"
+                    "suffix_statistics/"
                     f"{prefix}_cut{cut}_full_seed0/suffix_statistics.json"
                 )
             )

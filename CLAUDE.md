@@ -11,6 +11,9 @@ integrated into one self-contained HTML report, following the parent experiment
 workflow.
 
 The LessWrong post's public-facing package lives in `LW post/`: draft and
-planning notes, figures, figure notebooks, interactive appendix, and talk
-materials. Its experiment implementation and measured inputs remain in the
-standard `src/`, `scripts/`, `tests/`, and `artifacts/lw_post/` locations.
+planning notes, exactly five current figures, the measured-only figure
+generator, and the interactive appendix. Delivered-talk and preliminary assets
+are physically separated under `LW post/deprecated/`; the older omnibus report
+and inputs are under `deprecated/2026-07-omnibus/`. Experiment implementation
+and current measured inputs remain in the standard `src/`, `scripts/`, `tests/`,
+and `artifacts/lw_post/` locations.

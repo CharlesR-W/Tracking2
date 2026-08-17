@@ -1,3 +1,8 @@
+import os
+import subprocess
+import sys
+from pathlib import Path
+
 import pytest
 
 from tracking2.report import (
@@ -130,3 +135,17 @@ def test_part_b_accuracy_effect_bars_are_signed_stacks():
 def test_architecture_sweep_rejects_duplicate_epoch_cut_cells():
     with pytest.raises(ValueError, match="Duplicate native suffix-statistics cell"):
         _statistics_sweep_data([sweep_payload(), sweep_payload()])
+
+
+def test_omnibus_report_cli_requires_explicit_output_path(tmp_path):
+    project_root = Path(__file__).resolve().parents[1]
+    environment = {**os.environ, "PYTHONPATH": str(project_root / "src")}
+    result = subprocess.run(
+        [sys.executable, "-m", "tracking2.report", str(tmp_path / "missing.json")],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=environment,
+    )
+    assert result.returncode == 2
+    assert "the following arguments are required: --output" in result.stderr

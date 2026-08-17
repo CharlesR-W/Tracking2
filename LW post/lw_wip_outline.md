@@ -184,7 +184,8 @@ If the older animations help explain the method, place them in a section titled
 - neither figure supports the post's canonical quantitative claims or an
   architecture-level replication.
 
-The talk under `talk/` is frozen as delivered and uses these preliminary pilots.
+The talk under `deprecated/talk/` is frozen as delivered and uses these
+preliminary pilots.
 Do not update it silently or use it as a second evidence surface.
 
 ### 8. Negative sequence-model extension
@@ -208,5 +209,6 @@ End on the observed contrast and the experiments that could sharpen it:
 
 The canonical appendix is the CNN-only
 `free-body-diagrams-for-neural-networks.html`, rebuilt from
-`../artifacts/lw_post/dashboard_manifest.json`. `../report.html` is an omnibus
+`../artifacts/lw_post/dashboard_manifest.json`.
+`../deprecated/2026-07-omnibus/report.html` is an omnibus
 research archive, not the post's evidence index.

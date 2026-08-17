@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 
 def _load_figure_notebook():
@@ -85,3 +86,61 @@ def test_measured_horizon_extraction_is_complete_through_epoch_20():
             assert np.isfinite(trajectory.mean).all()
     assert trajectories[1]["mean_isotropic"].mean[-1] == 1.6049159830093385
     assert trajectories[4]["gaussian"].mean[-1] == 0.9097770383834839
+
+
+def test_default_cli_is_measured_only(monkeypatch, capsys):
+    figures = _load_figure_notebook()
+    calls = []
+
+    def fake_render():
+        calls.append("measured")
+        return [figures.PUBLICATION_FIGURE_DIR / "cnn_measured_controls.png"]
+
+    monkeypatch.setattr(figures, "render_measured_cnn_blog_figures", fake_render)
+    monkeypatch.setattr(sys, "argv", ["lw_post_figures.py"])
+    figures.main()
+
+    assert calls == ["measured"]
+    assert "Rendered measured CNN figures" in capsys.readouterr().out
+
+
+def test_explicit_legacy_mode_routes_static_outputs_to_archive(monkeypatch):
+    figures = _load_figure_notebook()
+    output_dirs = []
+
+    def fake_static(output_dir):
+        output_dirs.append(output_dir)
+        return []
+
+    monkeypatch.setattr(figures, "render_static_suite", fake_static)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["lw_post_figures.py", "--legacy-full-suite", "--static-only"],
+    )
+    figures.main()
+
+    assert output_dirs == [figures.DEPRECATED_FIGURE_DIR]
+    assert figures.OMNIBUS_ARTIFACT_ROOT == (
+        figures.PROJECT_ROOT / "deprecated" / "2026-07-omnibus" / "artifacts"
+    )
+
+
+def test_legacy_loaders_read_only_from_physical_archive():
+    figures = _load_figure_notebook()
+    cnn_changes = figures.load_legacy_cnn_changes()
+    resnet_changes = figures.load_resnet_changes()
+
+    assert set(cnn_changes) == set(figures.CNN_CHECKPOINTS)
+    assert set(resnet_changes) == set(figures.RESNET_CHECKPOINTS)
+    assert not (figures.PROJECT_ROOT / "artifacts" / "suffix_statistics").exists()
+    assert not (
+        figures.PROJECT_ROOT / "artifacts" / "resnet_suffix_statistics"
+    ).exists()
+
+
+def test_legacy_only_flags_require_explicit_legacy_mode(monkeypatch):
+    figures = _load_figure_notebook()
+    monkeypatch.setattr(sys, "argv", ["lw_post_figures.py", "--static-only"])
+    with pytest.raises(SystemExit, match="2"):
+        figures.main()
