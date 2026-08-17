@@ -1,15 +1,15 @@
-"""Verify the checked-in July 26 LessWrong publication package on CPU.
+"""Verify the checked-in LessWrong publication package on CPU.
 
-This verifier reads committed JSON/figure/appendix artifacts. It never trains a
-model, uses a GPU, or accesses the network. The default check rebuilds the
-self-contained appendix into a temporary directory and requires byte identity.
+This verifier reads committed JSON, active-figure, and appendix artifacts. It
+never trains a model, uses a GPU, or accesses the network. The default check
+rebuilds the self-contained appendix into a temporary directory and requires
+byte identity.
 """
 
 from __future__ import annotations
 
 import argparse
 import hashlib
-import importlib.util
 import json
 import math
 import os
@@ -32,6 +32,7 @@ DEFAULT_APPENDIX = (
     / "LW post"
     / "free-body-diagrams-for-neural-networks.html"
 )
+DEFAULT_FIGURE_MANIFEST = PROJECT_ROOT / "LW post" / "figure_manifest.json"
 DIGEST_LENGTH = 64
 COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -381,28 +382,6 @@ EXPECTED_HEADLINES = {
         0.0227389348347982,
         0.01051742948798972,
     ),
-}
-
-FIGURES = {
-    "cnn_measured_controls.png": {
-        "sha256": (
-            "1cde8775af500597a9b2751fe727fd8a4c35f0a5dd2a3d0f21afdda7d920d8f5"
-        ),
-        "inputs": {
-            "cnn_fixed_gate_seed0/cut1_r2048_true_eval_sensitivity.json",
-            *PRIMARY_PATHS.values(),
-        },
-        "training_seeds": {0, 1, 2},
-    },
-    "cnn_measured_horizon.png": {
-        "sha256": (
-            "b5d59e1b99b97cb28d9c05f3442f488af715ea10886531516bc393deb2c643f4"
-        ),
-        "inputs": {
-            "cnn_matched_seed0/cuts1_4_horizon20_true_eval.json",
-        },
-        "training_seeds": {0},
-    },
 }
 
 EXPECTED_CORRECTIONS = {
@@ -1342,79 +1321,55 @@ def verify_projection_gate(
         raise VerificationError("rank-2048 projection coverage changed")
 
 
-def verify_figure_inputs(
-    payloads: Mapping[str, Mapping[str, Any]],
-    training: Mapping[int, Mapping[str, Any]],
-    *,
-    figure_dir: Path,
-    measured_root: Path,
-    locked_snapshot: bool,
+def verify_publication_figures(
+    figure_manifest_path: Path, figure_dir: Path
 ) -> dict[str, str]:
-    manifest_paths = set(payloads)
+    manifest = load_json(figure_manifest_path)
+    require_equal(manifest.get("schema_version"), 1, "figure manifest schema")
+    for field in (
+        "trusted_post_baseline",
+        "prose_restoration_commit",
+        "asset_git_import_commit",
+    ):
+        value = manifest.get(field)
+        if not isinstance(value, str) or not COMMIT_RE.fullmatch(value):
+            raise VerificationError(f"figure manifest has invalid {field}")
+    provenance = manifest.get("pre_import_asset_provenance")
+    if not isinstance(provenance, str) or "not verified" not in provenance:
+        raise VerificationError(
+            "figure manifest must disclose unverified pre-import provenance"
+        )
+    assets = manifest.get("assets")
+    if not isinstance(assets, list) or not assets:
+        raise VerificationError("figure manifest assets must be a non-empty list")
+
     digests: dict[str, str] = {}
-    for name, spec in FIGURES.items():
-        inputs = spec["inputs"]
-        seeds = spec["training_seeds"]
-        assert isinstance(inputs, set) and isinstance(seeds, set)
-        if not inputs <= manifest_paths:
-            raise VerificationError(f"{name} depends on an unmanifested input")
-        if not seeds <= set(training):
-            raise VerificationError(f"{name} lacks a training manifest")
+    for index, asset in enumerate(assets):
+        if not isinstance(asset, dict):
+            raise VerificationError(f"figure manifest asset {index} is not an object")
+        name = asset.get("filename")
+        expected_digest = asset.get("sha256")
+        if not isinstance(name, str) or Path(name).name != name:
+            raise VerificationError(f"figure manifest asset {index} has unsafe filename")
+        if name in digests:
+            raise VerificationError(f"duplicate figure manifest filename: {name}")
+        if not isinstance(expected_digest, str) or not DIGEST_RE.fullmatch(
+            expected_digest
+        ):
+            raise VerificationError(f"invalid SHA-256 for active figure: {name}")
+        for field in ("role", "evidence_status", "source_family"):
+            if not isinstance(asset.get(field), str) or not asset[field].strip():
+                raise VerificationError(f"{name} lacks figure metadata field {field}")
         path = figure_dir / name
+        if not path.is_file():
+            raise VerificationError(f"active figure is missing: {name}")
         observed_digest = sha256(path)
-        if locked_snapshot:
-            require_equal(observed_digest, spec["sha256"], f"SHA-256 for {name}")
+        require_equal(observed_digest, expected_digest, f"SHA-256 for {name}")
         digests[name] = observed_digest
-    if not locked_snapshot:
-        verify_staged_figure_rebuild(measured_root, figure_dir)
+
+    actual_names = {path.name for path in figure_dir.iterdir() if path.is_file()}
+    require_equal(actual_names, set(digests), "active figure directory allowlist")
     return digests
-
-
-def verify_staged_figure_rebuild(measured_root: Path, figure_dir: Path) -> None:
-    generator_path = PROJECT_ROOT / "LW post" / "notebooks" / "lw_post_figures.py"
-    module_name = "_tracking2_staged_lw_figures"
-    spec = importlib.util.spec_from_file_location(module_name, generator_path)
-    if spec is None or spec.loader is None:
-        raise VerificationError("cannot load the publication figure generator")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    try:
-        spec.loader.exec_module(module)
-        control_data = module.load_measured_cnn_control_data(measured_root)
-        horizon_data = module.load_measured_cnn_horizon(measured_root)
-        with tempfile.TemporaryDirectory(
-            prefix="tracking2-lw-figures-"
-        ) as temporary:
-            temporary_root = Path(temporary)
-            rebuilt = {
-                "cnn_measured_controls.png": temporary_root
-                / "cnn_measured_controls.png",
-                "cnn_measured_horizon.png": temporary_root
-                / "cnn_measured_horizon.png",
-            }
-            module.save_figure(
-                module.measured_cnn_controls_figure(control_data),
-                [rebuilt["cnn_measured_controls.png"]],
-                dpi=200,
-            )
-            module.save_figure(
-                module.measured_cnn_horizon_figure(horizon_data),
-                [rebuilt["cnn_measured_horizon.png"]],
-                dpi=200,
-            )
-            for name, rebuilt_path in rebuilt.items():
-                staged_path = figure_dir / name
-                if rebuilt_path.read_bytes() != staged_path.read_bytes():
-                    raise VerificationError(
-                        f"staged figure rebuild is not byte-identical: {name}; "
-                        f"staged={sha256(staged_path)}, rebuilt={sha256(rebuilt_path)}"
-                    )
-    except VerificationError:
-        raise
-    except Exception as error:
-        raise VerificationError(f"staged figure rebuild failed: {error}") from error
-    finally:
-        sys.modules.pop(module_name, None)
 
 
 def verify_appendix_rebuild(manifest_path: Path, appendix_path: Path) -> str:
@@ -1462,7 +1417,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Verify either the locked July 26 LW package or an isolated clean "
-            "rerun staging layout, including deterministic figures and appendix."
+            "rerun staging layout, including active figure hashes and appendix."
         )
     )
     parser.add_argument(
@@ -1506,6 +1461,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
             measured_root = MEASURED_ROOT.resolve()
             figure_dir = (PROJECT_ROOT / "LW post" / "figures").resolve()
+            figure_manifest_path = DEFAULT_FIGURE_MANIFEST.resolve()
             checkpoint_root = None
             source_archive = None
         else:
@@ -1529,6 +1485,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 / "free-body-diagrams-for-neural-networks.html"
             )
             figure_dir = stage_root / "LW post" / "figures"
+            figure_manifest_path = stage_root / "LW post" / "figure_manifest.json"
             checkpoint_root = stage_root / "checkpoints"
             source_archive = stage_root / "source" / "source.tar"
         manifest = load_json(manifest_path)
@@ -1557,12 +1514,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             locked_snapshot=locked_snapshot,
         )
         verify_projection_gate(payloads, locked_snapshot=locked_snapshot)
-        figure_digests = verify_figure_inputs(
-            payloads,
-            training,
-            figure_dir=figure_dir,
-            measured_root=measured_root,
-            locked_snapshot=locked_snapshot,
+        figure_digests = verify_publication_figures(
+            figure_manifest_path,
+            figure_dir,
         )
         appendix_digest = (
             sha256(appendix_path)
@@ -1589,7 +1543,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"  cut {cut} {contrast}: "
             f"{mean:.6f} ± {standard_deviation:.6f}"
         )
-    print(f"  measured figures: {len(figure_digests)}")
+    print(f"  active trusted figures: {len(figure_digests)}")
     print(f"  appendix SHA-256: {appendix_digest}")
     if args.skip_appendix_rebuild:
         print("  appendix rebuild: skipped by request")

@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "decision": "The active publication figures are exact copies of assets used by the delivered talk; the July 2026 redesign family is excluded.",
+  "trusted_post_baseline": "4371d3c04e9ade55f4230cbeafc2f0a475204aa4",
+  "prose_restoration_commit": "9218f5d0c71078bff8e9fbf9308508239abc7a2b",
+  "asset_git_import_commit": "68d8ecb03a6fc40edbfebacc53244dc7a2426ae6",
+  "pre_import_asset_provenance": "Exact delivered-talk copies; their earlier generating commit is not verified.",
+  "talk_reference": "LW post/deprecated/talk/slides.html",
+  "assets": [
+    {
+      "filename": "fbd_materials_nn_analogy.svg",
+      "sha256": "f2ab49fed590aa562969aeced6b65031d89173dab2027fed77c2fe5868d045b7",
+      "role": "method schematic",
+      "evidence_status": "illustration",
+      "source_family": "delivered talk"
+    },
+    {
+      "filename": "cnn_resnet_architectures.svg",
+      "sha256": "2f5d528669016784ae5d2d5115580c1ce9748e76dd39263141f504ec94aa30b2",
+      "role": "architecture schematic",
+      "evidence_status": "illustration",
+      "source_family": "delivered talk"
+    },
+    {
+      "filename": "method_make_datasets.svg",
+      "sha256": "7c717b475193f18320387445ac7a45ea93194e87909f71745d7cb2d15463ee83",
+      "role": "intervention schematic",
+      "evidence_status": "illustration",
+      "source_family": "delivered talk"
+    },
+    {
+      "filename": "method_train_compare.svg",
+      "sha256": "0b5dcdfeee0ba4c0944403025777cea45a1eb7a99055809e7e12418391e24775",
+      "role": "evaluation schematic",
+      "evidence_status": "illustration",
+      "source_family": "delivered talk"
+    },
+    {
+      "filename": "cnn_over_training_time.gif",
+      "sha256": "cad2cf8a13dfc543358a2dcec9f88eb16dd06a3035174f160fc35c1ad37c56fa",
+      "role": "animated CNN depth-by-checkpoint waterfall",
+      "evidence_status": "historical pilot; separately scheduled CNN models, not one trajectory",
+      "source_family": "delivered talk"
+    },
+    {
+      "filename": "cnn_relaxation_time.gif",
+      "sha256": "271dacbd4ab8b5b4c34e2253eaa7bb6584ac0a9da4e8c6bd634773a6d9d68e6d",
+      "role": "animated CNN suffix-relaxation curves",
+      "evidence_status": "historical one-model-per-checkpoint pilot",
+      "source_family": "delivered talk"
+    },
+    {
+      "filename": "resnet_over_training_time.gif",
+      "sha256": "e8327e27726355af99fbbc92ff22ab5b6d271bbce15bf2b51621e1f6994b9c31",
+      "role": "animated ResNet depth-by-checkpoint comparison",
+      "evidence_status": "historical one-model pilot; redraws are not model seeds",
+      "source_family": "delivered talk"
+    },
+    {
+      "filename": "tracking_resolving_only.png",
+      "sha256": "effb16997fda11e60532480589eb43b8cd940dbb61ec47df39131f1f63e5d380",
+      "role": "tracking-versus-resolving schematic",
+      "evidence_status": "future-work illustration",
+      "source_family": "delivered talk"
+    },
+    {
+      "filename": "closing_cycle.svg",
+      "sha256": "bf3cbbed22deaca979cd6a723435da7ccd875d0c43ab7296802e334f8454a841",
+      "role": "closing programme schematic",
+      "evidence_status": "future-work illustration",
+      "source_family": "delivered talk"
+    }
+  ]
+}

@@ -1,15 +1,20 @@
 import hashlib
+import json
 import re
 from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CANONICAL_FIGURES = {
-    "class_conditioned_pushforward_pca.svg",
-    "conceptual_internal_cut.svg",
-    "cnn_measured_controls.png",
-    "cnn_measured_horizon.png",
-    "tracking_resolving.svg",
+    "closing_cycle.svg",
+    "cnn_over_training_time.gif",
+    "cnn_relaxation_time.gif",
+    "cnn_resnet_architectures.svg",
+    "fbd_materials_nn_analogy.svg",
+    "method_make_datasets.svg",
+    "method_train_compare.svg",
+    "resnet_over_training_time.gif",
+    "tracking_resolving_only.png",
 }
 TALK_EXPORT_DIGESTS = {
     "Tracking2-talk-slides.html": (
@@ -31,6 +36,38 @@ def _sha256(path: Path) -> str:
 def test_current_publication_figure_directory_has_exact_allowlist():
     figure_dir = PROJECT_ROOT / "LW post" / "figures"
     assert {path.name for path in figure_dir.iterdir()} == CANONICAL_FIGURES
+
+    manifest = json.loads(
+        (PROJECT_ROOT / "LW post" / "figure_manifest.json").read_text()
+    )
+    assert manifest["schema_version"] == 1
+    assert manifest["prose_restoration_commit"].startswith("9218f5d")
+    assert manifest["asset_git_import_commit"].startswith("68d8ecb")
+    assert "not verified" in manifest["pre_import_asset_provenance"]
+    assert "restoration_commit" not in manifest
+    assert {asset["filename"] for asset in manifest["assets"]} == CANONICAL_FIGURES
+    for asset in manifest["assets"]:
+        assert asset["source_family"] == "delivered talk"
+        assert _sha256(figure_dir / asset["filename"]) == asset["sha256"]
+        assert (figure_dir / asset["filename"]).read_bytes() == (
+            PROJECT_ROOT / "LW post" / "deprecated" / "figures" / asset["filename"]
+        ).read_bytes()
+
+
+def test_post_uses_every_active_figure_and_no_rejected_redesign_asset():
+    post = (
+        PROJECT_ROOT / "LW post" / "free-body-diagrams-for-neural-networks.md"
+    ).read_text()
+    image_targets = set(re.findall(r"!\[[^]]*\]\(([^)]+)\)", post))
+    assert image_targets == {
+        f"https://charlesr-w.github.io/Tracking2/figures/{name}"
+        for name in CANONICAL_FIGURES
+    }
+    assert "conceptual_internal_cut.svg" not in post
+    assert "class_conditioned_pushforward_pca.svg" not in post
+    assert "cnn_measured_controls.png" not in post
+    assert "cnn_measured_horizon.png" not in post
+    assert "tracking_resolving.svg" not in post
 
 
 def test_delivered_talk_is_byte_identical_and_local_assets_resolve():
@@ -72,7 +109,7 @@ def test_omnibus_archive_has_only_the_seven_tracked_artifact_trees():
     )
 
 
-def test_pages_surface_is_appendix_plus_five_assets_only():
+def test_pages_surface_is_appendix_plus_manifest_assets_only():
     workflow = (PROJECT_ROOT / ".github" / "workflows" / "pages.yml").read_text()
     assert "fetch-depth: 0" in workflow
     assert "verify_lw_post_publication.py --profile committed" in workflow

@@ -10,10 +10,10 @@ The current public-facing thread of the project is
 an exploratory research note about applying distributional-simplicity probes
 at internal network cuts.
 
-- [`LW post/`](LW%20post/) collects the publication post, outline, handoff, reproduction
-  notes, exactly five current figures, their measured-only generator, and the
-  interactive appendix. Delivered-talk and preliminary assets are under
-  [`LW post/deprecated/`](LW%20post/deprecated/).
+- [`LW post/`](LW%20post/) collects the publication post, reproduction notes,
+  hash-pinned active figure manifest, trusted talk-family visuals, and the
+  interactive appendix. The rejected July redesign and unused historical
+  assets are under [`LW post/deprecated/`](LW%20post/deprecated/).
 - [`LW post/lw_post_reproduction.md`](LW%20post/lw_post_reproduction.md) gives the
   bounded protocol, controls, smoke test, measured run commands, and evidence
   gate.
@@ -25,10 +25,10 @@ at internal network cuts.
   surfaces, is not the note's evidence index, and is not published by Pages.
 
 The post-facing dashboard deliberately includes only the measured July 26 CNN
-control battery. ResNet, the older CNN depth-by-time sweep, smoke data, unrun
-experiments, and mockups are outside its evidence manifest. The ResNet and older
-CNN materials remain historical pilots, not support for the post's quantitative
-claims.
+control battery. The post also shows the older CNN and one-model ResNet
+animations as explicitly labelled historical pilots; they are outside the
+dashboard evidence manifest and do not support its quantitative headline.
+Smoke data, unrun experiments, and mockups remain outside both surfaces.
 
 Rebuild the appendix from the checked-in, hash-pinned manifest with:
 
@@ -45,9 +45,9 @@ and schema. Run `scripts/verify_lw_post_publication.py` for the complete
 checked-in publication gate. The old rank-512 runner and verifier are isolated
 under `scripts/deprecated/lw_post/`; do not use them to verify or rerun the July
 26 publication battery. No GPU rerun is required for the current bounded claim.
-GitHub Pages rebuilds the canonical file from the committed manifest, checks it
-against the tracked HTML, and publishes only that appendix plus the five current
-figures.
+GitHub Pages rebuilds the canonical file from the committed evidence manifest,
+checks it against the tracked HTML, validates the separate figure manifest, and
+publishes only that appendix plus the active trusted figures.
 
 ## Implemented
 
@@ -165,8 +165,8 @@ python -m tracking2.report artifacts/confirmatory/results.json \
 
 GitHub Pages publishes the measured-only
 `LW post/free-body-diagrams-for-neural-networks.html` as the landing report on every
-push to `main`, together with exactly the five post figures. It does not publish
-the archived omnibus dashboard.
+push to `main`, together with exactly the figure-manifest assets. It does not
+publish the archived omnibus dashboard or rejected redesign.
 
 ## Critical-module Panel B
 
