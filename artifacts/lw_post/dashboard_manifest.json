@@ -2,7 +2,7 @@
   "schema_version": 2,
   "title": "Free-Body Diagrams for Neural Networks \u2014 Interactive Ablation Appendix",
   "status": "MEASURED",
-  "source_commit": "3b03646281a5f9fee2c50c6d7dfbf566689e09b4",
+  "source_commit": "39519310673c525b2d6b361c1ee007ee529ea701",
   "primary_analysis": {
     "status": "MEASURED",
     "model_kind": "cnn",
@@ -177,6 +177,6 @@
   ],
   "provenance_corrections": {
     "path": "provenance_corrections.json",
-    "sha256": "a8e2b1a64c0c6851445137a2518ee16932cb7856990164ca61177e78232821b2"
+    "sha256": "9c2a211fb01f364ac5eb87fd417d72fb3483af872a1138c54e5d5ede70cf6ee8"
   }
 }

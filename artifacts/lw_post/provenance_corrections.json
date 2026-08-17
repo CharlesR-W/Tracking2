@@ -55,7 +55,7 @@
           "path": "dashboard_manifest.json",
           "json_pointer": "/source_commit",
           "status": "superseded_by_valid_commit",
-          "current_value": "3b03646281a5f9fee2c50c6d7dfbf566689e09b4"
+          "current_value": "39519310673c525b2d6b361c1ee007ee529ea701"
         }
       ]
     }
