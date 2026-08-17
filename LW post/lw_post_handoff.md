@@ -33,7 +33,7 @@ not the default remedy.
 
 Keep these as the publication package:
 
-- post: `LW post/lw_wip_post.md`;
+- post: `LW post/free-body-diagrams-for-neural-networks.md`;
 - appendix: `LW post/free-body-diagrams-for-neural-networks.html`;
 - evidence index: `artifacts/lw_post/dashboard_manifest.json`;
 - nine manifest-listed CNN JSON inputs under `artifacts/lw_post/measured/`;
@@ -344,7 +344,7 @@ Acceptance criteria:
 
 ### Package 4 — editorial and final-link pass
 
-Own `LW post/lw_wip_post.md` only during the prose pass. Do not add new
+Own `LW post/free-body-diagrams-for-neural-networks.md` only during the prose pass. Do not add new
 substantive claims.
 
 Required edits from the independent reader review:
@@ -363,9 +363,9 @@ Required edits from the independent reader review:
    matched and soften the centroid inversion, or rerun that isolated cell with a
    lower/no floor before presenting it as exact matched evidence.
 
-Also decide explicitly whether the release remains a WIP. If not, rename the
-post and remove WIP labels consistently from the post, manifest, builder,
-appendix, README, and links. Replace local-only relative appendix/image links
+The publication release is final rather than provisional. Remove pre-release labels
+consistently from the post, manifest, builder, appendix, README, and links.
+Replace local-only relative appendix/image links
 with tested final LessWrong or Pages asset URLs, or upload the assets through the
 publication workflow.
 
@@ -380,7 +380,7 @@ Acceptance criteria:
 - no clipped row is described as exactly matched without a declared tolerance;
 - every external literature claim is supported by the cited primary source;
 - all final asset links work outside the local checkout; and
-- WIP/release naming is internally consistent.
+- final-release naming is internally consistent.
 
 ### Package 5 — independent verification and release integration
 

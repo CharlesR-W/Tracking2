@@ -1,4 +1,4 @@
-# Working outline: free-body diagrams for neural networks
+# Publication outline: free-body diagrams for neural networks
 
 ## Publication scope
 

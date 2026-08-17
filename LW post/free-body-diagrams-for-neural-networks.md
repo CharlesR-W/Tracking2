@@ -1,8 +1,8 @@
 # Free-body diagrams for neural networks
 
-*Work in progress. This is an exploratory CIFAR-10 research note, not a settled
-claim about how deep networks represent concepts. The strongest comparison
-uses three independently trained small CNNs; several important controls still
+*This is an exploratory CIFAR-10 research note, not a settled claim about how
+deep networks represent concepts. The strongest comparison uses three
+independently trained small CNNs; several important controls still
 use one model. The ResNet result is an earlier one-model pilot, not an
 architecture-level replication.[^ai]*
 
@@ -15,22 +15,22 @@ architecture-level replication.[^ai]*
   fitted class Gaussian, and class means plus isotropic noise produces clearly
   different cross-entropies. After the final block, the differences are small.
 - This early-versus-late contrast repeats across three independently trained
-  CNNs. In seed-0 sensitivities, it also survives a longer relaxation horizon
-  and reinitializing the suffix. But moving the cut changes the suffix's size
-  and trainability, so this is not a representation-only effect.
+  CNNs. In seed-0 sensitivities, it also survives a longer suffix-only training
+  horizon and reinitializing the suffix. But moving the cut changes the
+  suffix's size and trainability, so this is not a representation-only effect.
 - Two controls weakened my original interpretation. A shared learning rate
   made the shallow Gaussian and mean-replay first updates about 184 and 287
   times larger than the true-replay update. And whether Gaussian replay beats
   mean-only replay depends on how much isotropic noise I add to the class
   means.
-- The result I am willing to keep is narrower: under this finite relaxation
-  protocol, the native late suffix is much less sensitive to the replay
-  distribution than the native early suffix is. I do **not** yet have a clean
-  measurement of “how much covariance” or “how many higher moments” each layer
-  uses.
+- So the result I am willing to keep is narrower: under this finite
+  suffix-training protocol, the native late suffix is much less sensitive to
+  the replay distribution than the native early suffix is. I do **not** yet
+  have a clean measurement of “how much covariance” or “how many higher
+  moments” each layer uses.
 
 The full matrices, provenance, PCA gates, and ablations are in the
-[interactive ablation appendix](free-body-diagrams-for-neural-networks.html).
+[interactive ablation appendix](https://charlesr-w.github.io/Tracking2/).
 
 ## Introduction and motivation
 
@@ -47,9 +47,7 @@ make the same move here: move a cut through a network, describe the activation
 distribution crossing it, and test what the suffix can learn from controlled
 replacements.
 
-![Particles become a continuum description by moving a local cut through a
-material; a whole network becomes a layerwise description by moving an
-internal cut through its blocks.](figures/conceptual_internal_cut.svg)
+![Particles become a continuum description by moving a local cut through a material; a whole network becomes a layerwise description by moving an internal cut through its blocks.](https://charlesr-w.github.io/Tracking2/figures/conceptual_internal_cut.svg)
 
 *Figure 1. Moving a boundary turns one global problem into a family of local
 ones. The analogy is about scale and method, not about forces.*
@@ -84,6 +82,10 @@ $$
 \quad\longrightarrow\quad
 \text{the empirical distribution}.
 $$
+
+That first rung is conceptual shorthand. The experimental control below is a
+radius-indexed family, $\mathcal N(\mu_c,r^2\bar v I)$: only $r=0$ is a
+centroid-only condition, while $r>0$ adds class-independent isotropic noise.
 
 [Refinetti, Ingrosso, and Goldt](https://proceedings.mlr.press/v202/refinetti23a.html)
 found that Gaussian replacements could reproduce the early part of learning
@@ -124,11 +126,9 @@ datasets:
 3. **Gaussian:** class-conditional samples with the fitted mean and exact
    empirical covariance in PCA coordinates.
 4. **Mean + isotropic noise:** samples around each class mean with a declared
-   class-independent spherical noise scale $\rho$.
+   class-independent spherical noise scale $r$.
 
-![A class-conditioned image distribution is pushed through a fixed prefix,
-fitted in PCA coordinates, and replaced by projected-real, Gaussian, or
-mean-plus-noise replay.](figures/class_conditioned_pushforward_pca.svg)
+![A class-conditioned image distribution is pushed through a fixed prefix, fitted in PCA coordinates, and replaced by projected-real, Gaussian, or mean-plus-noise replay.](https://charlesr-w.github.io/Tracking2/figures/class_conditioned_pushforward_pca.svg)
 
 *Figure 2. The PCA basis is fitted on the first 10,000 ordered training
 activations. Class moments are then estimated from all 50,000 training
@@ -148,21 +148,24 @@ PCA coordinates. The main Gaussian uses that exact covariance, with no default
 shrinkage. The mean control is
 
 $$
-\mathcal N(\mu_c,\rho^2\bar v I_k),
+\mathcal N(\mu_c,r^2\bar v I_k),
 \qquad
 \bar v=\frac{1}{Ck}\sum_{c=1}^{C}\operatorname{tr}(\Sigma_c).
 $$
 
-Thus $\rho=1$ gives the spherical distribution the across-class average
-within-class covariance trace; $\rho=0$ gives exact class centroids. Projected
+Thus $r=1$ gives the spherical distribution the across-class average
+within-class covariance trace; $r=0$ gives exact class centroids. Projected
 true matters because a low-rank Gaussian comparison would otherwise mix two
 changes: discarding activation directions and Gaussianizing the retained
 coordinates. It is the matched empirical baseline for comparisons inside the
 retained subspace.
 
-For each replay condition, I make an identical copy of the checkpoint suffix,
-train it for a finite budget, and evaluate it on held-out *true* activations.
-The primary readable quantity is held-out cross-entropy; accuracy is secondary.
+For each cut, I retain the suffix architecture that naturally follows it—the
+native receiver. For each replay condition, I clone its checkpoint weights (a
+warm suffix), train only that clone, and evaluate it on held-out *true*
+activations. I call these additional suffix-training epochs the relaxation
+horizon. The primary readable quantity is held-out cross-entropy; accuracy is
+secondary.
 
 This is not a damage test on one network. It asks what further learning each
 version of the internal data supports from the same checkpoint.
@@ -200,7 +203,7 @@ a claim about full-space sufficiency.
 
 A shared learning rate sounds fair, but it did not imply comparable
 interventions. At seed 0, cut 1, rank 2,048, the first projected, Gaussian, and
-mean-$r1$ update norms were about 2.5, 184, and 287 times the true-replay
+mean $r=1$ update norms were about 2.5, 184, and 287 times the true-replay
 update. Much of the apparent synthetic-data failure was an optimizer shock.
 
 I therefore keep two regimes distinct:
@@ -211,7 +214,7 @@ I therefore keep two regimes distinct:
 
 At this shallow cell, the endpoint held-out cross-entropies were:
 
-| Regime | Projected true | Exact Gaussian | Mean-$r1$ |
+| Regime | Projected true | Exact Gaussian | Mean ($r=1$) |
 |---|---:|---:|---:|
 | Fixed LR | 0.967 | 1.805 | 3.313 |
 | Matched first update | 0.925 | 1.045 | 1.193 |
@@ -227,11 +230,15 @@ optimizer.
 
 The primary comparison uses three independently trained epoch-30 CNNs, cuts
 after blocks 1 and 4, rank 2,048, warm suffixes, matched first updates, one
-surrogate draw, and five relaxation epochs. The table reports paired held-out
-true cross-entropy differences, mean $\pm$ sample standard deviation across
-the three models. Positive means the distribution on the right did worse.
+generated replay bank per condition and model, and five relaxation epochs. The
+table reports paired held-out true cross-entropy differences, mean $\pm$ sample
+standard deviation across
+the three models. The independent units are trained CNN seeds; there are no
+replay-bank redraw replicates, so within-model surrogate-redraw uncertainty is
+unmeasured. Positive means the first named replay distribution finished with
+higher cross-entropy.
 
-| Cut | Gaussian − projected true | Mean-$r1$ − Gaussian |
+| Cut | Gaussian − projected true | Mean ($r=1$) − Gaussian |
 |---|---:|---:|
 | After block 1 | $+0.183 \pm 0.055$ | $+0.144 \pm 0.019$ |
 | After block 4 | $-0.012 \pm 0.002$ | $+0.023 \pm 0.011$ |
@@ -244,10 +251,23 @@ place at the final cut. The result is not “simplified data always falls
 behind”; it is an early-versus-late sensitivity contrast under this finite,
 projected-subspace protocol.
 
-![Measured CNN controls showing the three-seed depth contrast, optimizer-scale
-sensitivity, and mean-noise-radius ablation.](figures/cnn_measured_controls.png)
+Moving the cut also changes the native receiver: block 1 leaves a much larger
+nonlinear suffix than block 4, with different capacity and trainability. The
+table is therefore not a representation-only depth effect, even though the
+receiver is held fixed within each cut.
 
-*Figure 3. Current measured controls only. Rank-2,048 shallow results are
+The shared PCA rank is also asymmetric in native terms: after block 1 it keeps
+2,048 of 32,768 coordinates and fails the predictive-KL gate, while after block
+4 the native dimension is itself 2,048 and projection is effectively exact.
+Projected-real replay controls truncation within each cut; it does not equalize
+intervention severity across cuts. The seed-0 rank-4,096 check below mitigates
+the shallow projection concern but does not replicate that check across seeds.
+
+[![Measured CNN controls showing the three-seed depth contrast, optimizer-scale sensitivity, and mean-noise-radius ablation.](https://charlesr-w.github.io/Tracking2/figures/cnn_measured_controls.png)](https://charlesr-w.github.io/Tracking2/figures/cnn_measured_controls.png)
+
+*Figure 3. Current measured controls only; open the figure for full resolution.
+Panel A is the three-seed contrast, panel B the optimizer-scale control above,
+and panel C the radius sensitivity below. Rank-2,048 shallow results are
 projected-subspace comparisons; the rank-4,096 seed-0 cell below is the
 adequacy-passing shallow check.*
 
@@ -271,7 +291,7 @@ population. I treat it as exploratory support, not confirmation.
 covariance. Radius 0 uses exact centroids; radius 0.5 has one quarter of that
 trace, and radius 2 has four times the trace.
 
-At seed 0, cut 1, rank 2,048, with matched first updates:
+At seed 0, cut 1, rank 2,048, under the first-update matching procedure:
 
 | Replay | Held-out true CE |
 |---|---:|
@@ -281,10 +301,14 @@ At seed 0, cut 1, rank 2,048, with matched first updates:
 | Mean, $r=1$ | 1.192704 |
 | Mean, $r=2$ | 1.041234 |
 
-The centroid condition beats the Gaussian, while mean-$r1$ loses to it.
-Therefore the tempting sentence “Gaussian beats mean, so class covariance
-helped” is not robust to the nuisance-noise definition. The late cut remains
-relatively insensitive across the declared radii.
+The radius-zero cell was only approximately matched: its learning-rate
+multiplier hit the $0.001$ floor, giving a first-update norm of $0.0007991132$
+versus $0.0007300291$ for true replay, or $9.463\%$ larger. Its endpoint below
+the Gaussian is therefore a clipped sensitivity, not an exactly matched
+inversion. Mean $r=1$ loses to the Gaussian, while radius 2 is approximately
+tied. The tempting sentence “Gaussian beats mean, so class covariance helped”
+is not robust to the nuisance-noise definition. The late cut remains
+relatively insensitive across the declared radii in this seed-0 sensitivity.
 
 **Covariance estimator.** The primary Gaussian uses exact empirical covariance
 in PCA space with no hidden diagonal jitter. Replacing it with 5% spherical
@@ -294,21 +318,22 @@ bank still does not exactly reproduce held-out moments, so “targets the fitted
 covariance” is more accurate than “matches the held-out covariance.”
 
 **Warm start.** Reinitializing the suffix preserves the qualitative seed-0
-contrast. After block 1, true/projected/Gaussian/mean-$r1$ accuracies are
-68.70%, 64.46%, 43.39%, and 37.79%; after block 4 they are all about 77.9%.
+contrast. After block 1, the true, projected, Gaussian, and mean $r=1$
+accuracies are 68.70%, 64.46%, 43.39%, and 37.79%; after block 4 they are all
+about 77.9%.
 Inherited suffix knowledge is not required for the contrast. This does not
 equalize receiver capacity: the fresh shallow suffix itself only reaches 68.7%
 in five epochs.
 
-**Longer horizon.** Extending matched replay from five to twenty epochs does
-not close the shallow gaps. Gaussian-minus-projected cross-entropy grows from
+**Longer horizon.** In the seed-0 horizon control, extending matched replay
+from five to twenty epochs does not close the shallow gaps.
+Gaussian-minus-projected cross-entropy grows from
 0.120 to 0.147 nat; mean-minus-Gaussian grows from 0.148 to 0.462 nat. At the
 final cut, epoch-20 accuracies span only 77.88% to 77.96%. Longer replay
 increasingly mixes mismatch and forgetting, so this is a sensitivity rather
 than an asymptotic capability measurement.
 
-![Held-out true cross-entropy through twenty matched-update replay epochs at
-the shallow and final CNN cuts.](figures/cnn_measured_horizon.png)
+![Held-out true cross-entropy through twenty matched-update replay epochs at the shallow and final CNN cuts.](https://charlesr-w.github.io/Tracking2/figures/cnn_measured_horizon.png)
 
 *Figure 4. The shallow replay conditions continue to separate. The final-cut
 accuracies remain nearly unchanged even as calibration loss drifts.*
@@ -317,17 +342,20 @@ accuracies remain nearly unchanged even as calibration loss drifts.*
 
 The safe claim is operational and modest:
 
-> Under matched first-update norm, three independently trained epoch-30 CNNs
-> show a robust contrast between cut 1 and cut 4 in the rank-2,048 retained
-> subspace after five relaxation epochs. Under the additional one-model
-> sensitivities, reinitialization and a twenty-epoch horizon preserve that
-> qualitative contrast.
+> With matched first-update norms, all three epoch-30 CNN seeds showed the same
+> qualitative contrast under the rank-2,048 protocol: after five suffix-training
+> epochs, replay conditions separated after block 1 and were close after block
+> 4. In separate seed-0 checks, reinitializing the suffix and extending training
+> to twenty epochs preserved that contrast.
+
+This compares each cut's native receiver; it does not isolate representation
+depth from receiver capacity.
 
 The adequacy-passing rank-4,096 seed-0 cell keeps the same shallow ordering.
 The late native suffix is comparatively insensitive under this finite
 protocol.
 
-Several stronger interpretations are unsafe:
+The safe claim is deliberately narrow; stronger interpretations are unsafe.
 
 - Rank 2,048 fails the predictive-KL PCA gate at the shallow cut, so the
   three-seed result is not a full-space sufficiency result.
@@ -370,9 +398,7 @@ Ordinary training adds a second problem. The prefix changes, so the activation
 distribution moves; the suffix must track that movement while continuing to
 learn.
 
-![At time t a prefix produces an activation cloud for a suffix; at a later
-time the prefix, cloud, and adapting suffix have all
-moved.](figures/tracking_resolving.svg)
+![At time t a prefix produces an activation cloud for a suffix; at a later time the prefix, cloud, and adapting suffix have all moved.](https://charlesr-w.github.io/Tracking2/figures/tracking_resolving.svg)
 
 *Figure 5. Ordinary training mixes movement of the internal data with the
 suffix's response. The current experiment removes the movement: it freezes the
@@ -400,8 +426,11 @@ establishes the measurement problem more carefully.
 5. Measure representation movement on a fixed image bank during ordinary
    training, then compare its timescale with suffix relaxation.
 
-The immediate result is small but concrete: the same statistical replacement
-has a very different effect depending on where it enters the network.
+The immediate result is small but concrete: under this finite, matched-update
+protocol, the replay distributions separate for the native suffix after block
+1 and barely separate for the native suffix after block 4. Capacity-matched
+receivers are the next test of how much of that contrast belongs to the
+interface rather than the downstream learner.
 
 [^ai]: Experiment engineering, checks, figures, and drafting were assisted by
     Claude/Codex. The experimental choices, interpretation, and final text are

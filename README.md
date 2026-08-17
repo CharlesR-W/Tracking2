@@ -6,11 +6,11 @@ The research design is in `SPEC.md`.
 ## LessWrong research-note companion
 
 The current public-facing thread of the project is
-[*Free-body diagrams for neural networks*](LW%20post/lw_wip_post.md), an explicitly
-work-in-progress note about applying distributional-simplicity probes at
-internal network cuts.
+[*Free-body diagrams for neural networks*](LW%20post/free-body-diagrams-for-neural-networks.md),
+an exploratory research note about applying distributional-simplicity probes
+at internal network cuts.
 
-- [`LW post/`](LW%20post/) collects the draft, outline, handoff, reproduction
+- [`LW post/`](LW%20post/) collects the publication post, outline, handoff, reproduction
   notes, exactly five current figures, their measured-only generator, and the
   interactive appendix. Delivered-talk and preliminary assets are under
   [`LW post/deprecated/`](LW%20post/deprecated/).

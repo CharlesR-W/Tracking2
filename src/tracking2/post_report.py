@@ -9,7 +9,7 @@ Publication manifest schema (version 2)::
 
     {
       "schema_version": 2,
-      "title": "Free-Body Diagrams for Neural Networks — Interactive Ablation Appendix (WIP)",
+      "title": "Free-Body Diagrams for Neural Networks — Interactive Ablation Appendix",
       "status": "MEASURED",
       "source_commit": "0123456789abcdef",
       "primary_analysis": {"...": "explicit publication estimand"},
@@ -51,7 +51,7 @@ from statistics import fmean, stdev
 from typing import Any, Iterable, Mapping, Sequence
 
 
-TITLE = "Free-Body Diagrams for Neural Networks — Interactive Ablation Appendix (WIP)"
+TITLE = "Free-Body Diagrams for Neural Networks — Interactive Ablation Appendix"
 DEFAULT_OUTPUT = "LW post/free-body-diagrams-for-neural-networks.html"
 MANIFEST_SCHEMA_VERSION = 2
 SUPPORTED_MANIFEST_SCHEMA_VERSIONS = {1, MANIFEST_SCHEMA_VERSION}
@@ -81,6 +81,8 @@ _GAUSSIAN_SHRINKAGE_RE = re.compile(
 PCA_ADEQUACY_CE_EXCESS_THRESHOLD = 0.05
 PCA_ADEQUACY_KL_THRESHOLD = 0.02
 _AUDITED_CORRECTION_STATUS = "AUDITED"
+_ACTIVE_CORRECTION_LOCATION_STATUS = "recorded_value_present"
+_SUPERSEDED_CORRECTION_LOCATION_STATUS = "superseded_by_valid_commit"
 _MATCHED_STATUS = "matched"
 _CLIPPED_STATUS = "approximately_matched_clipped"
 _MISMATCH_STATUS = "outside_tolerance"
@@ -359,9 +361,10 @@ def _load_provenance_corrections(
             f"{expected_digest}, got {actual_digest}"
         )
     payload = _load_json(sidecar_path, context="provenance correction sidecar")
-    if payload.get("schema_version") != 1:
+    correction_schema = payload.get("schema_version")
+    if type(correction_schema) is not int or correction_schema not in {1, 2}:
         raise ReportInputError(
-            "provenance correction sidecar.schema_version must be 1"
+            "provenance correction sidecar.schema_version must be 1 or 2"
         )
     if payload.get("status") != _AUDITED_CORRECTION_STATUS:
         raise ReportInputError(
@@ -371,6 +374,7 @@ def _load_provenance_corrections(
         payload.get("corrections"), "provenance correction sidecar.corrections"
     )
     by_location: dict[tuple[str, str, str], dict[str, Any]] = {}
+    seen_affected_locations: set[tuple[str, str]] = set()
     root = sidecar_path.parent
     for index, correction in enumerate(corrections):
         context = f"provenance correction sidecar.corrections[{index}]"
@@ -437,6 +441,27 @@ def _load_provenance_corrections(
             json_pointer = _require_string(
                 location, "json_pointer", location_context
             )
+            location_key = (affected_relative, json_pointer)
+            if location_key in seen_affected_locations:
+                raise ReportInputError(
+                    "Duplicate provenance correction location: "
+                    f"{affected_relative}{json_pointer}"
+                )
+            seen_affected_locations.add(location_key)
+            if correction_schema == 1:
+                location_status = _ACTIVE_CORRECTION_LOCATION_STATUS
+            else:
+                location_status = _require_string(
+                    location, "status", location_context
+                )
+            if location_status not in {
+                _ACTIVE_CORRECTION_LOCATION_STATUS,
+                _SUPERSEDED_CORRECTION_LOCATION_STATUS,
+            }:
+                raise ReportInputError(
+                    f"{location_context}.status has unsupported value "
+                    f"{location_status!r}"
+                )
             affected_path = _inside(root, affected_relative, f"{location_context}.path")
             if not affected_path.is_file():
                 raise ReportInputError(f"{location_context}.path does not exist")
@@ -444,16 +469,30 @@ def _load_provenance_corrections(
             value = _json_pointer_value(
                 affected_payload, json_pointer, f"{location_context}.json_pointer"
             )
-            if value != recorded:
+            if location_status == _ACTIVE_CORRECTION_LOCATION_STATUS:
+                if value != recorded:
+                    raise ReportInputError(
+                        f"{location_context} records {value!r}, expected {recorded!r}"
+                    )
+                key = (affected_relative, json_pointer, recorded)
+                by_location[key] = correction
+                continue
+            current_value = _require_string(
+                location, "current_value", location_context
+            ).lower()
+            if value != current_value:
                 raise ReportInputError(
-                    f"{location_context} records {value!r}, expected {recorded!r}"
+                    f"{location_context} records {value!r}, expected its declared "
+                    f"current value {current_value!r}"
                 )
-            key = (affected_relative, json_pointer, recorded)
-            if key in by_location:
+            if not _SOURCE_REVISION_RE.fullmatch(current_value):
                 raise ReportInputError(
-                    f"Duplicate provenance correction location: {affected_relative}{json_pointer}"
+                    f"{location_context}.current_value must be a full Git hash"
                 )
-            by_location[key] = correction
+            if _resolve_git_commit(repository, current_value) != current_value:
+                raise ReportInputError(
+                    f"{location_context}.current_value is not a resolvable exact commit"
+                )
     audit = {
         "path": relative_path,
         "sha256": actual_digest,
@@ -3566,7 +3605,7 @@ def _projection_adequacy_table(
             f'<td class="number">{float(row["accuracy_change_pp"]):+.2f} pp</td>'
             f'<td class="number">{float(row["predictive_kl"]):.5f}</td>'
             f"<td>{kl_gate}</td>"
-            f'<td><span class="badge {"measured" if gate == "PASS" else "wip"}">'
+            f'<td><span class="badge {"measured" if gate == "PASS" else "warning"}">'
             f"{gate}</span></td>"
             "</tr>"
         )
@@ -3999,6 +4038,7 @@ def _noise_outcome_table(
 
 def _noise_gaussian_ordering_panel(
     paired_summaries: Sequence[Mapping[str, Any]],
+    observations: Sequence[Mapping[str, Any]],
 ) -> str:
     context_fields = (
         "input_id",
@@ -4021,6 +4061,18 @@ def _noise_gaussian_ordering_panel(
         grouped[
             tuple(row[field] for field in context_fields)
         ][str(row["distribution"])] = row
+
+    mean_zero_match_statuses: dict[tuple[Any, ...], set[str]] = defaultdict(set)
+    for row in observations:
+        if (
+            row.get("eval_distribution") == "true"
+            and int(row.get("relax_epoch", -1)) == 0
+            and _mean_radius(str(row.get("distribution", ""))) == 0
+        ):
+            key = tuple(row[field] for field in context_fields)
+            mean_zero_match_statuses[key].add(
+                str(row.get("first_update_match_status", "not recorded"))
+            )
 
     comparisons: list[dict[str, Any]] = []
     for key, distributions in grouped.items():
@@ -4049,6 +4101,7 @@ def _noise_gaussian_ordering_panel(
         delta_zero = gaussian_loss - mean_zero_loss
         delta_one = gaussian_loss - mean_one_loss
         comparison = dict(zip(context_fields, key))
+        match_statuses = mean_zero_match_statuses.get(key, {"not recorded"})
         comparison.update(
             {
                 "gaussian_loss": gaussian_loss,
@@ -4057,6 +4110,8 @@ def _noise_gaussian_ordering_panel(
                 "gaussian_minus_mean_zero": delta_zero,
                 "gaussian_minus_mean_one": delta_one,
                 "ordering_reversal": delta_zero * delta_one < 0,
+                "mean_zero_match_status": ", ".join(sorted(match_statuses)),
+                "mean_zero_match_clipped": _CLIPPED_STATUS in match_statuses,
             }
         )
         comparisons.append(comparison)
@@ -4073,12 +4128,21 @@ def _noise_gaussian_ordering_panel(
     ]
     warning = ""
     if reversals:
+        clipped_note = (
+            " At least one r = 0 row is only approximately matched because "
+            "its learning-rate multiplier clipped; its endpoint ordering is "
+            "not an exactly matched inversion."
+            if any(row["mean_zero_match_clipped"] for row in reversals)
+            else ""
+        )
         warning = (
-            '<aside class="status-panel diagnostic"><strong>GAUSSIAN–MEAN '
-            "ORDERING REVERSAL.</strong><p>At least one measured stratum changes "
+            '<aside class="status-panel diagnostic"><strong>RADIUS-DEPENDENT '
+            "ORDERING SENSITIVITY.</strong><p>At least one measured stratum changes "
             "which condition has lower endpoint loss between mean r = 0 and "
-            "mean r = 1. Any “covariance helps” claim is therefore "
-            "radius-dependent for that stratum.</p></aside>"
+            "mean r = 1."
+            + clipped_note
+            + " Any “covariance helps” claim is therefore radius-dependent "
+            "for that stratum.</p></aside>"
         )
     body = []
     for row in comparisons:
@@ -4093,6 +4157,7 @@ def _noise_gaussian_ordering_panel(
             f'<td class="number">{row["gaussian_minus_mean_zero"]:+.4f}</td>'
             f'<td class="number">{row["mean_one_loss"]:.4f}</td>'
             f'<td class="number">{row["gaussian_minus_mean_one"]:+.4f}</td>'
+            f'<td>{_esc(row["mean_zero_match_status"])}</td>'
             f'<td>{"YES" if row["ordering_reversal"] else "NO"}</td>'
             "</tr>"
         )
@@ -4103,7 +4168,8 @@ def _noise_gaussian_ordering_panel(
         "<th>Suffix initialization</th><th>LR regime</th>"
         "<th>Exact Gaussian excess loss</th><th>Mean r=0 excess loss</th>"
         "<th>Gaussian − mean r=0</th><th>Mean r=1 excess loss</th>"
-        "<th>Gaussian − mean r=1</th><th>Ordering reverses?</th>"
+        "<th>Gaussian − mean r=1</th><th>r=0 first-update match</th>"
+        "<th>Endpoint ordering changes?</th>"
         "</tr></thead><tbody>"
         + "".join(body)
         + "</tbody></table></div>"
@@ -4831,9 +4897,20 @@ def _provenance_correction_table(manifest: Mapping[str, Any]) -> str:
             "all recorded Git revisions resolved directly.</p>"
         )
     rows = []
+    has_superseded_location = False
     for correction in audit.get("corrections", []):
+        has_superseded_location = has_superseded_location or any(
+            location.get("status") == _SUPERSEDED_CORRECTION_LOCATION_STATUS
+            for location in correction["affected_locations"]
+        )
         locations = ", ".join(
-            f'{location["path"]}{location["json_pointer"]}'
+            (
+                f'{location["path"]}{location["json_pointer"]} '
+                f'[historical; current {location["current_value"]}]'
+                if location.get("status")
+                == _SUPERSEDED_CORRECTION_LOCATION_STATUS
+                else f'{location["path"]}{location["json_pointer"]}'
+            )
             for location in correction["affected_locations"]
         )
         archive = correction.get("source_archive_sha256")
@@ -4850,12 +4927,20 @@ def _provenance_correction_table(manifest: Mapping[str, Any]) -> str:
             f'<td>{_esc(locations)}</td><td><code>{_esc(archive_text)}</code></td>'
             "</tr>"
         )
+    superseded_note = (
+        " A superseded manifest pointer is retained as audit history while its "
+        "current value resolves directly."
+        if has_superseded_location
+        else ""
+    )
     return (
         '<aside class="status-panel diagnostic"><strong>AUDITED PROVENANCE '
-        "CORRECTIONS APPLIED.</strong><p>Raw result JSON is unchanged. Each mistyped "
-        "full hash failed Git resolution; the shared short prefix resolved uniquely "
-        "to the intended local commit. Recorded source-archive digests are disclosed "
-        "but the archives are not retained locally.</p></aside>"
+        "HISTORY.</strong><p>Raw result JSON is unchanged. Each mistyped full hash "
+        "failed Git resolution; the shared short prefix resolved uniquely to the "
+        "intended local commit."
+        + superseded_note
+        + " Recorded source-archive digests are disclosed but the archives are not "
+        "retained locally.</p></aside>"
         '<div class="table-scroll"><table><thead><tr><th>Recorded value</th>'
         "<th>Applied commit</th><th>Unique prefix</th><th>Affected JSON locations</th>"
         "<th>Archive evidence</th></tr></thead><tbody>"
@@ -5068,7 +5153,7 @@ h3 {{ margin: .1rem 0 .65rem; }}
 .status-line {{ display: flex; gap: .65rem; align-items: center; flex-wrap: wrap; margin-top: 1.5rem; }}
 .badge {{ display: inline-block; border: 1px solid #7d786e; border-radius: 999px;
           padding: .25rem .65rem; font-size: .78rem; font-weight: 700; }}
-.wip {{ background: #f6e6bd; border-color: #c49932; }}
+.warning {{ background: #f6e6bd; border-color: #c49932; }}
 .measured {{ background: #e3eee4; border-color: #719176; }}
 .section {{ padding: 4rem 0 1rem; scroll-margin-top: 3.6rem; }}
 .section-heading {{ max-width: 780px; margin-bottom: 1.8rem; }}
@@ -5423,7 +5508,6 @@ def render_report(
     <p class="lede">Detailed checks behind the CNN result: projection, covariance,
       mean-noise scale, optimization, longer relaxation, and fresh suffixes.</p>
     <div class="status-line">
-      <span class="badge wip">Work in progress</span>
       <span class="badge measured">Measured inputs only</span>
       <span>{len(canonical_artifacts)} canonical relaxation ·
         {len(projection_artifacts)} PCA adequacy · {len(legacy_artifacts)} legacy ·
@@ -5599,7 +5683,7 @@ def render_report(
           and r = 1 to exact empirical-covariance Gaussian replay only within the
           same seed, cut, rank, suffix initialization, LR regime, and endpoint.</p>
         {_noise_outcome_table(canonical_paired)}
-        {_noise_gaussian_ordering_panel(canonical_paired)}</div>
+        {_noise_gaussian_ordering_panel(canonical_paired, canonical_observations)}</div>
       <div class="control-block"><h3>Covariance-shrinkage sensitivity</h3>
         <p>Compares exact empirical covariance with each declared spherical-
           shrinkage condition at the same endpoint and experimental stratum.</p>

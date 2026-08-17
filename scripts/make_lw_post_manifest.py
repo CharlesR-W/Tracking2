@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Sequence
 
 
-TITLE = "Free-Body Diagrams for Neural Networks — Interactive Ablation Appendix (WIP)"
+TITLE = "Free-Body Diagrams for Neural Networks — Interactive Ablation Appendix"
 MANIFEST_SCHEMA_VERSION = 2
 COMMIT_RE = re.compile(r"^[0-9a-fA-F]{7,64}$")
 SOURCE_REVISION_RE = re.compile(r"^(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$")

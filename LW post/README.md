@@ -3,8 +3,8 @@
 This folder collects the public-facing materials for *Free-body diagrams for
 neural networks*.
 
-- `lw_wip_post.md` — current post draft
-- `lw_wip_outline.md` — working structure and claim boundaries
+- `free-body-diagrams-for-neural-networks.md` — publication post
+- `lw_post_outline.md` — publication structure and claim boundaries
 - `lw_post_handoff.md` — current findings and open blockers
 - `lw_post_reproduction.md` — reproduction protocol
 - `measurement_supplement_proposal.md` — follow-up measurements with current status

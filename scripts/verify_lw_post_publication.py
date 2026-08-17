@@ -418,7 +418,7 @@ EXPECTED_CORRECTIONS = {
                 "measured/cnn_fixed_gate_seed0/"
                 "cut1_r2048_true_eval_sensitivity.json",
                 "/provenance/source_revision",
-            )
+            ): "recorded_value_present",
         },
     },
     "5873b1bc8736e623effd57f83d976366458dedca": {
@@ -432,11 +432,11 @@ EXPECTED_CORRECTIONS = {
             (
                 "measured/training_manifests/cnn_seed0_training.json",
                 "/provenance/source_revision",
-            ),
+            ): "recorded_value_present",
             (
                 "measured/cnn_projection_seed0/cut1_pca_adequacy.json",
                 "/lineage/training_manifest/source_provenance/source_revision",
-            ),
+            ): "recorded_value_present",
         },
     },
     "13aff88d1d4b09ec84f93e9bc3d37a47cd20962d": {
@@ -445,7 +445,10 @@ EXPECTED_CORRECTIONS = {
         "source_archive_sha256": None,
         "source_archive_status": "not_applicable_manifest_builder_revision",
         "affected_locations": {
-            ("dashboard_manifest.json", "/source_commit"),
+            (
+                "dashboard_manifest.json",
+                "/source_commit",
+            ): "superseded_by_valid_commit",
         },
     },
 }
@@ -799,7 +802,11 @@ def verify_correction_sidecar(
         "manifest.provenance_corrections.sha256",
     )
     sidecar = load_json(sidecar_path)
-    require_equal(sidecar.get("schema_version"), 1, "corrections.schema_version")
+    schema_version = sidecar.get("schema_version")
+    if type(schema_version) is not int or schema_version not in {1, 2}:
+        raise VerificationError(
+            "corrections.schema_version must be exactly 1 or 2"
+        )
     require_equal(sidecar.get("status"), "AUDITED", "corrections.status")
     rows = sidecar.get("corrections")
     if not isinstance(rows, list) or len(rows) != len(EXPECTED_CORRECTIONS):
@@ -854,6 +861,7 @@ def verify_correction_sidecar(
             raise VerificationError(
                 f"recorded value {recorded} is already a commit; correction is stale"
             )
+        expected_locations = expected["affected_locations"]
         locations = row.get("affected_locations")
         if not isinstance(locations, list):
             raise VerificationError(f"correction {recorded} lacks affected locations")
@@ -865,7 +873,18 @@ def verify_correction_sidecar(
             pointer = location.get("json_pointer")
             if not isinstance(relative, str) or not isinstance(pointer, str):
                 raise VerificationError(f"correction {recorded} has invalid location")
-            observed_locations.add((relative, pointer))
+            location_key = (relative, pointer)
+            if location_key in observed_locations:
+                raise VerificationError(
+                    f"correction {recorded} repeats location {relative}{pointer}"
+                )
+            observed_locations.add(location_key)
+            expected_location_status = expected_locations.get(location_key)
+            if expected_location_status is None:
+                raise VerificationError(
+                    f"correction {recorded} has unexpected location "
+                    f"{relative}{pointer}"
+                )
             if relative not in payload_cache:
                 path = (ARTIFACT_ROOT / relative).resolve()
                 try:
@@ -878,10 +897,49 @@ def verify_correction_sidecar(
             raw_value = json_pointer_value(
                 payload_cache[relative], pointer, f"{relative}{pointer}"
             )
-            require_equal(raw_value, recorded, f"raw value at {relative}{pointer}")
+            if schema_version == 1:
+                require_equal(
+                    raw_value, recorded, f"raw value at {relative}{pointer}"
+                )
+                continue
+
+            location_status = location.get("status")
+            require_equal(
+                location_status,
+                expected_location_status,
+                f"correction location status at {relative}{pointer}",
+            )
+            if location_status == "recorded_value_present":
+                require_equal(
+                    raw_value, recorded, f"raw value at {relative}{pointer}"
+                )
+                continue
+
+            if location_status != "superseded_by_valid_commit":
+                raise VerificationError(
+                    f"correction {recorded} has unsupported location status"
+                )
+            current_value = location.get("current_value")
+            if (
+                not isinstance(current_value, str)
+                or COMMIT_RE.fullmatch(current_value) is None
+            ):
+                raise VerificationError(
+                    f"current value at {relative}{pointer} is not a full Git commit"
+                )
+            require_equal(
+                current_value,
+                raw_value,
+                f"current value at {relative}{pointer}",
+            )
+            if not git_object_exists(current_value):
+                raise VerificationError(
+                    f"current value {current_value} at {relative}{pointer} "
+                    "does not resolve to a Git commit"
+                )
         require_equal(
             observed_locations,
-            expected["affected_locations"],
+            set(expected_locations),
             f"affected locations for correction {recorded}",
         )
 

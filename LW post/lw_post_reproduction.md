@@ -1,7 +1,7 @@
 # Reproducing the LessWrong research note
 
 This document describes the current measured CNN evidence behind
-`LW post/lw_wip_post.md`. The committed JSON inputs are under
+`LW post/free-body-diagrams-for-neural-networks.md`. The committed JSON inputs are under
 `artifacts/lw_post/measured/`; the self-contained dashboard reads only the
 hashed files listed in `artifacts/lw_post/dashboard_manifest.json`.
 

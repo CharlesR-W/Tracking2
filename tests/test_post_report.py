@@ -40,6 +40,12 @@ GIT_HEAD = subprocess.run(
     capture_output=True,
     text=True,
 ).stdout.strip()
+GIT_PARENT = subprocess.run(
+    ["git", "rev-parse", "HEAD^"],
+    check=True,
+    capture_output=True,
+    text=True,
+).stdout.strip()
 CANONICAL_MANIFEST = (
     Path(__file__).resolve().parents[1]
     / "artifacts"
@@ -820,6 +826,8 @@ def test_builds_measured_only_self_contained_report(tmp_path):
     assert "not epsilon jitter" in rendered
     assert "legacy reported value; evaluation population unspecified" in rendered
     assert "80.0%" in rendered
+    assert "Work in progress" not in rendered
+    assert "(WIP)" not in rendered
     for colour in (REAL, PROJECTED_REAL, GAUSSIAN, MEAN):
         assert colour in rendered
     assert 'stroke-dasharray="7 5"' in rendered
@@ -1160,10 +1168,11 @@ def test_noise_radius_reversal_is_artifact_driven_and_prominent(tmp_path):
         manifest_path, tmp_path / "noise-reversal.html"
     ).read_text()
 
-    assert "GAUSSIAN–MEAN ORDERING REVERSAL" in rendered
+    assert "RADIUS-DEPENDENT ORDERING SENSITIVITY" in rendered
     assert "radius-dependent for that stratum" in rendered
     assert "Gaussian − mean r=0" in rendered
     assert "Gaussian − mean r=1" in rendered
+    assert "r=0 first-update match" in rendered
     assert "<td>YES</td>" in rendered
 
 
@@ -1396,6 +1405,54 @@ def test_unresolvable_git_hash_requires_exact_audited_correction(tmp_path):
     assert audit["corrections"][0]["intended_commit"] == GIT_HEAD
 
 
+def test_superseded_manifest_correction_preserves_audit_history(tmp_path):
+    manifest_path = _make_manifest(tmp_path)
+    replacement = "0" if GIT_PARENT[20] != "0" else "1"
+    recorded = GIT_PARENT[:20] + replacement + GIT_PARENT[21:]
+    sidecar_path = tmp_path / "provenance_corrections.json"
+    sidecar_digest = _write_json(
+        sidecar_path,
+        {
+            "schema_version": 2,
+            "status": "AUDITED",
+            "corrections": [
+                {
+                    "recorded_value": recorded,
+                    "intended_commit": GIT_PARENT,
+                    "unique_prefix_evidence": {
+                        "prefix": GIT_PARENT[:12],
+                        "resolved_commit": GIT_PARENT,
+                    },
+                    "source_archive_sha256": None,
+                    "source_archive_status": (
+                        "not_applicable_manifest_builder_revision"
+                    ),
+                    "affected_locations": [
+                        {
+                            "path": manifest_path.name,
+                            "json_pointer": "/source_commit",
+                            "status": "superseded_by_valid_commit",
+                            "current_value": GIT_HEAD,
+                        }
+                    ],
+                }
+            ],
+        },
+    )
+    manifest = json.loads(manifest_path.read_text())
+    manifest["provenance_corrections"] = {
+        "path": sidecar_path.name,
+        "sha256": sidecar_digest,
+    }
+    _write_json(manifest_path, manifest)
+
+    loaded_manifest, _artifacts = load_manifest(manifest_path)
+    audit = loaded_manifest["provenance_correction_audit"]
+    location = audit["corrections"][0]["affected_locations"][0]
+    assert location["status"] == "superseded_by_valid_commit"
+    assert location["current_value"] == GIT_HEAD
+
+
 def test_publication_contract_recomputes_headlines_without_pooling(tmp_path):
     manifest, artifacts = load_manifest(CANONICAL_MANIFEST)
     observations, _cells = normalise_artifacts(artifacts)
@@ -1474,7 +1531,7 @@ def test_publication_contract_recomputes_headlines_without_pooling(tmp_path):
     assert "9.463%" in rendered
     assert "Fixed-LR optimizer-shock sensitivity" in rendered
     assert "retained PCA" in rendered
-    assert "AUDITED PROVENANCE CORRECTIONS APPLIED" in rendered
+    assert "AUDITED PROVENANCE HISTORY" in rendered
 
 
 def test_publication_headline_assertions_fail_on_drift():
