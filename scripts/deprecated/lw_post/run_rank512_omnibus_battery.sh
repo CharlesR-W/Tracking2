@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+echo "DEPRECATED: running the historical rank-512 omnibus battery, not the publication protocol." >&2
+
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$PROJECT_ROOT"
 export PYTHONPATH="$PROJECT_ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
 
@@ -117,6 +119,6 @@ if [[ ! -f "$output/post_statistics.json" ]]; then
     --seed "$SEED" --device "$DEVICE"
 fi
 
-python scripts/verify_lw_post_artifacts.py \
+python scripts/deprecated/lw_post/verify_rank512_omnibus_battery.py \
   "$TRAINING_ROOT" "$RESULT_ROOT" \
   --pca-rank "$PCA_RANK" --draw-count "$DRAW_COUNT" --seed "$SEED"

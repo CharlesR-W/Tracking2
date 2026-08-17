@@ -5,7 +5,7 @@ import json
 import re
 from pathlib import Path
 
-from verify_lw_post_artifacts import (
+from verify_rank512_omnibus_battery import (
     load,
     require_complete_statistics,
 )

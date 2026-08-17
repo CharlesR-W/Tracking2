@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+echo "DEPRECATED: running the historical exploratory PCA gate, not the publication protocol." >&2
+
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$PROJECT_ROOT"
 export PYTHONPATH="$PROJECT_ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
 
@@ -60,6 +62,6 @@ for cut in 1 4; do
     --seed "$SEED" --device "$DEVICE"
 done
 
-python scripts/verify_lw_post_gate.py \
+python scripts/deprecated/lw_post/verify_rank_gate.py \
   "$TRAINING_ROOT" "$RESULT_ROOT" \
   --seed "$SEED" --relax-epochs "$RELAX_EPOCHS"
