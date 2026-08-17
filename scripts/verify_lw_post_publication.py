@@ -1,9 +1,9 @@
 """Verify the checked-in LessWrong publication package on CPU.
 
-This verifier reads committed JSON, active-figure, and appendix artifacts. It
-never trains a model, uses a GPU, or accesses the network. The default check
-rebuilds the self-contained appendix into a temporary directory and requires
-byte identity.
+This verifier reads committed JSON, active-figure, waterfall, and appendix
+artifacts. It never trains a model, uses a GPU, or accesses the network. The
+default check rebuilds both self-contained HTML surfaces and every generated
+waterfall export into a temporary directory and requires byte identity.
 """
 
 from __future__ import annotations
@@ -33,6 +33,10 @@ DEFAULT_APPENDIX = (
     / "free-body-diagrams-for-neural-networks.html"
 )
 DEFAULT_FIGURE_MANIFEST = PROJECT_ROOT / "LW post" / "figure_manifest.json"
+DEFAULT_WATERFALL_MANIFEST = (
+    PROJECT_ROOT / "artifacts" / "waterfall_visuals" / "manifest.json"
+)
+DEFAULT_WATERFALL_VIEWER = PROJECT_ROOT / "LW post" / "waterfalls.html"
 DIGEST_LENGTH = 64
 COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -1325,7 +1329,7 @@ def verify_publication_figures(
     figure_manifest_path: Path, figure_dir: Path
 ) -> dict[str, str]:
     manifest = load_json(figure_manifest_path)
-    require_equal(manifest.get("schema_version"), 1, "figure manifest schema")
+    require_equal(manifest.get("schema_version"), 2, "figure manifest schema")
     for field in (
         "trusted_post_baseline",
         "prose_restoration_commit",
@@ -1339,6 +1343,37 @@ def verify_publication_figures(
         raise VerificationError(
             "figure manifest must disclose unverified pre-import provenance"
         )
+    waterfall = manifest.get("waterfall_visuals")
+    if not isinstance(waterfall, dict):
+        raise VerificationError("figure manifest lacks waterfall_visuals contract")
+    require_equal(
+        waterfall.get("canonical_example"),
+        "resnet18",
+        "waterfall canonical example",
+    )
+    require_equal(
+        waterfall.get("manifest"),
+        "artifacts/waterfall_visuals/manifest.json",
+        "waterfall input manifest path",
+    )
+    require_equal(
+        waterfall.get("builder"),
+        "scripts/build_waterfall_visuals.py",
+        "waterfall builder path",
+    )
+    require_equal(
+        waterfall.get("viewer"),
+        "LW post/waterfalls.html",
+        "waterfall viewer path",
+    )
+    generated_assets = waterfall.get("generated_assets")
+    if (
+        not isinstance(generated_assets, list)
+        or not generated_assets
+        or any(not isinstance(name, str) for name in generated_assets)
+        or len(set(generated_assets)) != len(generated_assets)
+    ):
+        raise VerificationError("waterfall generated_assets must be unique names")
     assets = manifest.get("assets")
     if not isinstance(assets, list) or not assets:
         raise VerificationError("figure manifest assets must be a non-empty list")
@@ -1370,6 +1405,82 @@ def verify_publication_figures(
     actual_names = {path.name for path in figure_dir.iterdir() if path.is_file()}
     require_equal(actual_names, set(digests), "active figure directory allowlist")
     return digests
+
+
+def verify_waterfall_rebuild(
+    *,
+    waterfall_manifest_path: Path,
+    waterfall_viewer_path: Path,
+    figure_manifest_path: Path,
+    figure_dir: Path,
+) -> tuple[str, int]:
+    """Rebuild the viewer/exports from pinned pilots and require byte identity."""
+    if not waterfall_manifest_path.is_file():
+        raise VerificationError("waterfall input manifest is missing")
+    if not waterfall_viewer_path.is_file():
+        raise VerificationError("waterfall viewer is missing")
+    require_equal(
+        sha256(waterfall_manifest_path),
+        sha256(DEFAULT_WATERFALL_MANIFEST),
+        "waterfall input manifest identity",
+    )
+    figure_manifest = load_json(figure_manifest_path)
+    generated_assets = figure_manifest["waterfall_visuals"]["generated_assets"]
+    with tempfile.TemporaryDirectory(prefix="tracking2-waterfall-verify-") as temporary:
+        temporary_root = Path(temporary)
+        rebuilt_figures = temporary_root / "figures"
+        rebuilt_viewer = temporary_root / "waterfalls.html"
+        environment = os.environ.copy()
+        environment["PYTHONDONTWRITEBYTECODE"] = "1"
+        environment["CUDA_VISIBLE_DEVICES"] = ""
+        environment["MPLCONFIGDIR"] = str(temporary_root / "matplotlib")
+        source_path = str(PROJECT_ROOT / "src")
+        prior_python_path = environment.get("PYTHONPATH")
+        environment["PYTHONPATH"] = (
+            source_path
+            if not prior_python_path
+            else source_path + os.pathsep + prior_python_path
+        )
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(PROJECT_ROOT / "scripts" / "build_waterfall_visuals.py"),
+                "--manifest",
+                str(DEFAULT_WATERFALL_MANIFEST),
+                "--figure-dir",
+                str(rebuilt_figures),
+                "--html",
+                str(rebuilt_viewer),
+            ],
+            cwd=PROJECT_ROOT,
+            env=environment,
+            text=True,
+            capture_output=True,
+        )
+        if completed.returncode != 0:
+            raise VerificationError(
+                "waterfall rebuild failed:\n"
+                + completed.stdout
+                + completed.stderr
+            )
+        require_equal(
+            sha256(rebuilt_viewer),
+            sha256(waterfall_viewer_path),
+            "waterfall viewer rebuild identity",
+        )
+        rebuilt_names = {path.name for path in rebuilt_figures.iterdir() if path.is_file()}
+        require_equal(
+            rebuilt_names,
+            set(generated_assets),
+            "waterfall generated export set",
+        )
+        for name in generated_assets:
+            require_equal(
+                sha256(rebuilt_figures / name),
+                sha256(figure_dir / name),
+                f"waterfall rebuilt export identity for {name}",
+            )
+    return sha256(waterfall_viewer_path), len(generated_assets)
 
 
 def verify_appendix_rebuild(manifest_path: Path, appendix_path: Path) -> str:
@@ -1462,6 +1573,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             measured_root = MEASURED_ROOT.resolve()
             figure_dir = (PROJECT_ROOT / "LW post" / "figures").resolve()
             figure_manifest_path = DEFAULT_FIGURE_MANIFEST.resolve()
+            waterfall_manifest_path = DEFAULT_WATERFALL_MANIFEST.resolve()
+            waterfall_viewer_path = DEFAULT_WATERFALL_VIEWER.resolve()
             checkpoint_root = None
             source_archive = None
         else:
@@ -1486,6 +1599,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             figure_dir = stage_root / "LW post" / "figures"
             figure_manifest_path = stage_root / "LW post" / "figure_manifest.json"
+            waterfall_manifest_path = (
+                stage_root / "artifacts" / "waterfall_visuals" / "manifest.json"
+            )
+            waterfall_viewer_path = stage_root / "LW post" / "waterfalls.html"
             checkpoint_root = stage_root / "checkpoints"
             source_archive = stage_root / "source" / "source.tar"
         manifest = load_json(manifest_path)
@@ -1518,6 +1635,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             figure_manifest_path,
             figure_dir,
         )
+        waterfall_digest, waterfall_export_count = verify_waterfall_rebuild(
+            waterfall_manifest_path=waterfall_manifest_path,
+            waterfall_viewer_path=waterfall_viewer_path,
+            figure_manifest_path=figure_manifest_path,
+            figure_dir=figure_dir,
+        )
         appendix_digest = (
             sha256(appendix_path)
             if args.skip_appendix_rebuild
@@ -1544,6 +1667,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"{mean:.6f} ± {standard_deviation:.6f}"
         )
     print(f"  active trusted figures: {len(figure_digests)}")
+    print(f"  reproducible waterfall exports: {waterfall_export_count}")
+    print(f"  waterfall viewer SHA-256: {waterfall_digest}")
     print(f"  appendix SHA-256: {appendix_digest}")
     if args.skip_appendix_rebuild:
         print("  appendix rebuild: skipped by request")

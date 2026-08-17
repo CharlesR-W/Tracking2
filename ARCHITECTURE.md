@@ -32,6 +32,7 @@ Publication manifests select and hash evidence rather than recomputing it.
 | `part_e.py` | GPT-2-small/TinyStories diagnostic |
 | `report.py` | Historical omnibus report builder |
 | `post_report.py` | Deterministic measured-only LessWrong appendix builder |
+| `waterfall_visuals.py` | Pinned pilot loader plus shared HTML/GIF/static renderer |
 | `scripts/` | Bounded orchestration, aggregation, manifest building, and verification |
 | `artifacts/` | Run outputs, manifests, receipts, and local checkpoints |
 | `LW post/` | Publication prose, active visual allowlist, and generated appendix |
@@ -50,6 +51,12 @@ selects the committed inputs and records hashes in
 `provenance_corrections.json` feed `tracking2.post_report`. The strict verifier
 checks input schemas and hashes, Git/source identities, headline values, figure
 allowlist, and byte-identical HTML regeneration before Pages publishes anything.
+
+The separate `artifacts/waterfall_visuals/manifest.json` pins 29 historical
+pilot inputs. `tracking2.waterfall_visuals` turns one normalized payload into the
+ResNet-first interactive viewer and all GIF/static exports. The publication
+verifier rebuilds those bytes as well; the viewer does not enter or modify the
+controlled CNN evidence manifest.
 
 Fresh paid reruns use the fail-closed protocol in
 `scripts/lw_post_publication_runner_spec.md`; staged artifacts must pass the
@@ -90,6 +97,9 @@ without an explicit evidence-contract change.
 
 - `LW post/free-body-diagrams-for-neural-networks.html` is generated but tracked
   so the verifier can enforce byte identity.
+- `LW post/waterfalls.html` and the eight generated waterfall exports are also
+  tracked deterministic outputs; their input hashes live in
+  `artifacts/waterfall_visuals/manifest.json`.
 - `LW post/figures/` is a manifest-controlled publication allowlist, not a general
   output directory.
 - `deprecated/`, `LW post/deprecated/`, and `scripts/deprecated/` preserve frozen
@@ -106,6 +116,7 @@ without an explicit evidence-contract change.
 | Surrogate or PCA semantics | surrogate modules, statistics runner | surrogate/statistics tests and artifact schema checks |
 | Artifact schema/provenance | producer, verifier, manifest builder | producer and report tests plus end-to-end verifier |
 | LessWrong prose/figures | `LW post/`, figure manifest, Pages workflow | publication layout test, strict verifier, rendered visual inspection |
+| Waterfall viewer/GIFs | `waterfall_visuals.py`, pinned pilot manifest | waterfall tests, headless viewer check, GIF frame/timing inspection |
 | Appendix presentation | `post_report.py` | `test_post_report.py`, strict verifier, byte-identical rebuild |
 | Omnibus presentation | `report.py` | `test_report.py`; do not promote it into the post package |
 | Trusted result or claim boundary | artifact/manifest plus `RESULTS.md` | source/hash audit and proportionate independent review |

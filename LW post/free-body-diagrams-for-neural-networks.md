@@ -201,10 +201,33 @@ The plots that first made the phenomenon legible were not endpoint tables but
 waterfalls. For each cut, they show how much held-out accuracy changed during a
 short burst of suffix relaxation on real, Gaussian, or mean-plus-noise replay.
 
-![Animated CNN waterfall across ordinary-training checkpoints and four internal
-cuts.](https://charlesr-w.github.io/Tracking2/figures/cnn_over_training_time.gif)
+The clearest version is the ResNet-18 sweep: eight cuts from one trained model,
+animated across five ordinary-training checkpoints.
 
-*Figure 5. Four-block CNN pilot. Each frame is an ordinary-training checkpoint;
+![Animated ResNet waterfall across eight internal cuts and five checkpoints.](https://charlesr-w.github.io/Tracking2/figures/resnet_over_training_time.gif)
+
+*Figure 5. One-model ResNet-18 pilot. Every frame uses the same fixed y-axis.
+The coloured segments are alternative suffix outcomes, stacked by sign only
+to make the depth profile compact; they are not additive components. Each cell
+averages three redraws of generated activations and minibatch order, not three
+independently trained ResNets. Fresh crop and flip draws also differ across
+cuts, so this is not architecture-level replication.*
+
+The striking part is the geometry of the picture. At shallow cuts, relaxation
+can move held-out accuracy by tens of percentage points, and the replay
+conditions separate. By the final cut, all three suffix copies barely move.
+
+I rebuilt this animation from 29 hash-pinned saved pilot artifacts rather than
+from training code. The [interactive waterfall explorer](https://charlesr-w.github.io/Tracking2/waterfalls.html)
+lets you scrub checkpoints and switch between the compact signed waterfall and
+a common-baseline view for exact endpoint comparison.
+
+The four-block CNN shows the same qualitative depth contrast more coarsely:
+
+![Animated CNN waterfall across six ordinary-training checkpoints and four
+internal cuts.](https://charlesr-w.github.io/Tracking2/figures/cnn_over_training_time.gif)
+
+*Figure 6. Four-block CNN pilot. Each frame is an ordinary-training checkpoint;
 the horizontal axis moves the cut from block 1 to block 4. The coloured
 segments are outcomes for alternative suffix copies, stacked by sign only to
 make comparison compact. They are not additive components. The checkpoint
@@ -212,30 +235,20 @@ models were separately scheduled runs, so this animation is not one model's
 training trajectory. “Real activations” in the pilot legend means raw empirical
 replay; the pilot has no PCA-projected empirical condition.[^runs]*
 
-The striking part is the geometry of the picture. At early cuts, relaxation can
-move held-out accuracy by tens of percentage points, and the replay conditions
-separate. By the final cut, all three copies barely move. The change across the
-nominal checkpoints is non-monotonic; because these are different CNN runs, I
-do not interpret that sequence as learning dynamics.
+The change across the nominal CNN checkpoints is non-monotonic; because these
+are different runs, I do not interpret that sequence as learning dynamics. The
+old talk GIF also included within-epoch frames whose full four-cut inputs are
+not checked in. The reproducible replacement uses the complete coarse sweep at
+epochs 0, 1, 5, 10, 20, and 30 rather than fabricating those missing frames.
 
 The underlying suffix curves show what one bar compresses:
 
 ![Animated CNN suffix-relaxation curves at the cut after block 3 for one
 epoch-1 checkpoint.](https://charlesr-w.github.io/Tracking2/figures/cnn_relaxation_time.gif)
 
-*Figure 6. One epoch-1 pilot checkpoint unpacked. Each curve traces held-out
+*Figure 7. One epoch-1 pilot checkpoint unpacked. Each curve traces held-out
 raw-activation accuracy while a suffix copy trains on one replay distribution;
 the animation reveals successive suffix-relaxation epochs from 0 to 10.*
-
-The ResNet pilot repeats the visual sweep with eight cuts from one trained
-model:
-
-![Animated ResNet comparison across eight internal cuts and five checkpoints.](https://charlesr-w.github.io/Tracking2/figures/resnet_over_training_time.gif)
-
-*Figure 7. One-model ResNet-18 pilot. The bands share a zero baseline; they are
-not stacked contributions. Repeated analyses redraw generated activations and
-minibatch order, not independently trained ResNets. Fresh crop and flip draws
-also differ across cuts, so this is not architecture-level replication.*
 
 The animations are the most informative view of the original experiment, but
 their provenance sets a hard limit: they show the phenomenon that motivated the

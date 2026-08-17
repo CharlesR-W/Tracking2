@@ -153,9 +153,11 @@ After all nine cells finish, construct the isolated promotion layout exactly:
   checkpoints/cnn_seed{0,1,2}/checkpoint_epoch30.pt
   artifacts/lw_post/dashboard_manifest.json
   artifacts/lw_post/measured/...
+  artifacts/waterfall_visuals/manifest.json
   LW post/figure_manifest.json
   LW post/figures/<every figure-manifest asset>
   LW post/free-body-diagrams-for-neural-networks.html
+  LW post/waterfalls.html
 ```
 
 Build the staged manifest with the dedicated clean-mode tool:
@@ -170,9 +172,12 @@ contract, hashes the newly measured inputs, recomputes all four headline rows,
 uses the exported full clean commit, verifies the retained source archive and
 three checkpoint files, and omits `provenance_corrections`. The July sidecar
 and headline values are never copied into the staged result. Copy the active
-`figure_manifest.json` and its exact talk-family assets from the clean source
-tree; they are narrative pilot/method assets, not outputs of the new battery.
-Build the appendix from the staged evidence manifest.
+`figure_manifest.json`, `artifacts/waterfall_visuals/manifest.json`,
+`waterfalls.html`, and every exact figure-manifest asset from the clean source
+tree. The method illustrations are frozen talk copies; the waterfall exports
+and viewer are deterministic derivatives of hash-pinned historical pilot
+artifacts. None is an output of the new controlled battery. Build the appendix
+from the staged evidence manifest.
 
 From that isolated clone/worktree, run the actual promotion gate:
 
@@ -187,7 +192,8 @@ values, or the clipped radius-zero magnitude. It instead verifies new manifest
 digests, exact protocol/config grids, all three retained epoch-30 checkpoint
 files, the actual `git archive` digest and embedded commit, common source and
 dataset lineage, recomputed headline assertions, primary update matching, the
-hash-pinned active figure allowlist, and a byte-identical appendix rebuild.
+hash-pinned active figure allowlist, byte-identical waterfall viewer/exports,
+and a byte-identical appendix rebuild.
 Promote no file until this command passes locally after download.
 
 Stop immediately on source-revision or archive mismatch, host RAM below 96 GiB,

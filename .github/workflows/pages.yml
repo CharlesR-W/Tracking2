@@ -34,13 +34,19 @@ jobs:
           cmp _site/index.html "LW post/free-body-diagrams-for-neural-networks.html"
           cp "LW post/figures/closing_cycle.svg" _site/figures/
           cp "LW post/figures/cnn_over_training_time.gif" _site/figures/
+          cp "LW post/figures/cnn_over_training_time_final.png" _site/figures/
+          cp "LW post/figures/cnn_over_training_time_summary.png" _site/figures/
           cp "LW post/figures/cnn_relaxation_time.gif" _site/figures/
+          cp "LW post/figures/cnn_relaxation_time_final.png" _site/figures/
           cp "LW post/figures/cnn_resnet_architectures.svg" _site/figures/
           cp "LW post/figures/fbd_materials_nn_analogy.svg" _site/figures/
           cp "LW post/figures/method_make_datasets.svg" _site/figures/
           cp "LW post/figures/method_train_compare.svg" _site/figures/
           cp "LW post/figures/resnet_over_training_time.gif" _site/figures/
+          cp "LW post/figures/resnet_over_training_time_final.png" _site/figures/
+          cp "LW post/figures/resnet_over_training_time_summary.png" _site/figures/
           cp "LW post/figures/tracking_resolving_only.png" _site/figures/
+          cp "LW post/waterfalls.html" _site/waterfalls.html
       - uses: actions/configure-pages@v5
         with:
           enablement: true

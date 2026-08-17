@@ -5,16 +5,29 @@ from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-CANONICAL_FIGURES = {
+TALK_COPY_FIGURES = {
     "closing_cycle.svg",
-    "cnn_over_training_time.gif",
-    "cnn_relaxation_time.gif",
     "cnn_resnet_architectures.svg",
     "fbd_materials_nn_analogy.svg",
     "method_make_datasets.svg",
     "method_train_compare.svg",
-    "resnet_over_training_time.gif",
     "tracking_resolving_only.png",
+}
+GENERATED_WATERFALL_FIGURES = {
+    "cnn_over_training_time.gif",
+    "cnn_over_training_time_final.png",
+    "cnn_over_training_time_summary.png",
+    "cnn_relaxation_time.gif",
+    "cnn_relaxation_time_final.png",
+    "resnet_over_training_time.gif",
+    "resnet_over_training_time_final.png",
+    "resnet_over_training_time_summary.png",
+}
+CANONICAL_FIGURES = TALK_COPY_FIGURES | GENERATED_WATERFALL_FIGURES
+POST_FIGURES = TALK_COPY_FIGURES | {
+    "cnn_over_training_time.gif",
+    "cnn_relaxation_time.gif",
+    "resnet_over_training_time.gif",
 }
 TALK_EXPORT_DIGESTS = {
     "Tracking2-talk-slides.html": (
@@ -40,18 +53,34 @@ def test_current_publication_figure_directory_has_exact_allowlist():
     manifest = json.loads(
         (PROJECT_ROOT / "LW post" / "figure_manifest.json").read_text()
     )
-    assert manifest["schema_version"] == 1
+    assert manifest["schema_version"] == 2
     assert manifest["prose_restoration_commit"].startswith("9218f5d")
     assert manifest["asset_git_import_commit"].startswith("68d8ecb")
     assert "not verified" in manifest["pre_import_asset_provenance"]
     assert "restoration_commit" not in manifest
+    assert manifest["waterfall_visuals"] == {
+        "canonical_example": "resnet18",
+        "manifest": "artifacts/waterfall_visuals/manifest.json",
+        "builder": "scripts/build_waterfall_visuals.py",
+        "viewer": "LW post/waterfalls.html",
+        "generated_assets": sorted(GENERATED_WATERFALL_FIGURES),
+    }
     assert {asset["filename"] for asset in manifest["assets"]} == CANONICAL_FIGURES
     for asset in manifest["assets"]:
-        assert asset["source_family"] == "delivered talk"
         assert _sha256(figure_dir / asset["filename"]) == asset["sha256"]
-        assert (figure_dir / asset["filename"]).read_bytes() == (
-            PROJECT_ROOT / "LW post" / "deprecated" / "figures" / asset["filename"]
-        ).read_bytes()
+        if asset["filename"] in TALK_COPY_FIGURES:
+            assert asset["source_family"] == "delivered talk"
+            assert (figure_dir / asset["filename"]).read_bytes() == (
+                PROJECT_ROOT
+                / "LW post"
+                / "deprecated"
+                / "figures"
+                / asset["filename"]
+            ).read_bytes()
+        else:
+            assert asset["source_family"] == (
+                "reimplemented from hash-pinned talk-era pilot artifacts"
+            )
 
 
 def test_post_uses_every_active_figure_and_no_rejected_redesign_asset():
@@ -61,8 +90,11 @@ def test_post_uses_every_active_figure_and_no_rejected_redesign_asset():
     image_targets = set(re.findall(r"!\[[^]]*\]\(([^)]+)\)", post))
     assert image_targets == {
         f"https://charlesr-w.github.io/Tracking2/figures/{name}"
-        for name in CANONICAL_FIGURES
+        for name in POST_FIGURES
     }
+    assert (
+        "https://charlesr-w.github.io/Tracking2/waterfalls.html" in post
+    )
     assert "conceptual_internal_cut.svg" not in post
     assert "class_conditioned_pushforward_pca.svg" not in post
     assert "cnn_measured_controls.png" not in post
@@ -117,3 +149,4 @@ def test_pages_surface_is_appendix_plus_manifest_assets_only():
     assert "report.html" not in workflow
     for basename in CANONICAL_FIGURES:
         assert workflow.count(f'LW post/figures/{basename}') == 1
+    assert workflow.count('LW post/waterfalls.html') == 1

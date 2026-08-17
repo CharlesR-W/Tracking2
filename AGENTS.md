@@ -48,21 +48,27 @@ only when the corresponding experiment is in scope.
 
 - The current post is `LW post/free-body-diagrams-for-neural-networks.md`.
 - `LW post/figure_manifest.json` is the exact active-figure allowlist. Active
-  illustrations and GIFs are byte-identical copies from the delivered-talk
-  family preserved under `LW post/deprecated/`.
+  method illustrations are byte-identical delivered-talk copies. Active
+  waterfall GIFs/static fallbacks are deterministic outputs of
+  `scripts/build_waterfall_visuals.py` from the hash-pinned
+  `artifacts/waterfall_visuals/manifest.json` inputs.
 - The July 2026 redesign is rejected. Nothing under
   `LW post/deprecated/rejected-2026-07-redesign/` may be promoted into the post,
   Pages workflow, or current documentation without an explicit new user decision.
 - Keep the two evidence layers distinct: the GIF/waterfall views are historical
   pilots; the July 26 three-seed CNN battery is the controlled quantitative
   evidence. `RESULTS.md` records the permitted claims and non-claims.
+- ResNet-18 is the canonical explanatory waterfall example, not independent-seed
+  or canonical quantitative evidence. Do not relabel its three redraws as model
+  replications.
 - `artifacts/lw_post/dashboard_manifest.json` and
   `artifacts/lw_post/provenance_corrections.json` pin the controlled evidence.
   Do not edit measured JSON to repair provenance; use the audited correction
   mechanism and rerun the verifier.
 - The tracked HTML appendix is generated from the manifest and must remain
-  byte-identical to a fresh build. GitHub Pages publishes only that appendix and
-  the figure-manifest allowlist.
+  byte-identical to a fresh build. The waterfall viewer and generated exports
+  have the same byte-identity requirement. GitHub Pages publishes those two
+  HTML surfaces and the figure-manifest allowlist.
 
 ## Repository boundaries
 
@@ -85,8 +91,9 @@ only when the corresponding experiment is in scope.
 - Code changes: run focused tests plus the full suite when behavior crosses
   subsystem boundaries.
 - Post, figure, manifest, appendix, or Pages changes: run the committed-profile
-  publication verifier and `tests/test_publication_layout.py`; visually inspect
-  changed rendered media.
+  publication verifier, `tests/test_publication_layout.py`, and the relevant
+  visual builder tests; visually inspect first/middle/final GIF frames and the
+  desktop/mobile viewer.
 - Evidence changes: preserve source/config identities, artifact hashes, seed as
   the independent unit, and explicit mock/pilot/measured labels. Update
   `RESULTS.md` when trusted claims or their boundaries change.

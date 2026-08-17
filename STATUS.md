@@ -2,9 +2,9 @@
 
 ## Current state
 
-The corrected LessWrong publication package is ready for the author to paste
-into LessWrong. It is committed on `main` and its evidence appendix and assets
-are deployed. The post itself has not been published to LessWrong.
+The corrected LessWrong package remains unpublished on LessWrong. A new active
+task is reimplementing its talk-era waterfall plots from pinned saved artifacts,
+with ResNet-18 as the explanatory lead and CNN views as secondary comparisons.
 
 ## Working and verified
 
@@ -20,17 +20,20 @@ are deployed. The post itself has not been published to LessWrong.
 
 ## Open work and blockers
 
-Only the LessWrong platform preview and publication remain. There is no code or
-evidence blocker. The GIF/waterfall figures are historical pilots rather than
-independent-seed evidence; `RESULTS.md` records the controlled claim boundary.
+Some within-epoch CNN artifacts used by the old talk GIF are not checked in, so
+the reproducible replacement will use the complete six-checkpoint coarse sweep.
+The waterfall figures remain historical pilots rather than independent-seed
+evidence; `RESULTS.md` records the controlled claim boundary.
 
 ## Next action
 
-Paste the prepared Markdown into LessWrong and perform the platform preview.
+Complete and verify the ResNet-first waterfall viewer and regenerated GIFs before
+performing the LessWrong platform preview.
 
 ## Active handoffs
 
-None. The cleanup handoff is retained as a deprecated historical record.
+- `docs/handoffs/waterfall-visual-reimplementation.md` — read when resuming the
+  current waterfall/GIF reconstruction.
 
 ## Where to look
 

@@ -13,6 +13,8 @@ The current decision-relevant result supports
 - measured inputs: `artifacts/lw_post/measured/`
 - audited provenance corrections: `artifacts/lw_post/provenance_corrections.json`
 - active visual lineage: `LW post/figure_manifest.json`
+- ResNet-first pilot explorer: `LW post/waterfalls.html`
+- pinned pilot inputs: `artifacts/waterfall_visuals/manifest.json`
 - reproduction protocol: `LW post/lw_post_reproduction.md`
 
 The controlled follow-up uses three independently trained small-CNN seeds. The
@@ -35,6 +37,9 @@ a representation-only depth effect.
 - The CNN and ResNet GIF/waterfall plots are historical pilots used to illustrate
   the phenomenon. CNN frames came from separately scheduled models; the ResNet
   view used one trained model. They are not independent-seed replications.
+- ResNet-18 is the canonical explanatory visualization because its eight native
+  cuts make the depth profile legible. It remains one model; three redraws per
+  cell measure generated-activation/minibatch variation, not model uncertainty.
 - The shallow rank-2,048 projection has cross-entropy excess $0.0154$ nat and
   predictive KL $0.0373$ nat. It passes the $0.05$-nat cross-entropy threshold
   but fails the $0.02$-nat KL threshold, so it does not establish preservation of

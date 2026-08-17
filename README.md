@@ -25,9 +25,13 @@ an exploratory research note about applying distributional-simplicity probes
 at internal network cuts.
 
 - [`LW post/`](LW%20post/) collects the publication post, reproduction notes,
-  hash-pinned active figure manifest, trusted talk-family visuals, and the
-  interactive appendix. The rejected July redesign and unused historical
-  assets are under [`LW post/deprecated/`](LW%20post/deprecated/).
+  hash-pinned active figure manifest, delivered-talk method visuals,
+  reproducible waterfall exports, and the interactive appendix. The rejected
+  July redesign and unused historical assets are under
+  [`LW post/deprecated/`](LW%20post/deprecated/).
+- [`LW post/waterfalls.html`](LW%20post/waterfalls.html) is the self-contained
+  ResNet-first explorer for the historical pilot animations. It can switch
+  between signed-waterfall and common-baseline endpoint views.
 - [`LW post/lw_post_reproduction.md`](LW%20post/lw_post_reproduction.md) gives the
   bounded protocol, controls, smoke test, measured run commands, and evidence
   gate.
@@ -46,6 +50,10 @@ Smoke data, unrun experiments, and mockups remain outside both surfaces.
 See [`RESULTS.md`](RESULTS.md) for the canonical headline, limitations, and
 publication lineage.
 
+The waterfall viewer and three GIFs are reproducibly built from 29 hash-pinned
+saved pilot artifacts. ResNet-18 is the canonical explanatory example; the
+three-seed CNN battery remains the controlled quantitative result.
+
 Rebuild the appendix from the checked-in, hash-pinned manifest with:
 
 ```bash
@@ -62,8 +70,9 @@ checked-in publication gate. The old rank-512 runner and verifier are isolated
 under `scripts/deprecated/lw_post/`; do not use them to verify or rerun the July
 26 publication battery. No GPU rerun is required for the current bounded claim.
 GitHub Pages rebuilds the canonical file from the committed evidence manifest,
-checks it against the tracked HTML, validates the separate figure manifest, and
-publishes only that appendix plus the active trusted figures.
+checks it against the tracked HTML, rebuilds the waterfall viewer/exports,
+validates the separate figure manifest, and publishes the appendix, waterfall
+viewer, and active trusted figures.
 
 ## Implemented
 
