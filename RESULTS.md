@@ -57,6 +57,11 @@ a representation-only depth effect.
 - `6079743` restored the trusted post/talk asset family and isolated the rejected
   redesign under `LW post/deprecated/rejected-2026-07-redesign/`.
 - `6c0bdd5` records the completed release and documentation state.
+- `c5d6f0d` reimplemented the pilot waterfalls from 29 pinned JSON inputs,
+  promoted ResNet-18 as the explanatory lead, and generated the viewer plus
+  eight deterministic static/animated exports without rerunning training.
+- `688e3bb` pinned the clean-runner dependencies used to verify and deploy those
+  exports on GitHub Pages.
 
 The rejected presentation included two plots of genuine measured data. Their
 archival status rejects that post/figure lineage, not the underlying controlled
@@ -75,10 +80,11 @@ JSON evidence.
 
 ## Verification
 
-Last verified 2026-08-17 for publication content revision `6079743`: 106 tests
-passed; the committed publication verifier passed all
-measured inputs, provenance corrections, headline cells, active figure hashes,
-and deterministic appendix identity. Independent reader, evidence, and final
-verification reviews passed. The documentation-only GitHub Pages deployment at
-`6c0bdd5` (run `32047025413`) succeeded, and the live appendix hash matched the
-tracked file.
+Last verified 2026-08-17 for waterfall content revision `c5d6f0d`: 109 tests
+passed, followed by 8 focused waterfall/layout tests. The committed publication
+verifier passed 9 measured inputs, 3 audited corrections, 4 headline cells, 14
+active figure hashes, 8 byte-identical waterfall exports, the byte-identical
+viewer, and deterministic appendix identity. Independent reader, evidence, and
+final verification reviews of the underlying release also passed. GitHub Pages
+run `32051457837` deployed revision `688e3bb`; the live viewer, all three GIFs,
+and appendix matched the tracked files by SHA-256.

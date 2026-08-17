@@ -1,6 +1,7 @@
 # Waterfall visual reimplementation
 
-Status: Active
+Status: Deprecated — completed 2026-08-17; superseded by content commit
+`c5d6f0d`, `STATUS.md`, `RESULTS.md`, and `AGENTS.md`.
 
 ## Objective
 
@@ -36,19 +37,34 @@ the three-seed controlled CNN evidence.
   not additive components. The interactive viewer will also expose a
   common-baseline endpoint view for exact comparison.
 
-## Current work
+## Completed implementation
 
-The archived builders and all three talk GIFs have been inspected. Input schema
-and availability are being pinned before implementing the new builder.
+- `src/tracking2/waterfall_visuals.py` is the single artifact-reading
+  implementation for the self-contained viewer, three GIFs, and five static
+  exports.
+- `artifacts/waterfall_visuals/manifest.json` pins 29 measured JSON inputs by
+  path and SHA-256. No training code or checkpoint rerun is involved.
+- ResNet-18 leads the post and viewer. The CNN depth and relaxation views remain
+  secondary comparisons, and their pilot evidence boundary is explicit.
+- `LW post/figure_manifest.json`, the Pages workflow, publication verifier, and
+  project documentation all identify the same 14 active assets.
 
-## Validation pending
+## Completed validation
 
-- Unit tests for extraction, hashes, fixed axes, output timing, and deterministic
-  regeneration.
-- Headless desktop/mobile viewer render with JavaScript-error capture.
-- Visual inspection of first, middle, and final frames for every GIF.
-- Full publication verifier and layout tests after integration.
+- The full suite passed with 109 tests; the final focused waterfall/layout run
+  passed 8 tests.
+- Fixed axes, source semantics, frame counts, timing, input hashes, and
+  byte-identical regeneration are tested.
+- Desktop and mobile headless renders reported three plots and no JavaScript
+  errors. The first, middle, and final frames of every GIF were visually
+  inspected.
+- The committed publication verifier passed the 29 pilot inputs, 8 waterfall
+  exports, 14 active figures, byte-identical viewer, and byte-identical
+  appendix.
+- GitHub Pages run `32051457837` succeeded; live viewer, GIF, and appendix bytes
+  matched the tracked assets.
 
 ## Next action
 
-Add the pinned input manifest and shared artifact-to-visual payload builder.
+Perform the human LessWrong platform preview described in `STATUS.md`; no
+waterfall implementation work remains.
