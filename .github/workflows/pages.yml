@@ -24,6 +24,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install deterministic waterfall build dependencies
+        run: |
+          python -m pip install \
+            matplotlib==3.11.1 \
+            numpy==1.26.4 \
+            pillow==11.3.0 \
+            plotly==6.9.0
       - name: Build measured-only data appendix
         run: |
           PYTHONPATH=src python scripts/verify_lw_post_publication.py --profile committed
