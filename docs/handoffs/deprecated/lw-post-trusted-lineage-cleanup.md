@@ -1,6 +1,7 @@
 # LessWrong post trusted-lineage cleanup
 
-Status: Completed 2026-08-17; superseded by corrective commit `6079743`
+Status: Deprecated — completed 2026-08-17; superseded by `RESULTS.md`,
+`AGENTS.md`, and corrective commit `6079743`
 
 ## Objective
 

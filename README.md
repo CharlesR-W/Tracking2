@@ -3,6 +3,20 @@
 Fresh CIFAR experiments on selected-statistics surrogates and layerwise tracking.
 The research design is in `SPEC.md`.
 
+## Documentation map
+
+- [`STATUS.md`](STATUS.md) — current state, open work, next action, and active
+  handoffs.
+- [`AGENTS.md`](AGENTS.md) — agent navigation, commands, scientific invariants,
+  repository boundaries, and validation requirements.
+- [`ARCHITECTURE.md`](ARCHITECTURE.md) — component responsibilities, data flow,
+  schemas, boundaries, and where-to-change guidance.
+- [`RESULTS.md`](RESULTS.md) — trusted measured results, claim boundaries,
+  lineage, and evidence pointers.
+- [`SPEC.md`](SPEC.md) — research design.
+- [`LW post/README.md`](LW%20post/README.md) — publication-package layout and
+  active-versus-deprecated asset map.
+
 ## LessWrong research-note companion
 
 The current public-facing thread of the project is
@@ -29,6 +43,8 @@ control battery. The post also shows the older CNN and one-model ResNet
 animations as explicitly labelled historical pilots; they are outside the
 dashboard evidence manifest and do not support its quantitative headline.
 Smoke data, unrun experiments, and mockups remain outside both surfaces.
+See [`RESULTS.md`](RESULTS.md) for the canonical headline, limitations, and
+publication lineage.
 
 Rebuild the appendix from the checked-in, hash-pinned manifest with:
 
