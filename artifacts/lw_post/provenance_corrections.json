@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "status": "AUDITED",
   "corrections": [
     {
@@ -14,7 +14,8 @@
       "affected_locations": [
         {
           "path": "measured/cnn_fixed_gate_seed0/cut1_r2048_true_eval_sensitivity.json",
-          "json_pointer": "/provenance/source_revision"
+          "json_pointer": "/provenance/source_revision",
+          "status": "recorded_value_present"
         }
       ]
     },
@@ -30,11 +31,13 @@
       "affected_locations": [
         {
           "path": "measured/training_manifests/cnn_seed0_training.json",
-          "json_pointer": "/provenance/source_revision"
+          "json_pointer": "/provenance/source_revision",
+          "status": "recorded_value_present"
         },
         {
           "path": "measured/cnn_projection_seed0/cut1_pca_adequacy.json",
-          "json_pointer": "/lineage/training_manifest/source_provenance/source_revision"
+          "json_pointer": "/lineage/training_manifest/source_provenance/source_revision",
+          "status": "recorded_value_present"
         }
       ]
     },
@@ -50,7 +53,9 @@
       "affected_locations": [
         {
           "path": "dashboard_manifest.json",
-          "json_pointer": "/source_commit"
+          "json_pointer": "/source_commit",
+          "status": "superseded_by_valid_commit",
+          "current_value": "3b03646281a5f9fee2c50c6d7dfbf566689e09b4"
         }
       ]
     }
