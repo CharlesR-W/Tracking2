@@ -5520,7 +5520,7 @@ def render_report(
     <div class="section-heading">
       <p class="eyebrow">Evidence in this build</p>
       <h2 id="evidence-heading">Ablations behind the main result</h2>
-      <p class="question">The post reports the robust depth pattern. This appendix
+      <p class="question">The post reports the three-seed depth contrast. This appendix
         shows which technical choices change its size or interpretation.</p>
     </div>
     {status_html}
